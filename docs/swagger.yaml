@@ -1,0 +1,970 @@
+basePath: /api/v1
+definitions:
+  github_com_MD2SA_backup-manager_internal_monitor.HealthStatus:
+    enum:
+    - healthy
+    - warning
+    - critical
+    type: string
+    x-enum-varnames:
+    - StatusHealthy
+    - StatusWarning
+    - StatusCritical
+  github_com_MD2SA_backup-manager_internal_monitor.HealthSummary:
+    properties:
+      active_profiles:
+        type: integer
+      last_execution_status:
+        type: string
+      last_success:
+        type: string
+      next_scheduled:
+        type: string
+      overdue_profiles:
+        type: integer
+      status:
+        $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_monitor.HealthStatus'
+      total_storage_used:
+        type: integer
+    type: object
+  github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.CreateNotificationProviderParams:
+    properties:
+      config:
+        items:
+          format: int32
+          type: integer
+        type: array
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.CreateProfileParams:
+    properties:
+      compressionLevel:
+        format: int32
+        type: integer
+      compressionType:
+        type: string
+      description:
+        $ref: '#/definitions/pgtype.Text'
+      enabled:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      notificationProviderID:
+        type: string
+      retentionPolicyID:
+        type: string
+      schedule:
+        type: string
+      storageProviderID:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.CreateRetentionPolicyParams:
+    properties:
+      id:
+        type: string
+      keepDaily:
+        format: int32
+        type: integer
+      keepHourly:
+        format: int32
+        type: integer
+      keepMonthly:
+        format: int32
+        type: integer
+      keepWeekly:
+        format: int32
+        type: integer
+      keepYearly:
+        format: int32
+        type: integer
+      name:
+        type: string
+      yearlyMonth:
+        format: int32
+        type: integer
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.CreateStorageProviderParams:
+    properties:
+      config:
+        items:
+          format: int32
+          type: integer
+        type: array
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.Execution:
+    properties:
+      checksum:
+        $ref: '#/definitions/pgtype.Text'
+      createdAt:
+        $ref: '#/definitions/pgtype.Timestamptz'
+      duration:
+        $ref: '#/definitions/pgtype.Interval'
+      endTime:
+        $ref: '#/definitions/pgtype.Timestamptz'
+      errorMessage:
+        $ref: '#/definitions/pgtype.Text'
+      id:
+        type: string
+      isPinned:
+        type: boolean
+      logs:
+        items:
+          format: int32
+          type: integer
+        type: array
+      profileID:
+        type: string
+      size:
+        $ref: '#/definitions/pgtype.Int8'
+      startTime:
+        $ref: '#/definitions/pgtype.Timestamptz'
+      status:
+        type: string
+      storagePath:
+        $ref: '#/definitions/pgtype.Text'
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.NotificationProvider:
+    properties:
+      config:
+        items:
+          format: int32
+          type: integer
+        type: array
+      createdAt:
+        $ref: '#/definitions/pgtype.Timestamptz'
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+      updatedAt:
+        $ref: '#/definitions/pgtype.Timestamptz'
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.Profile:
+    properties:
+      compressionLevel:
+        format: int32
+        type: integer
+      compressionType:
+        type: string
+      createdAt:
+        $ref: '#/definitions/pgtype.Timestamptz'
+      description:
+        $ref: '#/definitions/pgtype.Text'
+      enabled:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      notificationProviderID:
+        type: string
+      retentionPolicyID:
+        type: string
+      schedule:
+        type: string
+      storageProviderID:
+        type: string
+      updatedAt:
+        $ref: '#/definitions/pgtype.Timestamptz'
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.RetentionPolicy:
+    properties:
+      createdAt:
+        $ref: '#/definitions/pgtype.Timestamptz'
+      id:
+        type: string
+      keepDaily:
+        format: int32
+        type: integer
+      keepHourly:
+        format: int32
+        type: integer
+      keepMonthly:
+        format: int32
+        type: integer
+      keepWeekly:
+        format: int32
+        type: integer
+      keepYearly:
+        format: int32
+        type: integer
+      name:
+        type: string
+      updatedAt:
+        $ref: '#/definitions/pgtype.Timestamptz'
+      yearlyMonth:
+        format: int32
+        type: integer
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.StorageProvider:
+    properties:
+      config:
+        items:
+          format: int32
+          type: integer
+        type: array
+      createdAt:
+        $ref: '#/definitions/pgtype.Timestamptz'
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+      updatedAt:
+        $ref: '#/definitions/pgtype.Timestamptz'
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.UpdateNotificationProviderParams:
+    properties:
+      config:
+        items:
+          format: int32
+          type: integer
+        type: array
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.UpdateProfileParams:
+    properties:
+      compressionLevel:
+        format: int32
+        type: integer
+      compressionType:
+        type: string
+      description:
+        $ref: '#/definitions/pgtype.Text'
+      enabled:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      notificationProviderID:
+        type: string
+      retentionPolicyID:
+        type: string
+      schedule:
+        type: string
+      storageProviderID:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.UpdateRetentionPolicyParams:
+    properties:
+      id:
+        type: string
+      keepDaily:
+        format: int32
+        type: integer
+      keepHourly:
+        format: int32
+        type: integer
+      keepMonthly:
+        format: int32
+        type: integer
+      keepWeekly:
+        format: int32
+        type: integer
+      keepYearly:
+        format: int32
+        type: integer
+      name:
+        type: string
+      yearlyMonth:
+        format: int32
+        type: integer
+    type: object
+  github_com_MD2SA_backup-manager_internal_repository_db.UpdateStorageProviderParams:
+    properties:
+      config:
+        items:
+          format: int32
+          type: integer
+        type: array
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+    type: object
+  pgtype.InfinityModifier:
+    enum:
+    - 1
+    - 0
+    - -1
+    format: int32
+    type: integer
+    x-enum-varnames:
+    - Infinity
+    - Finite
+    - NegativeInfinity
+  pgtype.Int8:
+    properties:
+      int64:
+        format: int64
+        type: integer
+      valid:
+        type: boolean
+    type: object
+  pgtype.Interval:
+    properties:
+      days:
+        format: int32
+        type: integer
+      microseconds:
+        format: int64
+        type: integer
+      months:
+        format: int32
+        type: integer
+      valid:
+        type: boolean
+    type: object
+  pgtype.Text:
+    properties:
+      string:
+        type: string
+      valid:
+        type: boolean
+    type: object
+  pgtype.Timestamptz:
+    properties:
+      infinityModifier:
+        $ref: '#/definitions/pgtype.InfinityModifier'
+      time:
+        type: string
+      valid:
+        type: boolean
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: This is a backup management server for Postgres databases.
+  title: Backup Manager API
+  version: "1.0"
+paths:
+  /executions/{id}:
+    get:
+      description: Get full details of a specific backup execution, including logs
+      parameters:
+      - description: Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Execution'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Get execution details
+      tags:
+      - executions
+  /executions/{id}/pin:
+    post:
+      consumes:
+      - application/json
+      description: Prevent a backup execution from being automatically cleaned up
+        by pinning it
+      parameters:
+      - description: Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 'Pin status (e.g. {''pinned'': true})'
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Pin or unpin a backup execution
+      tags:
+      - executions
+  /executions/{id}/restore:
+    post:
+      description: Trigger a restoration process from a specific backup execution
+      parameters:
+      - description: Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "202":
+          description: Accepted
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Restore a backup
+      tags:
+      - restore
+  /health:
+    get:
+      description: Check if the API server is up and running
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Simple health check
+      tags:
+      - health
+  /health/summary:
+    get:
+      description: Get an aggregated view of system health, storage usage, and active
+        profiles
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_monitor.HealthSummary'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Get system health summary
+      tags:
+      - health
+  /notification-providers:
+    get:
+      description: Get a list of all configured notification providers (e.g. Discord)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.NotificationProvider'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: List all notification providers
+      tags:
+      - providers
+    post:
+      consumes:
+      - application/json
+      description: Configure a new destination for backup alerts
+      parameters:
+      - description: Notification provider configuration
+        in: body
+        name: provider
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.CreateNotificationProviderParams'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.NotificationProvider'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Create a new notification provider
+      tags:
+      - providers
+  /notification-providers/{id}:
+    delete:
+      description: Remove a notification provider configuration
+      parameters:
+      - description: Provider ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Delete a notification provider
+      tags:
+      - providers
+    put:
+      consumes:
+      - application/json
+      description: Update a notification provider's configuration by ID
+      parameters:
+      - description: Provider ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated configuration
+        in: body
+        name: provider
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.UpdateNotificationProviderParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.NotificationProvider'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Update an existing notification provider
+      tags:
+      - providers
+  /profiles:
+    get:
+      description: Get a list of all configured backup profiles
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Profile'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: List all backup profiles
+      tags:
+      - profiles
+    post:
+      consumes:
+      - application/json
+      description: Create a new backup profile with the specified configuration
+      parameters:
+      - description: Profile configuration
+        in: body
+        name: profile
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.CreateProfileParams'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Profile'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Create a new backup profile
+      tags:
+      - profiles
+  /profiles/{id}:
+    delete:
+      description: Delete a backup profile by its ID
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Delete a backup profile
+      tags:
+      - profiles
+    put:
+      consumes:
+      - application/json
+      description: Update a backup profile by its ID
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated profile configuration
+        in: body
+        name: profile
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.UpdateProfileParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Profile'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Update an existing backup profile
+      tags:
+      - profiles
+  /profiles/{id}/activate:
+    post:
+      description: Set a profile as the active one for scheduled backups. All other
+        profiles will be deactivated.
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Profile'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Activate a backup profile (sets as scheduled)
+      tags:
+      - profiles
+  /profiles/{id}/executions:
+    get:
+      description: Get a history of all backup executions for a profile
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Execution'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: List executions for a specific profile
+      tags:
+      - executions
+  /profiles/{id}/run:
+    post:
+      description: Trigger a backup execution for a specific profile now
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "202":
+          description: Accepted
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Run a backup profile immediately
+      tags:
+      - profiles
+  /retention-policies:
+    get:
+      description: Get a list of all configured retention policies (how many backups
+        to keep)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.RetentionPolicy'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: List all retention policies
+      tags:
+      - retention
+    post:
+      consumes:
+      - application/json
+      description: Define a new policy for automatic backup cleanup
+      parameters:
+      - description: Retention policy configuration
+        in: body
+        name: policy
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.CreateRetentionPolicyParams'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.RetentionPolicy'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Create a new retention policy
+      tags:
+      - retention
+  /retention-policies/{id}:
+    delete:
+      description: Remove a retention policy configuration
+      parameters:
+      - description: Policy ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Delete a retention policy
+      tags:
+      - retention
+    put:
+      consumes:
+      - application/json
+      description: Update a retention policy's configuration by ID
+      parameters:
+      - description: Policy ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated configuration
+        in: body
+        name: policy
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.UpdateRetentionPolicyParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.RetentionPolicy'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Update an existing retention policy
+      tags:
+      - retention
+  /storage-providers:
+    get:
+      description: Get a list of all configured storage providers (e.g. S3, Local)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.StorageProvider'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: List all storage providers
+      tags:
+      - providers
+    post:
+      consumes:
+      - application/json
+      description: Configure a new storage destination for backups
+      parameters:
+      - description: Storage provider configuration
+        in: body
+        name: provider
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.CreateStorageProviderParams'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.StorageProvider'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Create a new storage provider
+      tags:
+      - providers
+  /storage-providers/{id}:
+    delete:
+      description: Remove a storage provider configuration
+      parameters:
+      - description: Provider ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Delete a storage provider
+      tags:
+      - providers
+    put:
+      consumes:
+      - application/json
+      description: Update a storage provider's configuration by ID
+      parameters:
+      - description: Provider ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated configuration
+        in: body
+        name: provider
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.UpdateStorageProviderParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.StorageProvider'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Update an existing storage provider
+      tags:
+      - providers
+swagger: "2.0"

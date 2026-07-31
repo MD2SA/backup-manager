@@ -1,0 +1,1448 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "This is a backup management server for Postgres databases.",
+        "title": "Backup Manager API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api/v1",
+    "paths": {
+        "/executions/{id}": {
+            "get": {
+                "description": "Get full details of a specific backup execution, including logs",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "Get execution details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Execution"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/executions/{id}/pin": {
+            "post": {
+                "description": "Prevent a backup execution from being automatically cleaned up by pinning it",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "Pin or unpin a backup execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Pin status (e.g. {'pinned': true})",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/executions/{id}/restore": {
+            "post": {
+                "description": "Trigger a restoration process from a specific backup execution",
+                "tags": [
+                    "restore"
+                ],
+                "summary": "Restore a backup",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "description": "Check if the API server is up and running",
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Simple health check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/health/summary": {
+            "get": {
+                "description": "Get an aggregated view of system health, storage usage, and active profiles",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Get system health summary",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_monitor.HealthSummary"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-providers": {
+            "get": {
+                "description": "Get a list of all configured notification providers (e.g. Discord)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "List all notification providers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.NotificationProvider"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Configure a new destination for backup alerts",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Create a new notification provider",
+                "parameters": [
+                    {
+                        "description": "Notification provider configuration",
+                        "name": "provider",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.CreateNotificationProviderParams"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.NotificationProvider"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-providers/{id}": {
+            "put": {
+                "description": "Update a notification provider's configuration by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Update an existing notification provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated configuration",
+                        "name": "provider",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.UpdateNotificationProviderParams"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.NotificationProvider"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Remove a notification provider configuration",
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Delete a notification provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/profiles": {
+            "get": {
+                "description": "Get a list of all configured backup profiles",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profiles"
+                ],
+                "summary": "List all backup profiles",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Profile"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new backup profile with the specified configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profiles"
+                ],
+                "summary": "Create a new backup profile",
+                "parameters": [
+                    {
+                        "description": "Profile configuration",
+                        "name": "profile",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.CreateProfileParams"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Profile"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/profiles/{id}": {
+            "put": {
+                "description": "Update a backup profile by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profiles"
+                ],
+                "summary": "Update an existing backup profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated profile configuration",
+                        "name": "profile",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.UpdateProfileParams"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Profile"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a backup profile by its ID",
+                "tags": [
+                    "profiles"
+                ],
+                "summary": "Delete a backup profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/profiles/{id}/activate": {
+            "post": {
+                "description": "Set a profile as the active one for scheduled backups. All other profiles will be deactivated.",
+                "tags": [
+                    "profiles"
+                ],
+                "summary": "Activate a backup profile (sets as scheduled)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Profile"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/profiles/{id}/executions": {
+            "get": {
+                "description": "Get a history of all backup executions for a profile",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "List executions for a specific profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Execution"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/profiles/{id}/run": {
+            "post": {
+                "description": "Trigger a backup execution for a specific profile now",
+                "tags": [
+                    "profiles"
+                ],
+                "summary": "Run a backup profile immediately",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/retention-policies": {
+            "get": {
+                "description": "Get a list of all configured retention policies (how many backups to keep)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "retention"
+                ],
+                "summary": "List all retention policies",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.RetentionPolicy"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Define a new policy for automatic backup cleanup",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "retention"
+                ],
+                "summary": "Create a new retention policy",
+                "parameters": [
+                    {
+                        "description": "Retention policy configuration",
+                        "name": "policy",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.CreateRetentionPolicyParams"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.RetentionPolicy"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/retention-policies/{id}": {
+            "put": {
+                "description": "Update a retention policy's configuration by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "retention"
+                ],
+                "summary": "Update an existing retention policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Policy ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated configuration",
+                        "name": "policy",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.UpdateRetentionPolicyParams"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.RetentionPolicy"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Remove a retention policy configuration",
+                "tags": [
+                    "retention"
+                ],
+                "summary": "Delete a retention policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Policy ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-providers": {
+            "get": {
+                "description": "Get a list of all configured storage providers (e.g. S3, Local)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "List all storage providers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.StorageProvider"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Configure a new storage destination for backups",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Create a new storage provider",
+                "parameters": [
+                    {
+                        "description": "Storage provider configuration",
+                        "name": "provider",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.CreateStorageProviderParams"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.StorageProvider"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-providers/{id}": {
+            "put": {
+                "description": "Update a storage provider's configuration by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Update an existing storage provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated configuration",
+                        "name": "provider",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.UpdateStorageProviderParams"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.StorageProvider"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Remove a storage provider configuration",
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Delete a storage provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "github_com_MD2SA_backup-manager_internal_monitor.HealthStatus": {
+            "type": "string",
+            "enum": [
+                "healthy",
+                "warning",
+                "critical"
+            ],
+            "x-enum-varnames": [
+                "StatusHealthy",
+                "StatusWarning",
+                "StatusCritical"
+            ]
+        },
+        "github_com_MD2SA_backup-manager_internal_monitor.HealthSummary": {
+            "type": "object",
+            "properties": {
+                "active_profiles": {
+                    "type": "integer"
+                },
+                "last_execution_status": {
+                    "type": "string"
+                },
+                "last_success": {
+                    "type": "string"
+                },
+                "next_scheduled": {
+                    "type": "string"
+                },
+                "overdue_profiles": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_monitor.HealthStatus"
+                },
+                "total_storage_used": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.CreateNotificationProviderParams": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.CreateProfileParams": {
+            "type": "object",
+            "properties": {
+                "compressionLevel": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "compressionType": {
+                    "type": "string"
+                },
+                "description": {
+                    "$ref": "#/definitions/pgtype.Text"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notificationProviderID": {
+                    "type": "string"
+                },
+                "retentionPolicyID": {
+                    "type": "string"
+                },
+                "schedule": {
+                    "type": "string"
+                },
+                "storageProviderID": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.CreateRetentionPolicyParams": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "keepDaily": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "keepHourly": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "keepMonthly": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "keepWeekly": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "keepYearly": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "yearlyMonth": {
+                    "type": "integer",
+                    "format": "int32"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.CreateStorageProviderParams": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.Execution": {
+            "type": "object",
+            "properties": {
+                "checksum": {
+                    "$ref": "#/definitions/pgtype.Text"
+                },
+                "createdAt": {
+                    "$ref": "#/definitions/pgtype.Timestamptz"
+                },
+                "duration": {
+                    "$ref": "#/definitions/pgtype.Interval"
+                },
+                "endTime": {
+                    "$ref": "#/definitions/pgtype.Timestamptz"
+                },
+                "errorMessage": {
+                    "$ref": "#/definitions/pgtype.Text"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isPinned": {
+                    "type": "boolean"
+                },
+                "logs": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "profileID": {
+                    "type": "string"
+                },
+                "size": {
+                    "$ref": "#/definitions/pgtype.Int8"
+                },
+                "startTime": {
+                    "$ref": "#/definitions/pgtype.Timestamptz"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "storagePath": {
+                    "$ref": "#/definitions/pgtype.Text"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.NotificationProvider": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "createdAt": {
+                    "$ref": "#/definitions/pgtype.Timestamptz"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "$ref": "#/definitions/pgtype.Timestamptz"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.Profile": {
+            "type": "object",
+            "properties": {
+                "compressionLevel": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "compressionType": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "$ref": "#/definitions/pgtype.Timestamptz"
+                },
+                "description": {
+                    "$ref": "#/definitions/pgtype.Text"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notificationProviderID": {
+                    "type": "string"
+                },
+                "retentionPolicyID": {
+                    "type": "string"
+                },
+                "schedule": {
+                    "type": "string"
+                },
+                "storageProviderID": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "$ref": "#/definitions/pgtype.Timestamptz"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.RetentionPolicy": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "$ref": "#/definitions/pgtype.Timestamptz"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "keepDaily": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "keepHourly": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "keepMonthly": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "keepWeekly": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "keepYearly": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "$ref": "#/definitions/pgtype.Timestamptz"
+                },
+                "yearlyMonth": {
+                    "type": "integer",
+                    "format": "int32"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.StorageProvider": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "createdAt": {
+                    "$ref": "#/definitions/pgtype.Timestamptz"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "$ref": "#/definitions/pgtype.Timestamptz"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.UpdateNotificationProviderParams": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.UpdateProfileParams": {
+            "type": "object",
+            "properties": {
+                "compressionLevel": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "compressionType": {
+                    "type": "string"
+                },
+                "description": {
+                    "$ref": "#/definitions/pgtype.Text"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notificationProviderID": {
+                    "type": "string"
+                },
+                "retentionPolicyID": {
+                    "type": "string"
+                },
+                "schedule": {
+                    "type": "string"
+                },
+                "storageProviderID": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.UpdateRetentionPolicyParams": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "keepDaily": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "keepHourly": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "keepMonthly": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "keepWeekly": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "keepYearly": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "yearlyMonth": {
+                    "type": "integer",
+                    "format": "int32"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_repository_db.UpdateStorageProviderParams": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "pgtype.InfinityModifier": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+                1,
+                0,
+                -1
+            ],
+            "x-enum-varnames": [
+                "Infinity",
+                "Finite",
+                "NegativeInfinity"
+            ]
+        },
+        "pgtype.Int8": {
+            "type": "object",
+            "properties": {
+                "int64": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "pgtype.Interval": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "microseconds": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "months": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "pgtype.Text": {
+            "type": "object",
+            "properties": {
+                "string": {
+                    "type": "string"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "pgtype.Timestamptz": {
+            "type": "object",
+            "properties": {
+                "infinityModifier": {
+                    "$ref": "#/definitions/pgtype.InfinityModifier"
+                },
+                "time": {
+                    "type": "string"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        }
+    }
+}
