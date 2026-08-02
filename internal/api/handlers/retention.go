@@ -24,7 +24,7 @@ type RetentionHandler struct {
 // @Description - keep_daily: Last N days.
 // @Description - keep_weekly: Last N weeks.
 // @Description - yearly_month: The month (1-12) chosen for yearly preservation.
-// @Tags retention
+// @Tags retention-policies
 // @Produce json
 // @Success 200 {array} dto.RetentionPolicyResponse
 // @Failure 500 {object} apiutil.ErrorResponse
@@ -50,7 +50,7 @@ func (h *RetentionHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Description Fields define the 'Grandfather-Father-Son' retention strategy:
 // @Description - keep_daily: 7 means keep one backup per day for 7 days.
 // @Description - yearly_month: 1 means the January backup is kept as the yearly one.
-// @Tags retention
+// @Tags retention-policies
 // @Accept json
 // @Produce json
 // @Param policy body dto.RetentionPolicyRequest true "Retention policy configuration"
@@ -92,7 +92,7 @@ func (h *RetentionHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Summary Update an existing retention policy
 // @Description Update a retention policy's configuration by ID.
 // @Description Allows changing how many backups are kept at each level.
-// @Tags retention
+// @Tags retention-policies
 // @Accept json
 // @Produce json
 // @Param id path string true "Policy ID"
@@ -141,7 +141,7 @@ func (h *RetentionHandler) Update(w http.ResponseWriter, r *http.Request) {
 // Delete retention policy
 // @Summary Delete a retention policy
 // @Description Remove a retention policy configuration
-// @Tags retention
+// @Tags retention-policies
 // @Param id path string true "Policy ID"
 // @Success 204 "No Content"
 // @Failure 500 {object} apiutil.ErrorResponse

@@ -113,7 +113,7 @@ const docTemplate = `{
             "post": {
                 "description": "Trigger a restoration process from a specific backup execution",
                 "tags": [
-                    "restore"
+                    "executions"
                 ],
                 "summary": "Restore a backup",
                 "parameters": [
@@ -197,7 +197,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "providers"
+                    "notification-providers"
                 ],
                 "summary": "List all notification providers",
                 "responses": {
@@ -227,7 +227,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "providers"
+                    "notification-providers"
                 ],
                 "summary": "Create a new notification provider",
                 "parameters": [
@@ -273,7 +273,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "providers"
+                    "notification-providers"
                 ],
                 "summary": "Update an existing notification provider",
                 "parameters": [
@@ -318,7 +318,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Remove a notification provider configuration",
                 "tags": [
-                    "providers"
+                    "notification-providers"
                 ],
                 "summary": "Delete a notification provider",
                 "parameters": [
@@ -372,7 +372,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Create a new backup profile with the specified configuration.\nRequires a valid storage_provider_id and retention_policy_id.\nThe schedule must be a valid cron expression (e.g., \"0 0 * * *\").",
+                "description": "Create a new backup profile with the specified configuration.\nRequires at least one storage_provider_ids and a retention_policy_id.\nThe schedule must be a valid cron expression (e.g., \"0 0 * * *\").",
                 "consumes": [
                     "application/json"
                 ],
@@ -620,7 +620,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "retention"
+                    "retention-policies"
                 ],
                 "summary": "List all retention policies",
                 "responses": {
@@ -650,7 +650,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "retention"
+                    "retention-policies"
                 ],
                 "summary": "Create a new retention policy",
                 "parameters": [
@@ -696,7 +696,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "retention"
+                    "retention-policies"
                 ],
                 "summary": "Update an existing retention policy",
                 "parameters": [
@@ -741,7 +741,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Remove a retention policy configuration",
                 "tags": [
-                    "retention"
+                    "retention-policies"
                 ],
                 "summary": "Delete a retention policy",
                 "parameters": [
@@ -773,7 +773,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "providers"
+                    "storage-providers"
                 ],
                 "summary": "List all storage providers",
                 "responses": {
@@ -803,7 +803,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "providers"
+                    "storage-providers"
                 ],
                 "summary": "Create a new storage provider",
                 "parameters": [
@@ -849,7 +849,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "providers"
+                    "storage-providers"
                 ],
                 "summary": "Update an existing storage provider",
                 "parameters": [
@@ -894,7 +894,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Remove a storage provider configuration",
                 "tags": [
-                    "providers"
+                    "storage-providers"
                 ],
                 "summary": "Delete a storage provider",
                 "parameters": [
@@ -1028,7 +1028,7 @@ const docTemplate = `{
                 "name",
                 "retention_policy_id",
                 "schedule",
-                "storage_provider_id"
+                "storage_provider_ids"
             ],
             "properties": {
                 "compression_level": {
@@ -1052,8 +1052,11 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "notification_provider_id": {
-                    "type": "string"
+                "notification_provider_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "retention_policy_id": {
                     "type": "string"
@@ -1061,8 +1064,12 @@ const docTemplate = `{
                 "schedule": {
                     "type": "string"
                 },
-                "storage_provider_id": {
-                    "type": "string"
+                "storage_provider_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -1090,8 +1097,11 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "notification_provider_id": {
-                    "type": "string"
+                "notification_provider_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "retention_policy_id": {
                     "type": "string"
@@ -1099,8 +1109,11 @@ const docTemplate = `{
                 "schedule": {
                     "type": "string"
                 },
-                "storage_provider_id": {
-                    "type": "string"
+                "storage_provider_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "updated_at": {
                     "type": "string"

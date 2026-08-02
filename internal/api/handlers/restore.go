@@ -19,7 +19,7 @@ type RestoreHandler struct {
 // Restore execution
 // @Summary Restore a backup
 // @Description Trigger a restoration process from a specific backup execution
-// @Tags restore
+// @Tags executions
 // @Param id path string true "Execution ID"
 // @Success 202 "Accepted"
 // @Failure 400 {object} apiutil.ErrorResponse

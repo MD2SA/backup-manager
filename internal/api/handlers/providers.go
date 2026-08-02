@@ -22,7 +22,7 @@ type ProviderHandler struct {
 // @Description The 'config' field varies by 'type':
 // @Description - 'local': Use {"path": "/tmp/backups"} to define the base directory on the server.
 // @Description - 's3': Use {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."} for AWS S3 compatible storage.
-// @Tags providers
+// @Tags storage-providers
 // @Produce json
 // @Success 200 {array} dto.StorageProviderResponse
 // @Failure 500 {object} apiutil.ErrorResponse
@@ -48,7 +48,7 @@ func (h *ProviderHandler) ListStorage(w http.ResponseWriter, r *http.Request) {
 // @Description You must specify a 'type' and its corresponding 'config' object:
 // @Description - 'local': Base directory for storing backups locally. Requires 'path'.
 // @Description - 's3': AWS S3 or compatible storage. Requires 'region', 'bucket', 'access_key', and 'secret_key'.
-// @Tags providers
+// @Tags storage-providers
 // @Accept json
 // @Produce json
 // @Param provider body dto.StorageProviderRequest true "Storage provider configuration"
@@ -88,7 +88,7 @@ func (h *ProviderHandler) CreateStorage(w http.ResponseWriter, r *http.Request) 
 // @Description Ensure the 'config' object matches the 'type':
 // @Description - 'local': {"path": "/tmp/backups"}
 // @Description - 's3': {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."}
-// @Tags providers
+// @Tags storage-providers
 // @Accept json
 // @Produce json
 // @Param id path string true "Provider ID"
@@ -133,7 +133,7 @@ func (h *ProviderHandler) UpdateStorage(w http.ResponseWriter, r *http.Request) 
 // Delete storage provider
 // @Summary Delete a storage provider
 // @Description Remove a storage provider configuration
-// @Tags providers
+// @Tags storage-providers
 // @Param id path string true "Provider ID"
 // @Success 204 "No Content"
 // @Failure 500 {object} apiutil.ErrorResponse
@@ -157,7 +157,7 @@ func (h *ProviderHandler) DeleteStorage(w http.ResponseWriter, r *http.Request) 
 // @Description Get a list of all configured notification providers.
 // @Description The 'config' field varies by 'type':
 // @Description - 'discord': Requires {"webhook_url": "https://discord.com/api/webhooks/..."} to send alerts to a Discord channel.
-// @Tags providers
+// @Tags notification-providers
 // @Produce json
 // @Success 200 {array} dto.NotificationProviderResponse
 // @Failure 500 {object} apiutil.ErrorResponse
@@ -182,7 +182,7 @@ func (h *ProviderHandler) ListNotification(w http.ResponseWriter, r *http.Reques
 // @Description Configure a new destination for backup alerts.
 // @Description You must specify a 'type' and its corresponding 'config' object:
 // @Description - 'discord': Requires 'webhook_url' in the config object.
-// @Tags providers
+// @Tags notification-providers
 // @Accept json
 // @Produce json
 // @Param provider body dto.NotificationProviderRequest true "Notification provider configuration"
@@ -221,7 +221,7 @@ func (h *ProviderHandler) CreateNotification(w http.ResponseWriter, r *http.Requ
 // @Description Update a notification provider's configuration by ID.
 // @Description Ensure the 'config' object matches the 'type':
 // @Description - 'discord': {"webhook_url": "https://discord.com/api/webhooks/..."}
-// @Tags providers
+// @Tags notification-providers
 // @Accept json
 // @Produce json
 // @Param id path string true "Provider ID"
@@ -266,7 +266,7 @@ func (h *ProviderHandler) UpdateNotification(w http.ResponseWriter, r *http.Requ
 // Delete notification provider
 // @Summary Delete a notification provider
 // @Description Remove a notification provider configuration
-// @Tags providers
+// @Tags notification-providers
 // @Param id path string true "Provider ID"
 // @Success 204 "No Content"
 // @Failure 500 {object} apiutil.ErrorResponse
