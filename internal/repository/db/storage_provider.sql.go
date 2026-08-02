@@ -14,30 +14,23 @@ import (
 
 const createStorageProvider = `-- name: CreateStorageProvider :one
 INSERT INTO storage_providers (
-    id,
     name,
     type,
     config
 ) VALUES (
-    $1,$2,$3,$4
+    $1,$2,$3
 )
 RETURNING id, name, type, config, created_at, updated_at
 `
 
 type CreateStorageProviderParams struct {
-	ID     pgtype.UUID
 	Name   string
 	Type   string
 	Config json.RawMessage
 }
 
 func (q *Queries) CreateStorageProvider(ctx context.Context, arg CreateStorageProviderParams) (StorageProvider, error) {
-	row := q.db.QueryRow(ctx, createStorageProvider,
-		arg.ID,
-		arg.Name,
-		arg.Type,
-		arg.Config,
-	)
+	row := q.db.QueryRow(ctx, createStorageProvider, arg.Name, arg.Type, arg.Config)
 	var i StorageProvider
 	err := row.Scan(
 		&i.ID,

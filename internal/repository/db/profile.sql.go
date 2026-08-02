@@ -26,7 +26,6 @@ func (q *Queries) ActivateProfile(ctx context.Context, id pgtype.UUID) error {
 
 const createProfile = `-- name: CreateProfile :one
 INSERT INTO profiles (
-    id,
     name,
     description,
     enabled,
@@ -37,13 +36,12 @@ INSERT INTO profiles (
     compression_type,
     compression_level
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10
+    $1,$2,$3,$4,$5,$6,$7,$8,$9
 )
 RETURNING id, name, description, enabled, schedule, storage_provider_id, notification_provider_id, retention_policy_id, compression_type, compression_level, created_at, updated_at
 `
 
 type CreateProfileParams struct {
-	ID                     pgtype.UUID
 	Name                   string
 	Description            pgtype.Text
 	Enabled                bool
@@ -57,7 +55,6 @@ type CreateProfileParams struct {
 
 func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (Profile, error) {
 	row := q.db.QueryRow(ctx, createProfile,
-		arg.ID,
 		arg.Name,
 		arg.Description,
 		arg.Enabled,

@@ -68,7 +68,6 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params.ID = pgutil.NewUUID()
 	profile, err := h.Repo.CreateProfile(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)

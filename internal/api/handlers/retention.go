@@ -57,7 +57,6 @@ func (h *RetentionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		apiutil.Error(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	params.ID = pgutil.NewUUID()
 	policy, err := h.Repo.CreateRetentionPolicy(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)

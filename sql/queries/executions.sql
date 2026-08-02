@@ -19,14 +19,12 @@ ORDER BY created_at DESC;
 
 -- name: CreateExecution :one
 INSERT INTO executions (
-    id,
     profile_id,
     status,
     created_at
 ) VALUES (
     $1,
     $2,
-    $3,
     now()
 )
 RETURNING *;

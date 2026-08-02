@@ -13,7 +13,6 @@ import (
 
 const createRetentionPolicy = `-- name: CreateRetentionPolicy :one
 INSERT INTO retention_policies (
-    id,
     name,
     keep_hourly,
     keep_daily,
@@ -22,13 +21,12 @@ INSERT INTO retention_policies (
     keep_yearly,
     yearly_month
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7,$8
+    $1,$2,$3,$4,$5,$6,$7
 )
 RETURNING id, name, keep_hourly, keep_daily, keep_weekly, keep_monthly, keep_yearly, yearly_month, created_at, updated_at
 `
 
 type CreateRetentionPolicyParams struct {
-	ID          pgtype.UUID
 	Name        string
 	KeepHourly  int32
 	KeepDaily   int32
@@ -40,7 +38,6 @@ type CreateRetentionPolicyParams struct {
 
 func (q *Queries) CreateRetentionPolicy(ctx context.Context, arg CreateRetentionPolicyParams) (RetentionPolicy, error) {
 	row := q.db.QueryRow(ctx, createRetentionPolicy,
-		arg.ID,
 		arg.Name,
 		arg.KeepHourly,
 		arg.KeepDaily,

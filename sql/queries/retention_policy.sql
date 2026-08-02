@@ -11,7 +11,6 @@ ORDER BY name;
 
 -- name: CreateRetentionPolicy :one
 INSERT INTO retention_policies (
-    id,
     name,
     keep_hourly,
     keep_daily,
@@ -20,7 +19,7 @@ INSERT INTO retention_policies (
     keep_yearly,
     yearly_month
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7,$8
+    $1,$2,$3,$4,$5,$6,$7
 )
 RETURNING *;
 

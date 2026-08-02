@@ -13,27 +13,24 @@ import (
 
 const createExecution = `-- name: CreateExecution :one
 INSERT INTO executions (
-    id,
     profile_id,
     status,
     created_at
 ) VALUES (
     $1,
     $2,
-    $3,
     now()
 )
 RETURNING id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at
 `
 
 type CreateExecutionParams struct {
-	ID        pgtype.UUID
 	ProfileID pgtype.UUID
 	Status    string
 }
 
 func (q *Queries) CreateExecution(ctx context.Context, arg CreateExecutionParams) (Execution, error) {
-	row := q.db.QueryRow(ctx, createExecution, arg.ID, arg.ProfileID, arg.Status)
+	row := q.db.QueryRow(ctx, createExecution, arg.ProfileID, arg.Status)
 	var i Execution
 	err := row.Scan(
 		&i.ID,

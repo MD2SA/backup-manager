@@ -55,7 +55,6 @@ func (h *ProviderHandler) CreateStorage(w http.ResponseWriter, r *http.Request) 
 		apiutil.Error(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	params.ID = pgutil.NewUUID()
 	provider, err := h.Repo.CreateStorageProvider(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)
@@ -150,7 +149,6 @@ func (h *ProviderHandler) CreateNotification(w http.ResponseWriter, r *http.Requ
 		apiutil.Error(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	params.ID = pgutil.NewUUID()
 	provider, err := h.Repo.CreateNotificationProvider(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)

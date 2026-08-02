@@ -14,30 +14,23 @@ import (
 
 const createNotificationProvider = `-- name: CreateNotificationProvider :one
 INSERT INTO notification_providers (
-    id,
     name,
     type,
     config
 ) VALUES (
-    $1,$2,$3,$4
+    $1,$2,$3
 )
 RETURNING id, name, type, config, created_at, updated_at
 `
 
 type CreateNotificationProviderParams struct {
-	ID     pgtype.UUID
 	Name   string
 	Type   string
 	Config json.RawMessage
 }
 
 func (q *Queries) CreateNotificationProvider(ctx context.Context, arg CreateNotificationProviderParams) (NotificationProvider, error) {
-	row := q.db.QueryRow(ctx, createNotificationProvider,
-		arg.ID,
-		arg.Name,
-		arg.Type,
-		arg.Config,
-	)
+	row := q.db.QueryRow(ctx, createNotificationProvider, arg.Name, arg.Type, arg.Config)
 	var i NotificationProvider
 	err := row.Scan(
 		&i.ID,

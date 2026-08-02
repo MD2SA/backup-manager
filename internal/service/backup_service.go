@@ -52,16 +52,17 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 		return err
 	}
 
-	execID := pgutil.NewUUID()
 	createParams := db.CreateExecutionParams{
-		ID:        execID,
 		ProfileID: profileID,
 		Status:    string(backup.StatusRunning),
 	}
 
-	if _, err := s.repo.CreateExecution(ctx, createParams); err != nil {
+	execution, err := s.repo.CreateExecution(ctx, createParams)
+	if err != nil {
 		return err
 	}
+
+	execID := execution.ID
 
 	s.notify(ctx, p.NotificationProviderID, notification.EventStarted, fmt.Sprintf("Backup started for profile: %s", p.Name), nil)
 

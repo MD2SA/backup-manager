@@ -11,12 +11,11 @@ ORDER BY name;
 
 -- name: CreateNotificationProvider :one
 INSERT INTO notification_providers (
-    id,
     name,
     type,
     config
 ) VALUES (
-    $1,$2,$3,$4
+    $1,$2,$3
 )
 RETURNING *;
 
