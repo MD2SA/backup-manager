@@ -39,7 +39,7 @@ func New(ctx context.Context) (*App, error) {
 	cfg := config.Load()
 	log := logger.New()
 
-	dbPool, err := database.New(ctx, cfg.Database)
+	dbPool, err := database.New(ctx, cfg.MetadataDB)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to initialize database: %w", err)
 	}

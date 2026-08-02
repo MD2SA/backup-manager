@@ -75,11 +75,11 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 
 	pipeline := backup.NewPipeline(
 		&backup.PostgresDumpStage{
-			Host:             s.config.Database.Host,
-			Port:             s.config.Database.Port,
-			User:             s.config.Database.User,
-			Password:         s.config.Database.Password,
-			DBName:           s.config.Database.DBName,
+			Host:             s.config.TargetDB.Host,
+			Port:             s.config.TargetDB.Port,
+			User:             s.config.TargetDB.User,
+			Password:         s.config.TargetDB.Password,
+			DBName:           s.config.TargetDB.DBName,
 			CompressionType:  p.CompressionType,
 			CompressionLevel: int(p.CompressionLevel),
 		},
@@ -170,11 +170,11 @@ func (s *BackupService) ExecuteRestore(ctx context.Context, executionID pgtype.U
 	pipeline := &backup.RestorePipeline{
 		Storage: storageProvider,
 	}
-	pipeline.DBConfig.Host = s.config.Database.Host
-	pipeline.DBConfig.Port = s.config.Database.Port
-	pipeline.DBConfig.User = s.config.Database.User
-	pipeline.DBConfig.Password = s.config.Database.Password
-	pipeline.DBConfig.DBName = s.config.Database.DBName
+	pipeline.DBConfig.Host = s.config.TargetDB.Host
+	pipeline.DBConfig.Port = s.config.TargetDB.Port
+	pipeline.DBConfig.User = s.config.TargetDB.User
+	pipeline.DBConfig.Password = s.config.TargetDB.Password
+	pipeline.DBConfig.DBName = s.config.TargetDB.DBName
 
 	return pipeline.Run(ctx, execution.StoragePath.String)
 }

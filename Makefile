@@ -6,13 +6,13 @@ ifneq (,$(wildcard ./.env))
     export
 endif
 
-# Database URL construction for migrations
-DB_USER ?= $(APP_DATABASE_USER)
-DB_PASSWORD ?= $(APP_DATABASE_PASSWORD)
-DB_HOST ?= $(APP_DATABASE_HOST)
-DB_PORT ?= $(APP_DATABASE_PORT)
-DB_NAME ?= $(APP_DATABASE_DBNAME)
-DB_SSLMODE ?= $(APP_DATABASE_SSLMODE)
+# Database URL construction for migrations (Internal state)
+DB_USER ?= $(or $(APP_METADATA_DB_USER),$(APP_DATABASE_USER))
+DB_PASSWORD ?= $(or $(APP_METADATA_DB_PASSWORD),$(APP_DATABASE_PASSWORD))
+DB_HOST ?= $(or $(APP_METADATA_DB_HOST),$(APP_DATABASE_HOST))
+DB_PORT ?= $(or $(APP_METADATA_DB_PORT),$(APP_DATABASE_PORT))
+DB_NAME ?= $(or $(APP_METADATA_DB_DBNAME),$(APP_DATABASE_DBNAME))
+DB_SSLMODE ?= $(or $(APP_METADATA_DB_SSLMODE),$(APP_DATABASE_SSLMODE))
 
 # Default to Docker-compose values if not set
 DB_USER := $(if $(DB_USER),$(DB_USER),postgres)
