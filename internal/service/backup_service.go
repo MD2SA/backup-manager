@@ -14,7 +14,6 @@ import (
 	"github.com/MD2SA/backup-manager/internal/repository"
 	"github.com/MD2SA/backup-manager/internal/repository/db"
 	"github.com/MD2SA/backup-manager/internal/retention"
-	"github.com/MD2SA/backup-manager/internal/storage/local"
 	"github.com/MD2SA/backup-manager/internal/verification"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -67,10 +66,8 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 	s.notify(ctx, p.NotificationProviderID, notification.EventStarted, fmt.Sprintf("Backup started for profile: %s", p.Name), nil)
 
 	storageProvider, err := s.providerService.ResolveStorageProvider(ctx, p.StorageProviderID)
-	// ... (rest of the method)
 	if err != nil {
-		s.logger.Error("Failed to resolve storage provider, falling back to local", "error", err)
-		storageProvider, _ = local.New("/tmp/backup-manager-storage")
+		return fmt.Errorf("failed to resolve storage provider: %w", err)
 	}
 
 	pipeline := backup.NewPipeline(
@@ -164,8 +161,7 @@ func (s *BackupService) ExecuteRestore(ctx context.Context, executionID pgtype.U
 
 	storageProvider, err := s.providerService.ResolveStorageProvider(ctx, profile.StorageProviderID)
 	if err != nil {
-		s.logger.Error("Failed to resolve storage provider for restore", "error", err)
-		storageProvider, _ = local.New("/tmp/backup-manager-storage")
+		return fmt.Errorf("failed to resolve storage provider for restore: %w", err)
 	}
 
 	pipeline := &backup.RestorePipeline{

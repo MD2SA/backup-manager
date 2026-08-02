@@ -51,6 +51,8 @@ func (p *RestorePipeline) Run(ctx context.Context, storagePath string) error {
 		"-f", tmpFile,
 	)
 
+	cmd.Env = append(os.Environ(), fmt.Sprintf("PGPASSWORD=%s", p.DBConfig.Password))
+
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("psql restore failed: %w", err)
 	}
