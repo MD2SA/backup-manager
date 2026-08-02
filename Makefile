@@ -1,5 +1,29 @@
 APP_NAME=backup-manager
 
+# Load environment variables from .env file
+ifneq (,$(wildcard ./.env))
+    include .env
+    export
+endif
+
+# Database URL construction for migrations
+DB_USER ?= $(APP_DATABASE_USER)
+DB_PASSWORD ?= $(APP_DATABASE_PASSWORD)
+DB_HOST ?= $(APP_DATABASE_HOST)
+DB_PORT ?= $(APP_DATABASE_PORT)
+DB_NAME ?= $(APP_DATABASE_DBNAME)
+DB_SSLMODE ?= $(APP_DATABASE_SSLMODE)
+
+# Default to Docker-compose values if not set
+DB_USER := $(if $(DB_USER),$(DB_USER),postgres)
+DB_PASSWORD := $(if $(DB_PASSWORD),$(DB_PASSWORD),postgres)
+DB_HOST := $(if $(DB_HOST),$(DB_HOST),localhost)
+DB_PORT := $(if $(DB_PORT),$(DB_PORT),5432)
+DB_NAME := $(if $(DB_NAME),$(DB_NAME),backup_manager)
+DB_SSLMODE := $(if $(DB_SSLMODE),$(DB_SSLMODE),disable)
+
+DATABASE_URL ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
+
 # Tools
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
