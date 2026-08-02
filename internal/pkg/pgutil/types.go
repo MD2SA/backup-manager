@@ -54,3 +54,10 @@ func ToInt8Ptr(i *int64) pgtype.Int8 {
 	}
 	return ToInt8(*i)
 }
+
+func IntervalToString(i pgtype.Interval) string {
+	if !i.Valid {
+		return ""
+	}
+	return (time.Duration(i.Microseconds) * time.Microsecond).String()
+}

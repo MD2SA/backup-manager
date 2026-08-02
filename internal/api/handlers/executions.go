@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/MD2SA/backup-manager/internal/api/dto"
 	"github.com/MD2SA/backup-manager/internal/pkg/apiutil"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository"
@@ -24,7 +25,7 @@ type ExecutionHandler struct {
 // @Tags executions
 // @Produce json
 // @Param id path string true "Profile ID"
-// @Success 200 {array} db.Execution
+// @Success 200 {array} dto.ExecutionResponse
 // @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /profiles/{id}/executions [get]
@@ -42,7 +43,12 @@ func (h *ExecutionHandler) ListByProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	apiutil.Success(w, http.StatusOK, executions)
+	res := make([]dto.ExecutionResponse, len(executions))
+	for i, e := range executions {
+		res[i] = dto.ToExecutionResponse(e)
+	}
+
+	apiutil.Success(w, http.StatusOK, res)
 }
 
 // Get execution
@@ -53,7 +59,7 @@ func (h *ExecutionHandler) ListByProfile(w http.ResponseWriter, r *http.Request)
 // @Tags executions
 // @Produce json
 // @Param id path string true "Execution ID"
-// @Success 200 {object} db.Execution
+// @Success 200 {object} dto.ExecutionResponse
 // @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 404 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
@@ -72,7 +78,7 @@ func (h *ExecutionHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apiutil.Success(w, http.StatusOK, execution)
+	apiutil.Success(w, http.StatusOK, dto.ToExecutionResponse(execution))
 }
 
 // Pin execution
@@ -82,7 +88,7 @@ func (h *ExecutionHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Tags executions
 // @Accept json
 // @Param id path string true "Execution ID"
-// @Param request body object true "Pin status (e.g. {'pinned': true})"
+// @Param request body dto.PinRequest true "Pin status"
 // @Success 204 "No Content"
 // @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
@@ -95,9 +101,7 @@ func (h *ExecutionHandler) Pin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Pinned bool `json:"pinned"`
-	}
+	var req dto.PinRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		apiutil.Error(w, http.StatusBadRequest, "Invalid request body")
 		return

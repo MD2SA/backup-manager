@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/MD2SA/backup-manager/internal/api/dto"
 	"github.com/MD2SA/backup-manager/internal/pkg/apiutil"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository"
 	"github.com/MD2SA/backup-manager/internal/repository/db"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/robfig/cron/v3"
 )
 
 type ProfileHandler struct {
@@ -25,7 +25,7 @@ type ProfileHandler struct {
 // @Description Profiles link databases to storage destinations via schedules.
 // @Tags profiles
 // @Produce json
-// @Success 200 {array} db.Profile
+// @Success 200 {array} dto.ProfileResponse
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /profiles [get]
 func (h *ProfileHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +35,12 @@ func (h *ProfileHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apiutil.Success(w, http.StatusOK, profiles)
+	res := make([]dto.ProfileResponse, len(profiles))
+	for i, p := range profiles {
+		res[i] = dto.ToProfileResponse(p)
+	}
+
+	apiutil.Success(w, http.StatusOK, res)
 }
 
 // Create profile
@@ -46,26 +51,37 @@ func (h *ProfileHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Tags profiles
 // @Accept json
 // @Produce json
-// @Param profile body db.CreateProfileParams true "Profile configuration"
-// @Success 201 {object} db.Profile
+// @Param profile body dto.ProfileRequest true "Profile configuration"
+// @Success 201 {object} dto.ProfileResponse
 // @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /profiles [post]
 func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var params db.CreateProfileParams
-	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+	var req dto.ProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		apiutil.Error(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	if params.Name == "" {
-		apiutil.Error(w, http.StatusBadRequest, "Name is required")
+	if err := req.Validate(); err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if _, err := cron.ParseStandard(params.Schedule); err != nil {
-		apiutil.Error(w, http.StatusBadRequest, "Invalid cron schedule")
-		return
+	storageID, _ := pgutil.ParseUUID(req.StorageProviderID)
+	notificationID, _ := pgutil.ParseUUID(req.NotificationProviderID)
+	retentionID, _ := pgutil.ParseUUID(req.RetentionPolicyID)
+
+	params := db.CreateProfileParams{
+		Name:                   req.Name,
+		Description:            pgutil.ToText(req.Description),
+		Enabled:                req.Enabled,
+		Schedule:               req.Schedule,
+		StorageProviderID:      storageID,
+		NotificationProviderID: notificationID,
+		RetentionPolicyID:      retentionID,
+		CompressionType:        req.CompressionType,
+		CompressionLevel:       req.CompressionLevel,
 	}
 
 	profile, err := h.Repo.CreateProfile(r.Context(), params)
@@ -74,7 +90,7 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apiutil.Success(w, http.StatusCreated, profile)
+	apiutil.Success(w, http.StatusCreated, dto.ToProfileResponse(profile))
 }
 
 // Update profile
@@ -88,43 +104,53 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param id path string true "Profile ID"
-// @Param profile body db.UpdateProfileParams true "Updated profile configuration"
-// @Success 200 {object} db.Profile
+// @Param profile body dto.ProfileRequest true "Updated profile configuration"
+// @Success 200 {object} dto.ProfileResponse
 // @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /profiles/{id} [put]
 func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := pgutil.ParseUUID(idStr)
+	id, err := pgutil.ParseUUID(chi.URLParam(r, "id"))
 	if err != nil {
 		apiutil.Error(w, http.StatusBadRequest, "Invalid profile ID")
 		return
 	}
 
-	var params db.UpdateProfileParams
-	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+	var req dto.ProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		apiutil.Error(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	if params.Name == "" {
-		apiutil.Error(w, http.StatusBadRequest, "Name is required")
+	if err := req.Validate(); err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if _, err := cron.ParseStandard(params.Schedule); err != nil {
-		apiutil.Error(w, http.StatusBadRequest, "Invalid cron schedule")
-		return
+	storageID, _ := pgutil.ParseUUID(req.StorageProviderID)
+	notificationID, _ := pgutil.ParseUUID(req.NotificationProviderID)
+	retentionID, _ := pgutil.ParseUUID(req.RetentionPolicyID)
+
+	params := db.UpdateProfileParams{
+		ID:                     id,
+		Name:                   req.Name,
+		Description:            pgutil.ToText(req.Description),
+		Enabled:                req.Enabled,
+		Schedule:               req.Schedule,
+		StorageProviderID:      storageID,
+		NotificationProviderID: notificationID,
+		RetentionPolicyID:      retentionID,
+		CompressionType:        req.CompressionType,
+		CompressionLevel:       req.CompressionLevel,
 	}
 
-	params.ID = id
 	profile, err := h.Repo.UpdateProfile(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)
 		return
 	}
 
-	apiutil.Success(w, http.StatusOK, profile)
+	apiutil.Success(w, http.StatusOK, dto.ToProfileResponse(profile))
 }
 
 // Delete profile
@@ -137,8 +163,7 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /profiles/{id} [delete]
 func (h *ProfileHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := pgutil.ParseUUID(idStr)
+	id, err := pgutil.ParseUUID(chi.URLParam(r, "id"))
 	if err != nil {
 		apiutil.Error(w, http.StatusBadRequest, "Invalid profile ID")
 		return
@@ -162,8 +187,7 @@ func (h *ProfileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} apiutil.ErrorResponse
 // @Router /profiles/{id}/run [post]
 func (h *ProfileHandler) RunNow(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := pgutil.ParseUUID(idStr)
+	id, err := pgutil.ParseUUID(chi.URLParam(r, "id"))
 	if err != nil {
 		apiutil.Error(w, http.StatusBadRequest, "Invalid profile ID")
 		return
@@ -186,13 +210,12 @@ func (h *ProfileHandler) RunNow(w http.ResponseWriter, r *http.Request) {
 // @Description Note: The current system logic may only support one active profile at a time.
 // @Tags profiles
 // @Param id path string true "Profile ID"
-// @Success 200 {object} db.Profile
+// @Success 200 {object} dto.ProfileResponse
 // @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /profiles/{id}/activate [post]
 func (h *ProfileHandler) Activate(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := pgutil.ParseUUID(idStr)
+	id, err := pgutil.ParseUUID(chi.URLParam(r, "id"))
 	if err != nil {
 		apiutil.Error(w, http.StatusBadRequest, "Invalid profile ID")
 		return
@@ -213,5 +236,5 @@ func (h *ProfileHandler) Activate(w http.ResponseWriter, r *http.Request) {
 		h.OnActivate(p)
 	}
 
-	apiutil.Success(w, http.StatusOK, p)
+	apiutil.Success(w, http.StatusOK, dto.ToProfileResponse(p))
 }

@@ -1,5 +1,210 @@
 basePath: /api/v1
 definitions:
+  github_com_MD2SA_backup-manager_internal_api_dto.ExecutionResponse:
+    properties:
+      checksum:
+        type: string
+      created_at:
+        type: string
+      duration:
+        type: string
+      end_time:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: string
+      is_pinned:
+        type: boolean
+      logs:
+        items:
+          type: string
+        type: array
+      profile_id:
+        type: string
+      size:
+        type: integer
+      start_time:
+        type: string
+      status:
+        type: string
+      storage_path:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderRequest:
+    properties:
+      config:
+        type: object
+      name:
+        type: string
+      type:
+        enum:
+        - discord
+        type: string
+    required:
+    - config
+    - name
+    - type
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderResponse:
+    properties:
+      config:
+        type: object
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.PinRequest:
+    properties:
+      pinned:
+        type: boolean
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.ProfileRequest:
+    properties:
+      compression_level:
+        maximum: 9
+        minimum: 0
+        type: integer
+      compression_type:
+        enum:
+        - none
+        - gzip
+        type: string
+      description:
+        type: string
+      enabled:
+        type: boolean
+      name:
+        type: string
+      notification_provider_id:
+        type: string
+      retention_policy_id:
+        type: string
+      schedule:
+        type: string
+      storage_provider_id:
+        type: string
+    required:
+    - compression_type
+    - name
+    - retention_policy_id
+    - schedule
+    - storage_provider_id
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse:
+    properties:
+      compression_level:
+        type: integer
+      compression_type:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      notification_provider_id:
+        type: string
+      retention_policy_id:
+        type: string
+      schedule:
+        type: string
+      storage_provider_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyRequest:
+    properties:
+      keep_daily:
+        minimum: 0
+        type: integer
+      keep_hourly:
+        minimum: 0
+        type: integer
+      keep_monthly:
+        minimum: 0
+        type: integer
+      keep_weekly:
+        minimum: 0
+        type: integer
+      keep_yearly:
+        minimum: 0
+        type: integer
+      name:
+        type: string
+      yearly_month:
+        maximum: 12
+        minimum: 1
+        type: integer
+    required:
+    - name
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      keep_daily:
+        type: integer
+      keep_hourly:
+        type: integer
+      keep_monthly:
+        type: integer
+      keep_weekly:
+        type: integer
+      keep_yearly:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+      yearly_month:
+        type: integer
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderRequest:
+    properties:
+      config:
+        type: object
+      name:
+        type: string
+      type:
+        enum:
+        - local
+        - s3
+        type: string
+    required:
+    - config
+    - name
+    - type
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderResponse:
+    properties:
+      config:
+        type: object
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+      updated_at:
+        type: string
+    type: object
   github_com_MD2SA_backup-manager_internal_monitor.HealthStatus:
     enum:
     - healthy
@@ -32,334 +237,6 @@ definitions:
       error:
         type: string
     type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.CreateNotificationProviderParams:
-    properties:
-      config:
-        items:
-          format: int32
-          type: integer
-        type: array
-      id:
-        type: string
-      name:
-        type: string
-      type:
-        type: string
-    type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.CreateProfileParams:
-    properties:
-      compressionLevel:
-        format: int32
-        type: integer
-      compressionType:
-        type: string
-      description:
-        $ref: '#/definitions/pgtype.Text'
-      enabled:
-        type: boolean
-      id:
-        type: string
-      name:
-        type: string
-      notificationProviderID:
-        type: string
-      retentionPolicyID:
-        type: string
-      schedule:
-        type: string
-      storageProviderID:
-        type: string
-    type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.CreateRetentionPolicyParams:
-    properties:
-      id:
-        type: string
-      keepDaily:
-        format: int32
-        type: integer
-      keepHourly:
-        format: int32
-        type: integer
-      keepMonthly:
-        format: int32
-        type: integer
-      keepWeekly:
-        format: int32
-        type: integer
-      keepYearly:
-        format: int32
-        type: integer
-      name:
-        type: string
-      yearlyMonth:
-        format: int32
-        type: integer
-    type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.CreateStorageProviderParams:
-    properties:
-      config:
-        items:
-          format: int32
-          type: integer
-        type: array
-      id:
-        type: string
-      name:
-        type: string
-      type:
-        type: string
-    type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.Execution:
-    properties:
-      checksum:
-        $ref: '#/definitions/pgtype.Text'
-      createdAt:
-        $ref: '#/definitions/pgtype.Timestamptz'
-      duration:
-        $ref: '#/definitions/pgtype.Interval'
-      endTime:
-        $ref: '#/definitions/pgtype.Timestamptz'
-      errorMessage:
-        $ref: '#/definitions/pgtype.Text'
-      id:
-        type: string
-      isPinned:
-        type: boolean
-      logs:
-        items:
-          format: int32
-          type: integer
-        type: array
-      profileID:
-        type: string
-      size:
-        $ref: '#/definitions/pgtype.Int8'
-      startTime:
-        $ref: '#/definitions/pgtype.Timestamptz'
-      status:
-        type: string
-      storagePath:
-        $ref: '#/definitions/pgtype.Text'
-    type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.NotificationProvider:
-    properties:
-      config:
-        items:
-          format: int32
-          type: integer
-        type: array
-      createdAt:
-        $ref: '#/definitions/pgtype.Timestamptz'
-      id:
-        type: string
-      name:
-        type: string
-      type:
-        type: string
-      updatedAt:
-        $ref: '#/definitions/pgtype.Timestamptz'
-    type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.Profile:
-    properties:
-      compressionLevel:
-        format: int32
-        type: integer
-      compressionType:
-        type: string
-      createdAt:
-        $ref: '#/definitions/pgtype.Timestamptz'
-      description:
-        $ref: '#/definitions/pgtype.Text'
-      enabled:
-        type: boolean
-      id:
-        type: string
-      name:
-        type: string
-      notificationProviderID:
-        type: string
-      retentionPolicyID:
-        type: string
-      schedule:
-        type: string
-      storageProviderID:
-        type: string
-      updatedAt:
-        $ref: '#/definitions/pgtype.Timestamptz'
-    type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.RetentionPolicy:
-    properties:
-      createdAt:
-        $ref: '#/definitions/pgtype.Timestamptz'
-      id:
-        type: string
-      keepDaily:
-        format: int32
-        type: integer
-      keepHourly:
-        format: int32
-        type: integer
-      keepMonthly:
-        format: int32
-        type: integer
-      keepWeekly:
-        format: int32
-        type: integer
-      keepYearly:
-        format: int32
-        type: integer
-      name:
-        type: string
-      updatedAt:
-        $ref: '#/definitions/pgtype.Timestamptz'
-      yearlyMonth:
-        format: int32
-        type: integer
-    type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.StorageProvider:
-    properties:
-      config:
-        items:
-          format: int32
-          type: integer
-        type: array
-      createdAt:
-        $ref: '#/definitions/pgtype.Timestamptz'
-      id:
-        type: string
-      name:
-        type: string
-      type:
-        type: string
-      updatedAt:
-        $ref: '#/definitions/pgtype.Timestamptz'
-    type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.UpdateNotificationProviderParams:
-    properties:
-      config:
-        items:
-          format: int32
-          type: integer
-        type: array
-      id:
-        type: string
-      name:
-        type: string
-      type:
-        type: string
-    type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.UpdateProfileParams:
-    properties:
-      compressionLevel:
-        format: int32
-        type: integer
-      compressionType:
-        type: string
-      description:
-        $ref: '#/definitions/pgtype.Text'
-      enabled:
-        type: boolean
-      id:
-        type: string
-      name:
-        type: string
-      notificationProviderID:
-        type: string
-      retentionPolicyID:
-        type: string
-      schedule:
-        type: string
-      storageProviderID:
-        type: string
-    type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.UpdateRetentionPolicyParams:
-    properties:
-      id:
-        type: string
-      keepDaily:
-        format: int32
-        type: integer
-      keepHourly:
-        format: int32
-        type: integer
-      keepMonthly:
-        format: int32
-        type: integer
-      keepWeekly:
-        format: int32
-        type: integer
-      keepYearly:
-        format: int32
-        type: integer
-      name:
-        type: string
-      yearlyMonth:
-        format: int32
-        type: integer
-    type: object
-  github_com_MD2SA_backup-manager_internal_repository_db.UpdateStorageProviderParams:
-    properties:
-      config:
-        items:
-          format: int32
-          type: integer
-        type: array
-      id:
-        type: string
-      name:
-        type: string
-      type:
-        type: string
-    type: object
-  pgtype.InfinityModifier:
-    enum:
-    - 1
-    - 0
-    - -1
-    format: int32
-    type: integer
-    x-enum-varnames:
-    - Infinity
-    - Finite
-    - NegativeInfinity
-  pgtype.Int8:
-    properties:
-      int64:
-        format: int64
-        type: integer
-      valid:
-        type: boolean
-    type: object
-  pgtype.Interval:
-    properties:
-      days:
-        format: int32
-        type: integer
-      microseconds:
-        format: int64
-        type: integer
-      months:
-        format: int32
-        type: integer
-      valid:
-        type: boolean
-    type: object
-  pgtype.Text:
-    properties:
-      string:
-        type: string
-      valid:
-        type: boolean
-    type: object
-  pgtype.Timestamptz:
-    properties:
-      infinityModifier:
-        $ref: '#/definitions/pgtype.InfinityModifier'
-      time:
-        type: string
-      valid:
-        type: boolean
-    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -385,7 +262,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Execution'
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionResponse'
         "400":
           description: Bad Request
           schema:
@@ -414,12 +291,12 @@ paths:
         name: id
         required: true
         type: string
-      - description: 'Pin status (e.g. {''pinned'': true})'
+      - description: Pin status
         in: body
         name: request
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.PinRequest'
       responses:
         "204":
           description: No Content
@@ -492,8 +369,8 @@ paths:
     get:
       description: |-
         Get a list of all configured notification providers.
-        The 'config' field varies by type:
-        - discord: {"webhook_url": "https://discord.com/api/webhooks/..."}
+        The 'config' field varies by 'type':
+        - 'discord': Requires {"webhook_url": "https://discord.com/api/webhooks/..."} to send alerts to a Discord channel.
       produces:
       - application/json
       responses:
@@ -501,7 +378,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.NotificationProvider'
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderResponse'
             type: array
         "500":
           description: Internal Server Error
@@ -515,22 +392,22 @@ paths:
       - application/json
       description: |-
         Configure a new destination for backup alerts.
-        Supported types and configurations:
-        - discord: {"webhook_url": "https://discord.com/api/webhooks/..."}
+        You must specify a 'type' and its corresponding 'config' object:
+        - 'discord': Requires 'webhook_url' in the config object.
       parameters:
       - description: Notification provider configuration
         in: body
         name: provider
         required: true
         schema:
-          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.CreateNotificationProviderParams'
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.NotificationProvider'
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderResponse'
         "400":
           description: Bad Request
           schema:
@@ -566,8 +443,8 @@ paths:
       - application/json
       description: |-
         Update a notification provider's configuration by ID.
-        Supported types and configurations:
-        - discord: {"webhook_url": "https://discord.com/api/webhooks/..."}
+        Ensure the 'config' object matches the 'type':
+        - 'discord': {"webhook_url": "https://discord.com/api/webhooks/..."}
       parameters:
       - description: Provider ID
         in: path
@@ -579,14 +456,14 @@ paths:
         name: provider
         required: true
         schema:
-          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.UpdateNotificationProviderParams'
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.NotificationProvider'
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderResponse'
         "400":
           description: Bad Request
           schema:
@@ -610,7 +487,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Profile'
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse'
             type: array
         "500":
           description: Internal Server Error
@@ -632,14 +509,14 @@ paths:
         name: profile
         required: true
         schema:
-          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.CreateProfileParams'
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Profile'
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse'
         "400":
           description: Bad Request
           schema:
@@ -694,14 +571,14 @@ paths:
         name: profile
         required: true
         schema:
-          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.UpdateProfileParams'
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Profile'
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse'
         "400":
           description: Bad Request
           schema:
@@ -729,7 +606,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Profile'
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse'
         "400":
           description: Bad Request
           schema:
@@ -761,7 +638,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.Execution'
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionResponse'
             type: array
         "400":
           description: Bad Request
@@ -811,7 +688,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.RetentionPolicy'
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyResponse'
             type: array
         "500":
           description: Internal Server Error
@@ -834,14 +711,14 @@ paths:
         name: policy
         required: true
         schema:
-          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.CreateRetentionPolicyParams'
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.RetentionPolicy'
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyResponse'
         "400":
           description: Bad Request
           schema:
@@ -889,14 +766,14 @@ paths:
         name: policy
         required: true
         schema:
-          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.UpdateRetentionPolicyParams'
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.RetentionPolicy'
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyResponse'
         "400":
           description: Bad Request
           schema:
@@ -912,9 +789,9 @@ paths:
     get:
       description: |-
         Get a list of all configured storage providers.
-        The 'config' field varies by type:
-        - local: {"path": "/tmp/backups"}
-        - s3: {"region": "us-east-1", "bucket": "...", "access_key": "...", "secret_key": "..."}
+        The 'config' field varies by 'type':
+        - 'local': Use {"path": "/tmp/backups"} to define the base directory on the server.
+        - 's3': Use {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."} for AWS S3 compatible storage.
       produces:
       - application/json
       responses:
@@ -922,7 +799,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.StorageProvider'
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderResponse'
             type: array
         "500":
           description: Internal Server Error
@@ -936,23 +813,23 @@ paths:
       - application/json
       description: |-
         Configure a new storage destination for backups.
-        Supported types and configurations:
-        - local: {"path": "/tmp/backups"}
-        - s3: {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."}
+        You must specify a 'type' and its corresponding 'config' object:
+        - 'local': Base directory for storing backups locally. Requires 'path'.
+        - 's3': AWS S3 or compatible storage. Requires 'region', 'bucket', 'access_key', and 'secret_key'.
       parameters:
       - description: Storage provider configuration
         in: body
         name: provider
         required: true
         schema:
-          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.CreateStorageProviderParams'
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.StorageProvider'
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderResponse'
         "400":
           description: Bad Request
           schema:
@@ -988,9 +865,9 @@ paths:
       - application/json
       description: |-
         Update a storage provider's configuration by ID.
-        Supported types and configurations:
-        - local: {"path": "/tmp/backups"}
-        - s3: {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."}
+        Ensure the 'config' object matches the 'type':
+        - 'local': {"path": "/tmp/backups"}
+        - 's3': {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."}
       parameters:
       - description: Provider ID
         in: path
@@ -1002,14 +879,14 @@ paths:
         name: provider
         required: true
         schema:
-          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.UpdateStorageProviderParams'
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_repository_db.StorageProvider'
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderResponse'
         "400":
           description: Bad Request
           schema:

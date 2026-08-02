@@ -20,7 +20,7 @@ type Execution struct {
 	Size         pgtype.Int8
 	Checksum     pgtype.Text
 	StoragePath  pgtype.Text
-	Logs         []byte
+	Logs         json.RawMessage
 	ErrorMessage pgtype.Text
 	IsPinned     bool
 	CreatedAt    pgtype.Timestamptz

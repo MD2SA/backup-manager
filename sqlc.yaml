@@ -16,3 +16,5 @@ sql:
         overrides:
           - db_type: "jsonb"
             go_type: "encoding/json.RawMessage"
+          - column: "executions.logs"
+            go_type: "encoding/json.RawMessage"

@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -200,7 +201,7 @@ type UpdateExecutionParams struct {
 	Size         pgtype.Int8
 	Checksum     pgtype.Text
 	StoragePath  pgtype.Text
-	Logs         []byte
+	Logs         json.RawMessage
 	ErrorMessage pgtype.Text
 	IsPinned     bool
 }
