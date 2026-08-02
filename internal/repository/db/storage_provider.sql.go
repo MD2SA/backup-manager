@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -27,7 +28,7 @@ type CreateStorageProviderParams struct {
 	ID     pgtype.UUID
 	Name   string
 	Type   string
-	Config []byte
+	Config json.RawMessage
 }
 
 func (q *Queries) CreateStorageProvider(ctx context.Context, arg CreateStorageProviderParams) (StorageProvider, error) {
@@ -128,7 +129,7 @@ type UpdateStorageProviderParams struct {
 	ID     pgtype.UUID
 	Name   string
 	Type   string
-	Config []byte
+	Config json.RawMessage
 }
 
 func (q *Queries) UpdateStorageProvider(ctx context.Context, arg UpdateStorageProviderParams) (StorageProvider, error) {

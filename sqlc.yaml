@@ -13,3 +13,6 @@ sql:
         out: "internal/repository/db"
 
         sql_package: "pgx/v5"
+        overrides:
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"

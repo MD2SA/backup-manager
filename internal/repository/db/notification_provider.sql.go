@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -27,7 +28,7 @@ type CreateNotificationProviderParams struct {
 	ID     pgtype.UUID
 	Name   string
 	Type   string
-	Config []byte
+	Config json.RawMessage
 }
 
 func (q *Queries) CreateNotificationProvider(ctx context.Context, arg CreateNotificationProviderParams) (NotificationProvider, error) {
@@ -128,7 +129,7 @@ type UpdateNotificationProviderParams struct {
 	ID     pgtype.UUID
 	Name   string
 	Type   string
-	Config []byte
+	Config json.RawMessage
 }
 
 func (q *Queries) UpdateNotificationProvider(ctx context.Context, arg UpdateNotificationProviderParams) (NotificationProvider, error) {

@@ -5,6 +5,8 @@
 package db
 
 import (
+	"encoding/json"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -28,7 +30,7 @@ type NotificationProvider struct {
 	ID        pgtype.UUID
 	Name      string
 	Type      string
-	Config    []byte
+	Config    json.RawMessage
 	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
 }
@@ -65,7 +67,7 @@ type StorageProvider struct {
 	ID        pgtype.UUID
 	Name      string
 	Type      string
-	Config    []byte
+	Config    json.RawMessage
 	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
 }
