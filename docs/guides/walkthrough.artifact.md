@@ -1,27 +1,27 @@
-# API Documentation and Swagger Improvement Walkthrough
+# Configurable and Persistent Local Storage Walkthrough
 
-I have improved the API documentation by ensuring all routes are documented and refining the Swagger UI organization to match the logical groupings used in the project guides.
+I have updated the project to make the local storage path configurable and ensure that backups are correctly persisted when running inside Docker.
 
 ## Changes Made
 
-### Documentation Completeness
-- Updated [API.md](file:///home/manas/Documents/projects/backup-manager/backend/docs/guides/API.md) to include **all** available routes, including:
-    - Health Summary and basic Health checks.
-    - Full CRUD operations for Retention Policies, Storage Providers, and Notification Providers.
-    - Execution pinning and profile-specific execution history.
-    - Restore triggers.
+### Configuration
+- Added `StoragePath` to the global `Config` struct in `internal/config/config.go`.
+- Bound the `APP_STORAGE_PATH` environment variable with a professional default: `/var/lib/backup-manager/storage`.
+- Added validation to ensure the storage path is always provided.
 
-### Swagger UI Organization
-I have updated the Swagger tags in the Go handlers to provide a cleaner separation in the UI:
-- **Separated Providers**: "Storage Providers" and "Notification Providers" now have their own distinct sections instead of being lumped into a generic "Providers" tag.
-- **Consolidated Executions**: Moved the **Restore** endpoint under the `executions` tag, grouping it with other execution-related actions like fetching logs and pinning.
-- **Unified Retention**: Renamed the tag for retention endpoints to `retention-policies` for consistency with the resource name.
+### Service Layer
+- Updated `ProviderService` to accept the global configuration.
+- In `ResolveStorageProvider`, the system now uses `APP_STORAGE_PATH` as the fallback for local storage when no specific provider is configured, ensuring consistency with the infrastructure layer.
+- Updated `App` initialization in `internal/app/app.go` to inject the configuration into the `ProviderService`.
 
-### Technical Steps
-1.  Modified `internal/api/handlers/providers.go`, `internal/api/handlers/restore.go`, and `internal/api/handlers/retention.go` to update Swagger annotations.
-2.  Executed `make swagger` to regenerate `docs/swagger.json`, `docs/swagger.yaml`, and `docs/docs.go`.
-3.  Verified that the project builds correctly with `go build ./...`.
+### Infrastructure (Docker)
+- Updated `docker-compose.yml` to include `APP_STORAGE_PATH`.
+- Changed the `backup_storage` volume mapping to `/var/lib/backup-manager/storage`. This ensures that backups saved to the default path are automatically persisted on the host machine via the named Docker volume.
+
+### Documentation
+- Updated [CONFIGURATION.md](file:///home/manas/Documents/projects/backup-manager/backend/docs/guides/CONFIGURATION.md) to document the new `APP_STORAGE_PATH` variable.
+- Added a critical note for Docker users explaining the relationship between the `local` storage provider's `path` and Docker volume mappings.
 
 ## Verification Results
-- All routes defined in `internal/api/router/router.go` are now reflected in [API.md](file:///home/manas/Documents/projects/backup-manager/backend/docs/guides/API.md).
-- The Swagger UI (available at `/swagger/index.html` when running) now displays endpoints in their specific, logical groups.
+- The project builds successfully with `go build ./...`.
+- Verified that the `docker-compose.yml` and `config.go` are synchronized to use the same default persistent path.

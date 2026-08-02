@@ -18,11 +18,12 @@ type DatabaseConfig struct {
 }
 
 type Config struct {
-	Port       string
-	LogLevel   string
-	TempDir    string
-	MetadataDB DatabaseConfig
-	TargetDB   DatabaseConfig
+	Port        string
+	LogLevel    string
+	TempDir     string
+	StoragePath string
+	MetadataDB  DatabaseConfig
+	TargetDB    DatabaseConfig
 }
 
 func Load() (Config, error) {
@@ -36,6 +37,7 @@ func Load() (Config, error) {
 	// Global settings
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("log_level", "info")
+	viper.SetDefault("storage_path", "/var/lib/backup-manager/storage")
 
 	// Metadata Database (Internal state)
 	metadataHost := viper.GetString("metadata_db.host")
@@ -54,9 +56,10 @@ func Load() (Config, error) {
 	targetSSL := viper.GetString("target_db.sslmode")
 
 	cfg := Config{
-		Port:     viper.GetString("port"),
-		LogLevel: viper.GetString("log_level"),
-		TempDir:  viper.GetString("temp_dir"),
+		Port:        viper.GetString("port"),
+		LogLevel:    viper.GetString("log_level"),
+		TempDir:     viper.GetString("temp_dir"),
+		StoragePath: viper.GetString("storage_path"),
 		MetadataDB: DatabaseConfig{
 			Host:     metadataHost,
 			Port:     metadataPort,
@@ -86,6 +89,10 @@ func (c *Config) Validate() error {
 	// Global validation
 	if c.TempDir == "" {
 		return errors.New("Temporary directory is required (APP_TEMP_DIR)")
+	}
+
+	if c.StoragePath == "" {
+		return errors.New("Storage path is required (APP_STORAGE_PATH)")
 	}
 
 	// Validate Metadata DB

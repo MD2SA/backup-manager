@@ -50,7 +50,7 @@ func New(ctx context.Context) (*App, error) {
 	repo := repository.NewPostgres(dbPool)
 	retentionEngine := retention.New(repo)
 	monitorService := monitor.New(repo)
-	providerService := service.NewProviderService(repo)
+	providerService := service.NewProviderService(repo, cfg)
 	backupService := service.NewBackupService(repo, providerService, retentionEngine, monitorService, cfg, log)
 
 	a := &App{

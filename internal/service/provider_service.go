@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/MD2SA/backup-manager/internal/config"
 	"github.com/MD2SA/backup-manager/internal/notification"
 	"github.com/MD2SA/backup-manager/internal/repository"
 	"github.com/MD2SA/backup-manager/internal/storage"
@@ -14,15 +15,19 @@ import (
 
 type ProviderService struct {
 	repo repository.Repository
+	cfg  config.Config
 }
 
-func NewProviderService(repo repository.Repository) *ProviderService {
-	return &ProviderService{repo: repo}
+func NewProviderService(repo repository.Repository, cfg config.Config) *ProviderService {
+	return &ProviderService{
+		repo: repo,
+		cfg:  cfg,
+	}
 }
 
 func (s *ProviderService) ResolveStorageProvider(ctx context.Context, id pgtype.UUID) (storage.StorageProvider, error) {
 	if !id.Valid {
-		return local.New("/tmp/backup-manager-storage")
+		return local.New(s.cfg.StoragePath)
 	}
 
 	sp, err := s.repo.GetStorageProvider(ctx, id)

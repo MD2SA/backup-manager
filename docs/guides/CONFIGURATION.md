@@ -9,6 +9,7 @@ Backup Manager is configured via Environment Variables and through the REST API 
 | `APP_PORT` | Port for the API server | `8080` |
 | `APP_LOG_LEVEL` | Logging level (debug, info, warn, error) | `info` |
 | `APP_TEMP_DIR` | Directory for temporary backup files | `/tmp` |
+| `APP_STORAGE_PATH` | Default path for local storage persistence | `/var/lib/backup-manager/storage` |
 | `APP_METADATA_DB_URL` | PostgreSQL connection URL for internal state | `postgres://...` |
 | `APP_TARGET_DB_HOST` | Host of the database to backup | `localhost` |
 | `APP_TARGET_DB_PORT` | Port of the database to backup | `5432` |
@@ -30,6 +31,9 @@ Storage and Notification providers are created via the API. Each provider has a 
       "path": "/path/to/backups"
     }
     ```
+
+> [!IMPORTANT]
+> **Docker Users:** If running inside Docker, the `path` you provide in the configuration must match a mounted volume in your `docker-compose.yml`. By default, the application is configured to persist `/var/lib/backup-manager/storage`. Use this path in your local storage provider configuration to ensure backups are stored on the host machine.
 
 #### S3 Compatible
 *   **Type**: `s3`
