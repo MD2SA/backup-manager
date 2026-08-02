@@ -26,6 +26,9 @@ services:
     ports:
       - "${APP_PORT:-8080}:8080"
     environment:
+      # Global Settings
+      - APP_LOG_LEVEL=${APP_LOG_LEVEL:-info}
+      - APP_TEMP_DIR=${APP_TEMP_DIR:?Temporary directory for staging backups is required}
       # Metadata DB Connection
       - APP_METADATA_DB_HOST=metadata-db
       - APP_METADATA_DB_PORT=${APP_METADATA_DB_PORT:?Metadata database port is required}

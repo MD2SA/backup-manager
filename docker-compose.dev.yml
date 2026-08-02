@@ -14,6 +14,8 @@ services:
 
   backup-manager:
     environment:
+      - APP_LOG_LEVEL=debug
+      - APP_TEMP_DIR=/tmp
       - APP_METADATA_DB_PORT=5432
       - APP_METADATA_DB_USER=postgres
       - APP_METADATA_DB_PASSWORD=postgres
