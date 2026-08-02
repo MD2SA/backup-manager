@@ -25,7 +25,8 @@ type ExecutionContext struct {
 	StartTime time.Time
 	EndTime   time.Time
 
-	BackupPath string
+	BackupPath string // Resulting storage key
+	LocalPath  string // Temporary local file path
 	TempDir    string
 	Checksum   string
 	Size       int64

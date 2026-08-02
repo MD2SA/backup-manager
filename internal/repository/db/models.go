@@ -36,18 +36,26 @@ type NotificationProvider struct {
 }
 
 type Profile struct {
-	ID                     pgtype.UUID
-	Name                   string
-	Description            pgtype.Text
-	Enabled                bool
-	Schedule               string
-	StorageProviderID      pgtype.UUID
+	ID                pgtype.UUID
+	Name              string
+	Description       pgtype.Text
+	Enabled           bool
+	Schedule          string
+	RetentionPolicyID pgtype.UUID
+	CompressionType   string
+	CompressionLevel  int32
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+}
+
+type ProfileNotificationProvider struct {
+	ProfileID              pgtype.UUID
 	NotificationProviderID pgtype.UUID
-	RetentionPolicyID      pgtype.UUID
-	CompressionType        string
-	CompressionLevel       int32
-	CreatedAt              pgtype.Timestamptz
-	UpdatedAt              pgtype.Timestamptz
+}
+
+type ProfileStorageProvider struct {
+	ProfileID         pgtype.UUID
+	StorageProviderID pgtype.UUID
 }
 
 type RetentionPolicy struct {

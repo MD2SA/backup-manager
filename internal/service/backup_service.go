@@ -63,14 +63,17 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 
 	execID := execution.ID
 
-	s.notify(ctx, p.NotificationProviderID, notification.EventStarted, fmt.Sprintf("Backup started for profile: %s", p.Name), nil)
+	s.notifyAll(ctx, p.NotificationProviderIDs, notification.EventStarted, fmt.Sprintf("Backup started for profile: %s", p.Name), nil)
 
-	storageProvider, err := s.providerService.ResolveStorageProvider(ctx, p.StorageProviderID)
-	if err != nil {
-		return fmt.Errorf("failed to resolve storage provider: %w", err)
+	execCtx := &backup.ExecutionContext{
+		Context:     ctx,
+		ExecutionID: execID,
+		ProfileID:   profileID,
+		TempDir:     s.config.TempDir,
 	}
 
-	pipeline := backup.NewPipeline(
+	// Stages that run only once
+	initialStages := []backup.Stage{
 		&backup.PostgresDumpStage{
 			Host:             s.config.TargetDB.Host,
 			Port:             s.config.TargetDB.Port,
@@ -86,19 +89,43 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 				&verification.ChecksumStrategy{},
 			},
 		},
-		&backup.StorageStage{Provider: storageProvider},
-		&backup.RetentionStage{Engine: s.retentionEngine, Repo: s.repo, Provider: storageProvider},
-		&backup.CleanupStage{},
-	)
-
-	execCtx := &backup.ExecutionContext{
-		Context:     ctx,
-		ExecutionID: execID,
-		ProfileID:   profileID,
-		TempDir:     s.config.TempDir,
 	}
 
+	pipeline := backup.NewPipeline(initialStages...)
 	err = pipeline.Run(execCtx)
+
+	if err == nil {
+		// Run storage and retention stages for each provider
+		for _, sID := range p.StorageProviderIDs {
+			storageProvider, sErr := s.providerService.ResolveStorageProvider(ctx, sID)
+			if sErr != nil {
+				execCtx.Log(fmt.Sprintf("Failed to resolve storage provider %s: %v", pgutil.UUIDToString(sID), sErr))
+				err = sErr
+				continue
+			}
+
+			storageStages := []backup.Stage{
+				&backup.StorageStage{Provider: storageProvider},
+				&backup.RetentionStage{Engine: s.retentionEngine, Repo: s.repo, Provider: storageProvider},
+			}
+
+			for _, stage := range storageStages {
+				execCtx.Log(fmt.Sprintf("Entering stage: %s for provider %s", stage.Name(), pgutil.UUIDToString(sID)))
+				if stageErr := stage.Execute(execCtx); stageErr != nil {
+					execCtx.Log(fmt.Sprintf("Stage %s failed for provider %s: %v", stage.Name(), pgutil.UUIDToString(sID), stageErr))
+					err = stageErr
+					break
+				}
+				execCtx.Log(fmt.Sprintf("Stage %s completed successfully for provider %s", stage.Name(), pgutil.UUIDToString(sID)))
+			}
+		}
+	}
+
+	// Always cleanup
+	cleanup := &backup.CleanupStage{}
+	if cErr := cleanup.Execute(execCtx); cErr != nil {
+		execCtx.Log(fmt.Sprintf("Cleanup failed: %v", cErr))
+	}
 
 	// Update execution status
 	updateParams := db.UpdateExecutionParams{
@@ -116,9 +143,9 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 	if err != nil {
 		updateParams.Status = string(backup.StatusFailed)
 		updateParams.ErrorMessage = pgutil.ToText(err.Error())
-		s.notify(ctx, p.NotificationProviderID, notification.EventFailed, fmt.Sprintf("Backup failed for profile: %s. Error: %v", p.Name, err), nil)
+		s.notifyAll(ctx, p.NotificationProviderIDs, notification.EventFailed, fmt.Sprintf("Backup failed for profile: %s. Error: %v", p.Name, err), nil)
 	} else {
-		s.notify(ctx, p.NotificationProviderID, notification.EventSuccess, fmt.Sprintf("Backup completed successfully for profile: %s", p.Name), map[string]interface{}{
+		s.notifyAll(ctx, p.NotificationProviderIDs, notification.EventSuccess, fmt.Sprintf("Backup completed successfully for profile: %s", p.Name), map[string]interface{}{
 			"size":     execCtx.Size,
 			"duration": execCtx.EndTime.Sub(execCtx.StartTime).String(),
 		})
@@ -126,6 +153,12 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 
 	_, updateErr := s.repo.UpdateExecution(ctx, updateParams)
 	return updateErr
+}
+
+func (s *BackupService) notifyAll(ctx context.Context, providerIDs []pgtype.UUID, event notification.Event, message string, metadata map[string]interface{}) {
+	for _, id := range providerIDs {
+		s.notify(ctx, id, event, message, metadata)
+	}
 }
 
 func (s *BackupService) notify(ctx context.Context, providerID pgtype.UUID, event notification.Event, message string, metadata map[string]interface{}) {
@@ -159,7 +192,17 @@ func (s *BackupService) ExecuteRestore(ctx context.Context, executionID pgtype.U
 		return err
 	}
 
-	storageProvider, err := s.providerService.ResolveStorageProvider(ctx, profile.StorageProviderID)
+	// For restore, we currently just use the first storage provider linked to the profile?
+	// Actually, the execution record has the storage path. We need to know which provider it was on.
+	// But the current schema doesn't store provider_id in execution.
+	// This might be an issue for restore if different providers have different path formats.
+	// However, for now, we'll try to use the first one available or the one that works.
+
+	if len(profile.StorageProviderIDs) == 0 {
+		return fmt.Errorf("no storage providers linked to profile")
+	}
+
+	storageProvider, err := s.providerService.ResolveStorageProvider(ctx, profile.StorageProviderIDs[0])
 	if err != nil {
 		return fmt.Errorf("failed to resolve storage provider for restore: %w", err)
 	}

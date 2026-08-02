@@ -24,33 +24,81 @@ func (q *Queries) ActivateProfile(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const addProfileNotificationProvider = `-- name: AddProfileNotificationProvider :exec
+INSERT INTO profile_notification_providers (profile_id, notification_provider_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type AddProfileNotificationProviderParams struct {
+	ProfileID              pgtype.UUID
+	NotificationProviderID pgtype.UUID
+}
+
+func (q *Queries) AddProfileNotificationProvider(ctx context.Context, arg AddProfileNotificationProviderParams) error {
+	_, err := q.db.Exec(ctx, addProfileNotificationProvider, arg.ProfileID, arg.NotificationProviderID)
+	return err
+}
+
+const addProfileStorageProvider = `-- name: AddProfileStorageProvider :exec
+INSERT INTO profile_storage_providers (profile_id, storage_provider_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type AddProfileStorageProviderParams struct {
+	ProfileID         pgtype.UUID
+	StorageProviderID pgtype.UUID
+}
+
+func (q *Queries) AddProfileStorageProvider(ctx context.Context, arg AddProfileStorageProviderParams) error {
+	_, err := q.db.Exec(ctx, addProfileStorageProvider, arg.ProfileID, arg.StorageProviderID)
+	return err
+}
+
+const clearProfileNotificationProviders = `-- name: ClearProfileNotificationProviders :exec
+DELETE FROM profile_notification_providers
+WHERE profile_id = $1
+`
+
+func (q *Queries) ClearProfileNotificationProviders(ctx context.Context, profileID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, clearProfileNotificationProviders, profileID)
+	return err
+}
+
+const clearProfileStorageProviders = `-- name: ClearProfileStorageProviders :exec
+DELETE FROM profile_storage_providers
+WHERE profile_id = $1
+`
+
+func (q *Queries) ClearProfileStorageProviders(ctx context.Context, profileID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, clearProfileStorageProviders, profileID)
+	return err
+}
+
 const createProfile = `-- name: CreateProfile :one
 INSERT INTO profiles (
     name,
     description,
     enabled,
     schedule,
-    storage_provider_id,
-    notification_provider_id,
     retention_policy_id,
     compression_type,
     compression_level
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7,$8,$9
+    $1,$2,$3,$4,$5,$6,$7
 )
-RETURNING id, name, description, enabled, schedule, storage_provider_id, notification_provider_id, retention_policy_id, compression_type, compression_level, created_at, updated_at
+RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at
 `
 
 type CreateProfileParams struct {
-	Name                   string
-	Description            pgtype.Text
-	Enabled                bool
-	Schedule               string
-	StorageProviderID      pgtype.UUID
-	NotificationProviderID pgtype.UUID
-	RetentionPolicyID      pgtype.UUID
-	CompressionType        string
-	CompressionLevel       int32
+	Name              string
+	Description       pgtype.Text
+	Enabled           bool
+	Schedule          string
+	RetentionPolicyID pgtype.UUID
+	CompressionType   string
+	CompressionLevel  int32
 }
 
 func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (Profile, error) {
@@ -59,8 +107,6 @@ func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (P
 		arg.Description,
 		arg.Enabled,
 		arg.Schedule,
-		arg.StorageProviderID,
-		arg.NotificationProviderID,
 		arg.RetentionPolicyID,
 		arg.CompressionType,
 		arg.CompressionLevel,
@@ -72,8 +118,6 @@ func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (P
 		&i.Description,
 		&i.Enabled,
 		&i.Schedule,
-		&i.StorageProviderID,
-		&i.NotificationProviderID,
 		&i.RetentionPolicyID,
 		&i.CompressionType,
 		&i.CompressionLevel,
@@ -94,7 +138,7 @@ func (q *Queries) DeleteProfile(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getProfile = `-- name: GetProfile :one
-SELECT id, name, description, enabled, schedule, storage_provider_id, notification_provider_id, retention_policy_id, compression_type, compression_level, created_at, updated_at FROM profiles
+SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at FROM profiles
 WHERE id = $1
 LIMIT 1
 `
@@ -108,8 +152,6 @@ func (q *Queries) GetProfile(ctx context.Context, id pgtype.UUID) (Profile, erro
 		&i.Description,
 		&i.Enabled,
 		&i.Schedule,
-		&i.StorageProviderID,
-		&i.NotificationProviderID,
 		&i.RetentionPolicyID,
 		&i.CompressionType,
 		&i.CompressionLevel,
@@ -119,8 +161,58 @@ func (q *Queries) GetProfile(ctx context.Context, id pgtype.UUID) (Profile, erro
 	return i, err
 }
 
+const getProfileNotificationProviderIDs = `-- name: GetProfileNotificationProviderIDs :many
+SELECT notification_provider_id FROM profile_notification_providers
+WHERE profile_id = $1
+`
+
+func (q *Queries) GetProfileNotificationProviderIDs(ctx context.Context, profileID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, getProfileNotificationProviderIDs, profileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var notification_provider_id pgtype.UUID
+		if err := rows.Scan(&notification_provider_id); err != nil {
+			return nil, err
+		}
+		items = append(items, notification_provider_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProfileStorageProviderIDs = `-- name: GetProfileStorageProviderIDs :many
+SELECT storage_provider_id FROM profile_storage_providers
+WHERE profile_id = $1
+`
+
+func (q *Queries) GetProfileStorageProviderIDs(ctx context.Context, profileID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, getProfileStorageProviderIDs, profileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var storage_provider_id pgtype.UUID
+		if err := rows.Scan(&storage_provider_id); err != nil {
+			return nil, err
+		}
+		items = append(items, storage_provider_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProfiles = `-- name: ListProfiles :many
-SELECT id, name, description, enabled, schedule, storage_provider_id, notification_provider_id, retention_policy_id, compression_type, compression_level, created_at, updated_at FROM profiles
+SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at FROM profiles
 ORDER BY name
 `
 
@@ -139,8 +231,6 @@ func (q *Queries) ListProfiles(ctx context.Context) ([]Profile, error) {
 			&i.Description,
 			&i.Enabled,
 			&i.Schedule,
-			&i.StorageProviderID,
-			&i.NotificationProviderID,
 			&i.RetentionPolicyID,
 			&i.CompressionType,
 			&i.CompressionLevel,
@@ -164,27 +254,23 @@ SET
     description = $3,
     enabled = $4,
     schedule = $5,
-    storage_provider_id = $6,
-    notification_provider_id = $7,
-    retention_policy_id = $8,
-    compression_type = $9,
-    compression_level = $10,
+    retention_policy_id = $6,
+    compression_type = $7,
+    compression_level = $8,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, description, enabled, schedule, storage_provider_id, notification_provider_id, retention_policy_id, compression_type, compression_level, created_at, updated_at
+RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at
 `
 
 type UpdateProfileParams struct {
-	ID                     pgtype.UUID
-	Name                   string
-	Description            pgtype.Text
-	Enabled                bool
-	Schedule               string
-	StorageProviderID      pgtype.UUID
-	NotificationProviderID pgtype.UUID
-	RetentionPolicyID      pgtype.UUID
-	CompressionType        string
-	CompressionLevel       int32
+	ID                pgtype.UUID
+	Name              string
+	Description       pgtype.Text
+	Enabled           bool
+	Schedule          string
+	RetentionPolicyID pgtype.UUID
+	CompressionType   string
+	CompressionLevel  int32
 }
 
 func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (Profile, error) {
@@ -194,8 +280,6 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (P
 		arg.Description,
 		arg.Enabled,
 		arg.Schedule,
-		arg.StorageProviderID,
-		arg.NotificationProviderID,
 		arg.RetentionPolicyID,
 		arg.CompressionType,
 		arg.CompressionLevel,
@@ -207,8 +291,6 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (P
 		&i.Description,
 		&i.Enabled,
 		&i.Schedule,
-		&i.StorageProviderID,
-		&i.NotificationProviderID,
 		&i.RetentionPolicyID,
 		&i.CompressionType,
 		&i.CompressionLevel,

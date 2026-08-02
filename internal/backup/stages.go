@@ -24,7 +24,7 @@ func (s *VerificationStage) Execute(ctx *ExecutionContext) error {
 	return Retry(ctx.Context, 3, 1*time.Second, func() error {
 		for _, strategy := range s.Strategies {
 			ctx.Log(fmt.Sprintf("Running verification strategy: %s", strategy.Name()))
-			ok, result, err := strategy.Verify(ctx.Context, ctx.BackupPath)
+			ok, result, err := strategy.Verify(ctx.Context, ctx.LocalPath)
 			if err != nil {
 				return fmt.Errorf("Verification strategy %s failed: %w", strategy.Name(), err)
 			}
@@ -88,7 +88,7 @@ func (s *StorageStage) Name() string { return "StorageUpload" }
 
 func (s *StorageStage) Execute(ctx *ExecutionContext) error {
 	return Retry(ctx.Context, 5, 2*time.Second, func() error {
-		f, err := os.Open(ctx.BackupPath)
+		f, err := os.Open(ctx.LocalPath)
 		if err != nil {
 			return err
 		}
@@ -117,14 +117,14 @@ type PostgresDumpStage struct {
 func (s *PostgresDumpStage) Name() string { return "PostgresDump" }
 
 func (s *PostgresDumpStage) Execute(ctx *ExecutionContext) error {
-	ctx.BackupPath = filepath.Join(ctx.TempDir, fmt.Sprintf("backup-%s-%d.sql", ctx.ProfileID, time.Now().Unix()))
+	ctx.LocalPath = filepath.Join(ctx.TempDir, fmt.Sprintf("backup-%s-%d.sql", ctx.ProfileID, time.Now().Unix()))
 
 	args := []string{
 		"-h", s.Host,
 		"-p", s.Port,
 		"-U", s.User,
 		"-d", s.DBName,
-		"-f", ctx.BackupPath,
+		"-f", ctx.LocalPath,
 	}
 
 	if s.CompressionType == "gzip" {
@@ -140,7 +140,7 @@ func (s *PostgresDumpStage) Execute(ctx *ExecutionContext) error {
 			return fmt.Errorf("pg_dump failed: %w. Output: %s", err, string(out))
 		}
 
-		info, err := os.Stat(ctx.BackupPath)
+		info, err := os.Stat(ctx.LocalPath)
 		if err != nil {
 			return err
 		}
@@ -155,8 +155,8 @@ type CleanupStage struct{}
 func (s *CleanupStage) Name() string { return "Cleanup" }
 
 func (s *CleanupStage) Execute(ctx *ExecutionContext) error {
-	if ctx.BackupPath != "" {
-		return os.Remove(ctx.BackupPath)
+	if ctx.LocalPath != "" {
+		return os.Remove(ctx.LocalPath)
 	}
 	return nil
 }

@@ -37,7 +37,15 @@ func (h *ProfileHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	res := make([]dto.ProfileResponse, len(profiles))
 	for i, p := range profiles {
-		res[i] = dto.ToProfileResponse(p)
+		storageIDs := make([]string, len(p.StorageProviderIDs))
+		for j, id := range p.StorageProviderIDs {
+			storageIDs[j] = pgutil.UUIDToString(id)
+		}
+		notificationIDs := make([]string, len(p.NotificationProviderIDs))
+		for j, id := range p.NotificationProviderIDs {
+			notificationIDs[j] = pgutil.UUIDToString(id)
+		}
+		res[i] = dto.ToProfileResponse(p.Profile, storageIDs, notificationIDs)
 	}
 
 	apiutil.Success(w, http.StatusOK, res)
@@ -46,7 +54,7 @@ func (h *ProfileHandler) List(w http.ResponseWriter, r *http.Request) {
 // Create profile
 // @Summary Create a new backup profile
 // @Description Create a new backup profile with the specified configuration.
-// @Description Requires a valid storage_provider_id and retention_policy_id.
+// @Description Requires at least one storage_provider_ids and a retention_policy_id.
 // @Description The schedule must be a valid cron expression (e.g., "0 0 * * *").
 // @Tags profiles
 // @Accept json
@@ -68,29 +76,35 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storageID, _ := pgutil.ParseUUID(req.StorageProviderID)
-	notificationID, _ := pgutil.ParseUUID(req.NotificationProviderID)
+	storageIDs := make([]pgtype.UUID, len(req.StorageProviderIDs))
+	for i, idStr := range req.StorageProviderIDs {
+		storageIDs[i], _ = pgutil.ParseUUID(idStr)
+	}
+
+	notificationIDs := make([]pgtype.UUID, len(req.NotificationProviderIDs))
+	for i, idStr := range req.NotificationProviderIDs {
+		notificationIDs[i], _ = pgutil.ParseUUID(idStr)
+	}
+
 	retentionID, _ := pgutil.ParseUUID(req.RetentionPolicyID)
 
 	params := db.CreateProfileParams{
-		Name:                   req.Name,
-		Description:            pgutil.ToText(req.Description),
-		Enabled:                req.Enabled,
-		Schedule:               req.Schedule,
-		StorageProviderID:      storageID,
-		NotificationProviderID: notificationID,
-		RetentionPolicyID:      retentionID,
-		CompressionType:        req.CompressionType,
-		CompressionLevel:       req.CompressionLevel,
+		Name:              req.Name,
+		Description:       pgutil.ToText(req.Description),
+		Enabled:           req.Enabled,
+		Schedule:          req.Schedule,
+		RetentionPolicyID: retentionID,
+		CompressionType:   req.CompressionType,
+		CompressionLevel:  req.CompressionLevel,
 	}
 
-	profile, err := h.Repo.CreateProfile(r.Context(), params)
+	profile, err := h.Repo.CreateProfile(r.Context(), params, storageIDs, notificationIDs)
 	if err != nil {
 		apiutil.InternalError(w, err)
 		return
 	}
 
-	apiutil.Success(w, http.StatusCreated, dto.ToProfileResponse(profile))
+	apiutil.Success(w, http.StatusCreated, dto.ToProfileResponse(profile.Profile, req.StorageProviderIDs, req.NotificationProviderIDs))
 }
 
 // Update profile
@@ -127,30 +141,36 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storageID, _ := pgutil.ParseUUID(req.StorageProviderID)
-	notificationID, _ := pgutil.ParseUUID(req.NotificationProviderID)
+	storageIDs := make([]pgtype.UUID, len(req.StorageProviderIDs))
+	for i, idStr := range req.StorageProviderIDs {
+		storageIDs[i], _ = pgutil.ParseUUID(idStr)
+	}
+
+	notificationIDs := make([]pgtype.UUID, len(req.NotificationProviderIDs))
+	for i, idStr := range req.NotificationProviderIDs {
+		notificationIDs[i], _ = pgutil.ParseUUID(idStr)
+	}
+
 	retentionID, _ := pgutil.ParseUUID(req.RetentionPolicyID)
 
 	params := db.UpdateProfileParams{
-		ID:                     id,
-		Name:                   req.Name,
-		Description:            pgutil.ToText(req.Description),
-		Enabled:                req.Enabled,
-		Schedule:               req.Schedule,
-		StorageProviderID:      storageID,
-		NotificationProviderID: notificationID,
-		RetentionPolicyID:      retentionID,
-		CompressionType:        req.CompressionType,
-		CompressionLevel:       req.CompressionLevel,
+		ID:                id,
+		Name:              req.Name,
+		Description:       pgutil.ToText(req.Description),
+		Enabled:           req.Enabled,
+		Schedule:          req.Schedule,
+		RetentionPolicyID: retentionID,
+		CompressionType:   req.CompressionType,
+		CompressionLevel:  req.CompressionLevel,
 	}
 
-	profile, err := h.Repo.UpdateProfile(r.Context(), params)
+	profile, err := h.Repo.UpdateProfile(r.Context(), params, storageIDs, notificationIDs)
 	if err != nil {
 		apiutil.InternalError(w, err)
 		return
 	}
 
-	apiutil.Success(w, http.StatusOK, dto.ToProfileResponse(profile))
+	apiutil.Success(w, http.StatusOK, dto.ToProfileResponse(profile.Profile, req.StorageProviderIDs, req.NotificationProviderIDs))
 }
 
 // Delete profile
@@ -233,8 +253,17 @@ func (h *ProfileHandler) Activate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.OnActivate != nil {
-		h.OnActivate(p)
+		h.OnActivate(p.Profile)
 	}
 
-	apiutil.Success(w, http.StatusOK, dto.ToProfileResponse(p))
+	storageIDs := make([]string, len(p.StorageProviderIDs))
+	for i, id := range p.StorageProviderIDs {
+		storageIDs[i] = pgutil.UUIDToString(id)
+	}
+	notificationIDs := make([]string, len(p.NotificationProviderIDs))
+	for i, id := range p.NotificationProviderIDs {
+		notificationIDs[i] = pgutil.UUIDToString(id)
+	}
+
+	apiutil.Success(w, http.StatusOK, dto.ToProfileResponse(p.Profile, storageIDs, notificationIDs))
 }
