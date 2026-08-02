@@ -8,50 +8,38 @@ A self-hosted service that automates PostgreSQL backups with scheduling, retenti
 
 ## Features
 
-### Current
-
-* REST API built with Go and Chi
-* PostgreSQL persistence using `pgx` + `sqlc`
-* Modular Monolith architecture
-* Structured logging using `slog`
-* Database migrations using Goose
-* OpenAPI/Swagger API documentation
-* Request validation
-* Dependency injection and application lifecycle management
-
-### Planned
-
-* Automated backup scheduling
-* Backup execution pipeline with compression support
-* Backup verification
-* GFS retention policies
-* Local filesystem and cloud storage providers
-* Notification providers (Discord, Slack, Email, etc.)
-* Backup execution history and monitoring
-* Profile management (have pre-configured retention policies, scheduling etc)
-* Database restore workflows
-* Configuration export/import
+*   **Automated Scheduling**: Cron-based backup triggers per profile.
+*   **Multi-Destination Storage**: Simultaneous backup to multiple providers (S3, Local Filesystem, etc.).
+*   **Multi-Channel Notifications**: Real-time alerts via Discord, Email, and more.
+*   **Flexible Retention Policies**: GFS (Grandfather-Father-Son) retention management to save storage space.
+*   **Backup Verification**: Automatic integrity checks using checksums and archive validation.
+*   **Restore Workflows**: Integrated database restoration from existing backups.
+*   **REST API**: Fully documented API for management and monitoring.
+*   **Modular Architecture**: Easily extendable with new storage or notification adapters.
 
 ---
 
 ## Project Structure
 
+*   [**Architecture Overview**](docs/guides/ARCHITECTURE.md)
+*   [**Configuration Guide**](docs/guides/CONFIGURATION.md)
+*   [**API Reference**](docs/guides/API.md)
+
 ```text
 .
-├── cmd/                   # Entry points (API server, CLI)
+├── cmd/                   # Application entry points
 ├── internal/
-│   ├── api/               # HTTP layer (Handlers, Router, Middleware)
-│   ├── app/               # Dependency injection & application wiring
-│   ├── backup/            # Backup engine (Runner, Pipelines, Stages)
-│   ├── repository/        # Database access (PostgreSQL + SQLC)
-│   ├── service/           # Business logic orchestration
-│   ├── storage/           # Storage providers (Local, S3...)
-│   ├── notification/      # Notification providers (Discord...)
-│   ├── retention/         # GFS retention engine
-│   ├── verification/      # Backup integrity verification
-│   └── pkg/               # Shared utilities
-├── sql/                   # Migrations and SQLC queries
-└── docs/                  # Swagger / OpenAPI documentation
+│   ├── api/               # REST API layer (Handlers, DTOs)
+│   ├── app/               # App initialization and wiring (DI)
+│   ├── backup/            # Core Backup Engine (Runner, Pipeline, Stages)
+│   ├── repository/        # Data access layer (Postgres + SQLC)
+│   ├── service/           # Domain business logic
+│   ├── storage/           # Storage provider implementations
+│   ├── notification/      # Notification provider implementations
+│   ├── retention/         # Retention policy engine
+│   └── verification/      # Integrity verification logic
+├── sql/                   # SQL migrations and queries
+└── docs/                  # Documentation and OpenAPI specs
 ```
 
 ---
