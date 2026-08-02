@@ -2,7 +2,11 @@ package verification
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -27,20 +31,68 @@ func (s *ArchiveStrategy) Verify(ctx context.Context, path string) (bool, string
 		return false, "file too small", nil
 	}
 
-	// Read first few lines for pg_dump header
-	scanner := bufio.NewScanner(f)
-	foundHeader := false
-	for i := 0; i < 20 && scanner.Scan(); i++ {
-		line := scanner.Text()
-		if strings.Contains(line, "PostgreSQL database dump") || strings.Contains(line, "--") {
-			foundHeader = true
-			break
+	// Read magic bytes to detect compression and format
+	header := make([]byte, 262)
+	n, err := f.Read(header)
+	if err != nil && err != io.EOF {
+		return false, "failed to read header", err
+	}
+	_, _ = f.Seek(0, 0)
+
+	var reader io.Reader = f
+	isCompressed := false
+
+	// Detect Gzip
+	if n >= 2 && header[0] == 0x1f && header[1] == 0x8b {
+		isCompressed = true
+		gz, err := gzip.NewReader(f)
+		if err != nil {
+			return false, "invalid gzip stream", err
 		}
+		defer gz.Close()
+		reader = gz
+
+		header = make([]byte, 262)
+		n, _ = io.ReadFull(reader, header)
+		reader = io.MultiReader(bytes.NewReader(header[:n]), reader)
 	}
 
-	if !foundHeader {
-		return false, "missing pg_dump header", nil
+	format := "unknown"
+	if n >= 5 && string(header[:5]) == "PGDMP" {
+		format = "postgres_custom"
+	} else if n >= 262 && string(header[257:262]) == "ustar" {
+		format = "tar"
+	} else {
+		format = "plain_sql"
 	}
 
-	return true, "valid archive", nil
+	switch format {
+	case "postgres_custom":
+		return true, "valid postgres custom archive", nil
+	case "tar":
+		return true, "valid tar archive", nil
+	case "plain_sql":
+		scanner := bufio.NewScanner(reader)
+		foundHeader := false
+		for i := 0; i < 50 && scanner.Scan(); i++ {
+			line := scanner.Text()
+			if strings.Contains(line, "PostgreSQL database dump") ||
+				strings.Contains(line, "--") ||
+				strings.Contains(line, "SELECT") ||
+				strings.Contains(line, "CREATE TABLE") {
+				foundHeader = true
+				break
+			}
+		}
+		if !foundHeader {
+			msg := "missing pg_dump markers"
+			if isCompressed {
+				msg += " (compressed stream)"
+			}
+			return false, msg, nil
+		}
+		return true, "valid plain sql archive", nil
+	default:
+		return false, fmt.Sprintf("unsupported or unrecognized backup format: %s", format), nil
+	}
 }
