@@ -198,6 +198,52 @@ OK
 
 ---
 
+## Production Deployment
+
+### Running with Docker
+
+Backup Manager is designed to be deployed as a containerized microservice. The provided `Dockerfile` uses a multi-stage build to keep the image small and secure (running as a non-root user).
+
+1. **Build the image:**
+   ```bash
+   docker build -t backup-manager:latest .
+   ```
+
+2. **Configure environment:**
+   Ensure your `.env` file has the correct `APP_METADATA_DB_*` (for internal state) and `APP_TARGET_DB_*` (the database to backup) settings.
+
+3. **Deploy with Docker Compose:**
+   For production, the base configuration starts only the manager and its metadata database:
+   ```bash
+   docker-compose up -d
+   ```
+
+### Local Development & Testing
+
+To test the full pipeline locally with a sample target database, use the provided development stack:
+
+```bash
+make docker-dev-up
+```
+
+This will start:
+1. **Backup Manager:** The microservice.
+2. **Metadata DB:** To store internal state.
+3. **Target DB:** A sample database to be backed up.
+
+To stop the development stack:
+```bash
+make docker-dev-down
+```
+
+### Important Deployment Notes
+
+* **Security:** The application runs as `appuser` (UID 100). Ensure any mounted volumes have correct permissions if using local storage.
+* **Database Compatibility:** The image includes `postgresql17-client`. This is compatible with PostgreSQL 13 through 17.
+* **Automatic Migrations:** The container automatically runs database migrations on the metadata database during startup. If migrations fail, the container will exit with an error.
+
+---
+
 ## Contributing
 
 This project is currently under active development and is not accepting external contributions yet.

@@ -1,0 +1,30 @@
+services:
+  target-db:
+    image: postgres:17-alpine
+    container_name: backup-manager-target-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: project_db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d project_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backup-manager:
+    environment:
+      - APP_METADATA_DB_PORT=5432
+      - APP_METADATA_DB_USER=postgres
+      - APP_METADATA_DB_PASSWORD=postgres
+      - APP_METADATA_DB_DBNAME=backup_manager
+      - APP_METADATA_DB_SSLMODE=disable
+      - APP_TARGET_DB_HOST=target-db
+      - APP_TARGET_DB_PORT=5432
+      - APP_TARGET_DB_USER=postgres
+      - APP_TARGET_DB_PASSWORD=postgres
+      - APP_TARGET_DB_DBNAME=project_db
+      - APP_TARGET_DB_SSLMODE=disable
+    depends_on:
+      target-db:
+        condition: service_healthy

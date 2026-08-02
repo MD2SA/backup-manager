@@ -1,18 +1,51 @@
 services:
-  postgres:
-    image: postgres:16
-    container_name: backup-manager-db
-
+  # Metadata Database (Internal State)
+  metadata-db:
+    image: postgres:17-alpine
+    container_name: backup-manager-metadata-db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: backup_manager
-
+      POSTGRES_USER: ${APP_METADATA_DB_USER:?Metadata database user is required}
+      POSTGRES_PASSWORD: ${APP_METADATA_DB_PASSWORD:?Metadata database password is required}
+      POSTGRES_DB: ${APP_METADATA_DB_DBNAME:?Metadata database name is required}
     ports:
-      - "5432:5432"
-
+      - "${APP_METADATA_DB_PORT:?Metadata database port is required}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - metadata_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # The Backup Manager Microservice
+  backup-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backup-manager-app
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      # Metadata DB Connection
+      - APP_METADATA_DB_HOST=metadata-db
+      - APP_METADATA_DB_PORT=${APP_METADATA_DB_PORT:?Metadata database port is required}
+      - APP_METADATA_DB_USER=${APP_METADATA_DB_USER:?Metadata database user is required}
+      - APP_METADATA_DB_PASSWORD=${APP_METADATA_DB_PASSWORD:?Metadata database password is required}
+      - APP_METADATA_DB_DBNAME=${APP_METADATA_DB_DBNAME:?Metadata database name is required}
+      - APP_METADATA_DB_SSLMODE=${APP_METADATA_DB_SSLMODE:?Metadata database SSL mode is required}
+      # Target DB Connection (Mandatory for the microservice)
+      - APP_TARGET_DB_HOST=${APP_TARGET_DB_HOST:?Target database host is required}
+      - APP_TARGET_DB_PORT=${APP_TARGET_DB_PORT:?Target database port is required}
+      - APP_TARGET_DB_USER=${APP_TARGET_DB_USER:?Target database user is required}
+      - APP_TARGET_DB_PASSWORD=${APP_TARGET_DB_PASSWORD:?Target database password is required}
+      - APP_TARGET_DB_DBNAME=${APP_TARGET_DB_DBNAME:?Target database name is required}
+      - APP_TARGET_DB_SSLMODE=${APP_TARGET_DB_SSLMODE:?Target database SSL mode is required}
+    volumes:
+      - backup_storage:/tmp/backup-manager-storage
+    depends_on:
+      metadata-db:
+        condition: service_healthy
 
 volumes:
-  postgres_data:
+  metadata_db_data:
+  backup_storage:

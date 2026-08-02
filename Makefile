@@ -7,20 +7,12 @@ ifneq (,$(wildcard ./.env))
 endif
 
 # Database URL construction for migrations (Internal state)
-DB_USER ?= $(or $(APP_METADATA_DB_USER),$(APP_DATABASE_USER))
-DB_PASSWORD ?= $(or $(APP_METADATA_DB_PASSWORD),$(APP_DATABASE_PASSWORD))
-DB_HOST ?= $(or $(APP_METADATA_DB_HOST),$(APP_DATABASE_HOST))
-DB_PORT ?= $(or $(APP_METADATA_DB_PORT),$(APP_DATABASE_PORT))
-DB_NAME ?= $(or $(APP_METADATA_DB_DBNAME),$(APP_DATABASE_DBNAME))
-DB_SSLMODE ?= $(or $(APP_METADATA_DB_SSLMODE),$(APP_DATABASE_SSLMODE))
-
-# Default to Docker-compose values if not set
-DB_USER := $(if $(DB_USER),$(DB_USER),postgres)
-DB_PASSWORD := $(if $(DB_PASSWORD),$(DB_PASSWORD),postgres)
-DB_HOST := $(if $(DB_HOST),$(DB_HOST),localhost)
-DB_PORT := $(if $(DB_PORT),$(DB_PORT),5432)
-DB_NAME := $(if $(DB_NAME),$(DB_NAME),backup_manager)
-DB_SSLMODE := $(if $(DB_SSLMODE),$(DB_SSLMODE),disable)
+DB_USER ?= $(APP_METADATA_DB_USER)
+DB_PASSWORD ?= $(APP_METADATA_DB_PASSWORD)
+DB_HOST ?= $(APP_METADATA_DB_HOST)
+DB_PORT ?= $(APP_METADATA_DB_PORT)
+DB_NAME ?= $(APP_METADATA_DB_DBNAME)
+DB_SSLMODE ?= $(APP_METADATA_DB_SSLMODE)
 
 DATABASE_URL ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
 
@@ -48,6 +40,8 @@ help:
 	@echo "  make swagger    - Generate Swagger documentation"
 	@echo "  make sqlc       - Generate SQLC code"
 	@echo "  make migrate    - Run database migrations"
+	@echo "  make docker-dev-up   - Start full dev stack (App + Metadata DB + Target DB)"
+	@echo "  make docker-dev-down - Stop and remove dev stack"
 	@echo "  make tools      - Install all required tools locally"
 	@echo "  make clean      - Remove build artifacts"
 
@@ -80,6 +74,12 @@ sqlc: $(SQLC)
 
 migrate: $(GOOSE)
 	$(GOOSE) -dir sql/migrations postgres "$(DATABASE_URL)" up
+
+docker-dev-up:
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+docker-dev-down:
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
 
 tools: $(SWAG) $(SQLC) $(GOOSE) $(AIR) $(GOLANGCI_LINT)
 

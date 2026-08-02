@@ -36,7 +36,10 @@ type App struct {
 }
 
 func New(ctx context.Context) (*App, error) {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, fmt.Errorf("Configuration error: %w", err)
+	}
 	log := logger.New()
 
 	dbPool, err := database.New(ctx, cfg.MetadataDB)

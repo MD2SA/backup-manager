@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -22,7 +23,7 @@ type Config struct {
 	TargetDB   DatabaseConfig
 }
 
-func Load() Config {
+func Load() (Config, error) {
 	// Load .env file if it exists (local development)
 	_ = godotenv.Load()
 
@@ -30,27 +31,26 @@ func Load() Config {
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	// Default port
+	// Default port for the API server remains 8080 as it's a standard app default
 	viper.SetDefault("port", "8080")
 
-	// Metadata Database Defaults (Internal state)
-	// We check for both APP_METADATA_DB_* and legacy APP_DATABASE_* for compatibility
-	metadataHost := getEnvWithFallback("metadata_db.host", "database.host", "localhost")
-	metadataPort := getEnvWithFallback("metadata_db.port", "database.port", "5432")
-	metadataUser := getEnvWithFallback("metadata_db.user", "database.user", "postgres")
-	metadataPass := getEnvWithFallback("metadata_db.password", "database.password", "postgres")
-	metadataName := getEnvWithFallback("metadata_db.dbname", "database.dbname", "backup_manager")
-	metadataSSL := getEnvWithFallback("metadata_db.sslmode", "database.sslmode", "disable")
+	// Metadata Database (Internal state)
+	metadataHost := viper.GetString("metadata_db.host")
+	metadataPort := viper.GetString("metadata_db.port")
+	metadataUser := viper.GetString("metadata_db.user")
+	metadataPass := viper.GetString("metadata_db.password")
+	metadataName := viper.GetString("metadata_db.dbname")
+	metadataSSL := viper.GetString("metadata_db.sslmode")
 
-	// Target Database Defaults (The one to be backed up)
-	viper.SetDefault("target_db.host", "localhost")
-	viper.SetDefault("target_db.port", "5432")
-	viper.SetDefault("target_db.user", "postgres")
-	viper.SetDefault("target_db.password", "postgres")
-	viper.SetDefault("target_db.dbname", "target_db")
-	viper.SetDefault("target_db.sslmode", "disable")
+	// Target Database (The one to be backed up)
+	targetHost := viper.GetString("target_db.host")
+	targetPort := viper.GetString("target_db.port")
+	targetUser := viper.GetString("target_db.user")
+	targetPass := viper.GetString("target_db.password")
+	targetName := viper.GetString("target_db.dbname")
+	targetSSL := viper.GetString("target_db.sslmode")
 
-	return Config{
+	cfg := Config{
 		Port: viper.GetString("port"),
 		MetadataDB: DatabaseConfig{
 			Host:     metadataHost,
@@ -61,23 +61,62 @@ func Load() Config {
 			SSLMode:  metadataSSL,
 		},
 		TargetDB: DatabaseConfig{
-			Host:     viper.GetString("target_db.host"),
-			Port:     viper.GetString("target_db.port"),
-			User:     viper.GetString("target_db.user"),
-			Password: viper.GetString("target_db.password"),
-			DBName:   viper.GetString("target_db.dbname"),
-			SSLMode:  viper.GetString("target_db.sslmode"),
+			Host:     targetHost,
+			Port:     targetPort,
+			User:     targetUser,
+			Password: targetPass,
+			DBName:   targetName,
+			SSLMode:  targetSSL,
 		},
 	}
+
+	if err := cfg.Validate(); err != nil {
+		return Config{}, err
+	}
+
+	return cfg, nil
 }
 
-func getEnvWithFallback(key, fallbackKey, defaultValue string) string {
-	viper.SetDefault(key, "")
-	viper.SetDefault(fallbackKey, defaultValue)
-
-	val := viper.GetString(key)
-	if val == "" {
-		return viper.GetString(fallbackKey)
+func (c *Config) Validate() error {
+	// Validate Metadata DB
+	if c.MetadataDB.Host == "" {
+		return errors.New("Metadata database host is required (APP_METADATA_DB_HOST)")
 	}
-	return val
+	if c.MetadataDB.Port == "" {
+		return errors.New("Metadata database port is required (APP_METADATA_DB_PORT)")
+	}
+	if c.MetadataDB.User == "" {
+		return errors.New("Metadata database user is required (APP_METADATA_DB_USER)")
+	}
+	if c.MetadataDB.Password == "" {
+		return errors.New("Metadata database password is required (APP_METADATA_DB_PASSWORD)")
+	}
+	if c.MetadataDB.DBName == "" {
+		return errors.New("Metadata database name is required (APP_METADATA_DB_DBNAME)")
+	}
+	if c.MetadataDB.SSLMode == "" {
+		return errors.New("Metadata database SSL mode is required (APP_METADATA_DB_SSLMODE)")
+	}
+
+	// Validate Target DB
+	if c.TargetDB.Host == "" {
+		return errors.New("Target database host is required (APP_TARGET_DB_HOST)")
+	}
+	if c.TargetDB.Port == "" {
+		return errors.New("Target database port is required (APP_TARGET_DB_PORT)")
+	}
+	if c.TargetDB.User == "" {
+		return errors.New("Target database user is required (APP_TARGET_DB_USER)")
+	}
+	if c.TargetDB.Password == "" {
+		return errors.New("Target database password is required (APP_TARGET_DB_PASSWORD)")
+	}
+	if c.TargetDB.DBName == "" {
+		return errors.New("Target database name is required (APP_TARGET_DB_DBNAME)")
+	}
+	if c.TargetDB.SSLMode == "" {
+		return errors.New("Target database SSL mode is required (APP_TARGET_DB_SSLMODE)")
+	}
+
+	return nil
 }
