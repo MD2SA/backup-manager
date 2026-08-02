@@ -20,6 +20,7 @@ type ExecutionContext struct {
 	Context     context.Context
 	ExecutionID pgtype.UUID
 	ProfileID   pgtype.UUID
+	ProfileName string // Slugified profile name for storage organization
 
 	// Pipeline state
 	StartTime time.Time

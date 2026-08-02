@@ -1,65 +1,71 @@
 # syntax=docker/dockerfile:1
 
-# Stage 1: Build the Go application and tools
 FROM golang:1.26.5-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies
 RUN apk add --no-cache git
 
 # Set Go Proxy for faster and more reliable downloads
 ENV GOPROXY=https://proxy.golang.org,direct
 
-# Copy dependency files
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go install github.com/pressly/goose/v3/cmd/goose@v3.27.3
+
 COPY go.mod go.sum ./
 
-# Download dependencies with cache mount
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
-# Copy the rest of the source code
 COPY . .
 
-# Build the application with static linking and build cache mount
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -o /bin/backup-manager ./cmd/api
+    CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w" \
+    -o /bin/backup-manager ./cmd/api
 
-# Install Goose for migrations
-RUN go install github.com/pressly/goose/v3/cmd/goose@v3.27.3
-
-# Stage 2: Production image
 FROM alpine:3.21
 
-# Install runtime dependencies
+# OCI Labels
+LABEL org.opencontainers.image.title="Backup Manager" \
+      org.opencontainers.image.description="Automated PostgreSQL backup service with multi-provider support" \
+      org.opencontainers.image.source="https://github.com/MD2SA/backup-manager" \
+      org.opencontainers.image.vendor="MD2SA" \
+      org.opencontainers.image.licenses="MIT"
+
 RUN apk add --no-cache \
     postgresql-client \
     ca-certificates \
-    tzdata
+    tzdata \
+    su-exec \
+    shadow && \
+    addgroup -S -g 101 appgroup && \
+    adduser -S -u 100 -G appgroup appuser && \
+    mkdir -p /backups && \
+    chown -R appuser:appgroup /backups
 
-# Create a non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+ENV APP_PORT=8080 \
+    APP_LOG_LEVEL=info \
+    APP_TEMP_DIR=/tmp \
+    APP_STORAGE_PATH=/backups
 
 WORKDIR /app
 
-# Copy the binary and goose from the builder stage
 COPY --from=builder /bin/backup-manager /usr/local/bin/backup-manager
 COPY --from=builder /go/bin/goose /usr/local/bin/goose
+COPY --chown=appuser:appgroup sql/migrations ./sql/migrations
+COPY --chown=appuser:appgroup scripts/entrypoint.sh ./scripts/entrypoint.sh
 
-# Copy migrations and entrypoint script
-COPY sql/migrations ./sql/migrations
-COPY scripts/entrypoint.sh ./scripts/entrypoint.sh
+RUN chmod +x ./scripts/entrypoint.sh
 
-# Ensure the entrypoint script is executable and owned by the non-root user
-RUN chmod +x ./scripts/entrypoint.sh && \
-    chown -R appuser:appgroup /app
+VOLUME ["/backups"]
 
-# Switch to the non-root user
-USER appuser
-
-# Expose the API port
 EXPOSE 8080
 
-# Use the entrypoint script to handle migrations and startup
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${APP_PORT}/api/v1/health || exit 1
+
 ENTRYPOINT ["./scripts/entrypoint.sh"]

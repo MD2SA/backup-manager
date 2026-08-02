@@ -94,7 +94,9 @@ func (s *StorageStage) Execute(ctx *ExecutionContext) error {
 		}
 		defer f.Close()
 
-		key := fmt.Sprintf("%s/%d-%s.sql", ctx.ProfileID, time.Now().Unix(), ctx.ExecutionID)
+		// Key format: profile-name/YYYYMMDD-HHMMSS-execution_id.sql
+		timestamp := time.Now().Format("20060102-150405")
+		key := fmt.Sprintf("%s/%s-%s.sql", ctx.ProfileName, timestamp, ctx.ExecutionID)
 		err = s.Provider.Upload(ctx.Context, key, f)
 		if err == nil {
 			ctx.BackupPath = key

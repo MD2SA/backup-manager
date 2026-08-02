@@ -9,13 +9,65 @@ Backup Manager is configured via Environment Variables and through the REST API 
 | `APP_PORT` | Port for the API server | `8080` |
 | `APP_LOG_LEVEL` | Logging level (debug, info, warn, error) | `info` |
 | `APP_TEMP_DIR` | Directory for temporary backup files | `/tmp` |
-| `APP_STORAGE_PATH` | Default path for local storage persistence | `/var/lib/backup-manager/storage` |
+| `APP_BACKUP_PATH` | (Docker only) Host path for backup persistence | **Mandatory** |
 | `APP_METADATA_DB_URL` | PostgreSQL connection URL for internal state | `postgres://...` |
 | `APP_TARGET_DB_HOST` | Host of the database to backup | `localhost` |
 | `APP_TARGET_DB_PORT` | Port of the database to backup | `5432` |
 | `APP_TARGET_DB_USER` | User for the target database | `postgres` |
 | `APP_TARGET_DB_PASSWORD`| Password for the target database | - |
 | `APP_TARGET_DB_NAME` | Name of the database to backup | - |
+
+## Docker User and Permissions
+
+To ensure smooth operation and correct file ownership on your host machine, the Docker image features an **Auto-Adaptive Identity** system.
+
+### How it works
+On startup, the container inspects the mounted `/backups` volume. If it is owned by a non-root user on your host, the container automatically assumes that user's identity (UID and GID).
+
+### Manual Overrides (Optional)
+If you need to force a specific identity, you can use the following environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PUID` | User ID to run the application as | *(Auto-detected)* |
+| `PGID` | Group ID to run the application as | *(Auto-detected)* |
+
+### Why is this useful?
+It eliminates "Permission Denied" errors and ensures that all backup files created by Docker are immediately accessible, movable, and deletable by you on your host machine without using `sudo`.
+
+## Storage Persistence
+
+When using the `local` storage provider in a Docker environment, the application is pre-configured to use `/backups` as its internal persistent directory.
+
+To ensure your backups are saved on your host machine, you **must** define the `APP_BACKUP_PATH` environment variable in your `.env` file.
+
+### Best Practices
+
+| Scenario | Recommended `APP_BACKUP_PATH` | Why? |
+|----------|-------------------------------|------|
+| **Development** | `./backups` | Keeps files inside the project folder for easy access. |
+| **Production** | `/var/lib/backup-manager/storage` | Standard Linux path for persistent application data. |
+| **NAS / External** | `/mnt/nas/backups` | Directly stores backups on a network-attached storage or external disk. |
+
+### Storage Provider Configuration (API)
+
+When creating a **Storage Provider** of type `local` via the REST API, you specify a `path` that is **relative** to the system's root backup directory.
+
+```json
+{
+  "name": "Local Disk",
+  "type": "local",
+  "config": {
+    "path": "" 
+  }
+}
+```
+
+> [!TIP]
+> - **Leave `path` empty** (recommended) to store backups organized by profile name directly in the root of your `APP_BACKUP_PATH`.
+> - The files are automatically organized as: `[APP_BACKUP_PATH]/[profile-name]/[YYYYMMDD-HHMMSS]-[execution-id].sql`.
+> - Using a name like `daily` will add another layer: `[APP_BACKUP_PATH]/daily/[profile-name]/...`.
+
 
 ## Dynamic Configuration (API)
 
@@ -28,12 +80,9 @@ Storage and Notification providers are created via the API. Each provider has a 
 *   **Config**:
     ```json
     {
-      "path": "/path/to/backups"
+      "path": ""
     }
     ```
-
-> [!IMPORTANT]
-> **Docker Users:** If running inside Docker, the `path` you provide in the configuration must match a mounted volume in your `docker-compose.yml`. By default, the application is configured to persist `/var/lib/backup-manager/storage`. Use this path in your local storage provider configuration to ensure backups are stored on the host machine.
 
 #### S3 Compatible
 *   **Type**: `s3`

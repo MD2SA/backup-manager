@@ -70,6 +70,7 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 		Context:     ctx,
 		ExecutionID: execID,
 		ProfileID:   profileID,
+		ProfileName: pgutil.Slugify(p.Name),
 		TempDir:     s.config.TempDir,
 	}
 

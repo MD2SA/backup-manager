@@ -37,7 +37,7 @@ func Load() (Config, error) {
 	// Global settings
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("log_level", "info")
-	viper.SetDefault("storage_path", "/var/lib/backup-manager/storage")
+	viper.SetDefault("storage_path", "/backups")
 
 	// Metadata Database (Internal state)
 	metadataHost := viper.GetString("metadata_db.host")
@@ -89,10 +89,6 @@ func (c *Config) Validate() error {
 	// Global validation
 	if c.TempDir == "" {
 		return errors.New("Temporary directory is required (APP_TEMP_DIR)")
-	}
-
-	if c.StoragePath == "" {
-		return errors.New("Storage path is required (APP_STORAGE_PATH)")
 	}
 
 	// Validate Metadata DB

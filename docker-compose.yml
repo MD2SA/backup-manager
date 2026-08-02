@@ -29,7 +29,6 @@ services:
       # Global Settings
       - APP_LOG_LEVEL=${APP_LOG_LEVEL:-info}
       - APP_TEMP_DIR=${APP_TEMP_DIR:?Temporary directory for staging backups is required}
-      - APP_STORAGE_PATH=${APP_STORAGE_PATH:-/var/lib/backup-manager/storage}
       # Metadata DB Connection
       - APP_METADATA_DB_HOST=metadata-db
       - APP_METADATA_DB_PORT=${APP_METADATA_DB_PORT:?Metadata database port is required}
@@ -45,11 +44,10 @@ services:
       - APP_TARGET_DB_DBNAME=${APP_TARGET_DB_DBNAME:?Target database name is required}
       - APP_TARGET_DB_SSLMODE=${APP_TARGET_DB_SSLMODE:?Target database SSL mode is required}
     volumes:
-      - backup_storage:/var/lib/backup-manager/storage
+      - ${APP_BACKUP_PATH:?Backup storage path on the host is required (APP_BACKUP_PATH)}:/backups
     depends_on:
       metadata-db:
         condition: service_healthy
 
 volumes:
   metadata_db_data:
-  backup_storage:

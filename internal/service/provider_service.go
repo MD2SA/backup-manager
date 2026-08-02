@@ -42,7 +42,7 @@ func (s *ProviderService) ResolveStorageProvider(ctx context.Context, id pgtype.
 		}
 	}
 
-	provider, err := storage.NewProvider(ctx, sp.Type, configMap)
+	provider, err := storage.NewProvider(ctx, sp.Type, configMap, s.cfg.StoragePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage provider: %w", err)
 	}

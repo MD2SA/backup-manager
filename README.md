@@ -226,7 +226,7 @@ make docker-dev-down
 
 ### Important Deployment Notes
 
-* **Security:** The application runs as `appuser` (UID 100). Ensure any mounted volumes have correct permissions if using local storage.
+* **Auto-Adaptive Identity:** The Docker image automatically detects the owner of the mounted `/backups` volume and runs with those permissions. This ensures created backups are owned by your host user without manual configuration. You can still override this using `PUID` and `PGID` environment variables.
 * **Database Compatibility:** The image includes `postgresql16-client`. This is compatible with PostgreSQL 13 through 17.
 * **Automatic Migrations:** The container automatically runs database migrations on the metadata database during startup. If migrations fail, the container will exit with an error.
 
