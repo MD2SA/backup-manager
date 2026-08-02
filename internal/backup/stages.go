@@ -136,8 +136,8 @@ func (s *PostgresDumpStage) Execute(ctx *ExecutionContext) error {
 
 		cmd.Env = append(os.Environ(), fmt.Sprintf("PGPASSWORD=%s", s.Password))
 
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("pg_dump failed: %w", err)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("pg_dump failed: %w. Output: %s", err, string(out))
 		}
 
 		info, err := os.Stat(ctx.BackupPath)

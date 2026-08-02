@@ -30,11 +30,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.27.3
 
 # Stage 2: Production image
-FROM alpine:3.20
+FROM alpine:3.21
 
 # Install runtime dependencies
 RUN apk add --no-cache \
-    postgresql16-client \
+    postgresql-client \
     ca-certificates \
     tzdata
 
