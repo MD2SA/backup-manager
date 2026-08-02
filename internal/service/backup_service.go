@@ -98,6 +98,7 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 		Context:     ctx,
 		ExecutionID: execID,
 		ProfileID:   profileID,
+		TempDir:     s.config.TempDir,
 	}
 
 	err = pipeline.Run(execCtx)
@@ -169,6 +170,7 @@ func (s *BackupService) ExecuteRestore(ctx context.Context, executionID pgtype.U
 
 	pipeline := &backup.RestorePipeline{
 		Storage: storageProvider,
+		TempDir: s.config.TempDir,
 	}
 	pipeline.DBConfig.Host = s.config.TargetDB.Host
 	pipeline.DBConfig.Port = s.config.TargetDB.Port

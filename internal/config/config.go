@@ -20,6 +20,7 @@ type DatabaseConfig struct {
 type Config struct {
 	Port       string
 	LogLevel   string
+	TempDir    string
 	MetadataDB DatabaseConfig
 	TargetDB   DatabaseConfig
 }
@@ -55,6 +56,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		Port:     viper.GetString("port"),
 		LogLevel: viper.GetString("log_level"),
+		TempDir:  viper.GetString("temp_dir"),
 		MetadataDB: DatabaseConfig{
 			Host:     metadataHost,
 			Port:     metadataPort,
@@ -81,6 +83,11 @@ func Load() (Config, error) {
 }
 
 func (c *Config) Validate() error {
+	// Global validation
+	if c.TempDir == "" {
+		return errors.New("Temporary directory is required (APP_TEMP_DIR)")
+	}
+
 	// Validate Metadata DB
 	if c.MetadataDB.Host == "" {
 		return errors.New("Metadata database host is required (APP_METADATA_DB_HOST)")

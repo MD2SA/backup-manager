@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/MD2SA/backup-manager/internal/repository"
@@ -116,7 +117,7 @@ type PostgresDumpStage struct {
 func (s *PostgresDumpStage) Name() string { return "PostgresDump" }
 
 func (s *PostgresDumpStage) Execute(ctx *ExecutionContext) error {
-	ctx.BackupPath = fmt.Sprintf("/tmp/backup-%s-%d.sql", ctx.ProfileID, time.Now().Unix())
+	ctx.BackupPath = filepath.Join(ctx.TempDir, fmt.Sprintf("backup-%s-%d.sql", ctx.ProfileID, time.Now().Unix()))
 
 	args := []string{
 		"-h", s.Host,

@@ -26,6 +26,7 @@ type ExecutionContext struct {
 	EndTime   time.Time
 
 	BackupPath string
+	TempDir    string
 	Checksum   string
 	Size       int64
 

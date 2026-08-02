@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/MD2SA/backup-manager/internal/storage"
 )
 
 type RestorePipeline struct {
 	Storage  storage.StorageProvider
+	TempDir  string
 	DBConfig struct {
 		Host     string
 		Port     string
@@ -21,7 +23,7 @@ type RestorePipeline struct {
 }
 
 func (p *RestorePipeline) Run(ctx context.Context, storagePath string) error {
-	tmpFile := fmt.Sprintf("/tmp/restore-%d.sql", os.Getpid())
+	tmpFile := filepath.Join(p.TempDir, fmt.Sprintf("restore-%d.sql", os.Getpid()))
 	defer os.Remove(tmpFile)
 
 	reader, err := p.Storage.Download(ctx, storagePath)
