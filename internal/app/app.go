@@ -40,7 +40,7 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Configuration error: %w", err)
 	}
-	log := logger.New()
+	log := logger.New(cfg.LogLevel)
 
 	dbPool, err := database.New(ctx, cfg.MetadataDB)
 	if err != nil {

@@ -19,6 +19,7 @@ type DatabaseConfig struct {
 
 type Config struct {
 	Port       string
+	LogLevel   string
 	MetadataDB DatabaseConfig
 	TargetDB   DatabaseConfig
 }
@@ -31,8 +32,9 @@ func Load() (Config, error) {
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	// Default port for the API server remains 8080 as it's a standard app default
+	// Global settings
 	viper.SetDefault("port", "8080")
+	viper.SetDefault("log_level", "info")
 
 	// Metadata Database (Internal state)
 	metadataHost := viper.GetString("metadata_db.host")
@@ -51,7 +53,8 @@ func Load() (Config, error) {
 	targetSSL := viper.GetString("target_db.sslmode")
 
 	cfg := Config{
-		Port: viper.GetString("port"),
+		Port:     viper.GetString("port"),
+		LogLevel: viper.GetString("log_level"),
 		MetadataDB: DatabaseConfig{
 			Host:     metadataHost,
 			Port:     metadataPort,
