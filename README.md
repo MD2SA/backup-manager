@@ -239,7 +239,7 @@ make docker-dev-down
 ### Important Deployment Notes
 
 * **Security:** The application runs as `appuser` (UID 100). Ensure any mounted volumes have correct permissions if using local storage.
-* **Database Compatibility:** The image includes `postgresql17-client`. This is compatible with PostgreSQL 13 through 17.
+* **Database Compatibility:** The image includes `postgresql16-client`. This is compatible with PostgreSQL 13 through 17.
 * **Automatic Migrations:** The container automatically runs database migrations on the metadata database during startup. If migrations fail, the container will exit with an error.
 
 ---
