@@ -21,7 +21,8 @@ type ProfileHandler struct {
 
 // List profiles
 // @Summary List all backup profiles
-// @Description Get a list of all configured backup profiles
+// @Description Get a list of all configured backup profiles.
+// @Description Profiles link databases to storage destinations via schedules.
 // @Tags profiles
 // @Produce json
 // @Success 200 {array} db.Profile
@@ -39,7 +40,9 @@ func (h *ProfileHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Create profile
 // @Summary Create a new backup profile
-// @Description Create a new backup profile with the specified configuration
+// @Description Create a new backup profile with the specified configuration.
+// @Description Requires a valid storage_provider_id and retention_policy_id.
+// @Description The schedule must be a valid cron expression (e.g., "0 0 * * *").
 // @Tags profiles
 // @Accept json
 // @Produce json
@@ -77,7 +80,11 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Update profile
 // @Summary Update an existing backup profile
-// @Description Update a backup profile by its ID
+// @Description Update a backup profile by its ID.
+// @Description The schedule must be a valid cron expression:
+// @Description - "0 * * * *" (Hourly)
+// @Description - "0 2 * * *" (Daily at 2:00 AM)
+// @Description - "0 0 * * 0" (Weekly on Sunday)
 // @Tags profiles
 // @Accept json
 // @Produce json
@@ -148,7 +155,8 @@ func (h *ProfileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 // Run profile now
 // @Summary Run a backup profile immediately
-// @Description Trigger a backup execution for a specific profile now
+// @Description Trigger an asynchronous backup execution for a specific profile now.
+// @Description This bypasses the schedule and enqueues the job in the runner.
 // @Tags profiles
 // @Param id path string true "Profile ID"
 // @Success 202 "Accepted"
@@ -174,7 +182,9 @@ func (h *ProfileHandler) RunNow(w http.ResponseWriter, r *http.Request) {
 
 // Activate profile
 // @Summary Activate a backup profile (sets as scheduled)
-// @Description Set a profile as the active one for scheduled backups. All other profiles will be deactivated.
+// @Description Set a profile as the active one for scheduled backups.
+// @Description This updates the system scheduler to use this profile's schedule.
+// @Description Note: The current system logic may only support one active profile at a time.
 // @Tags profiles
 // @Param id path string true "Profile ID"
 // @Success 200 {object} db.Profile

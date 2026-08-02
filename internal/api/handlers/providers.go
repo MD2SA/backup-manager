@@ -17,7 +17,10 @@ type ProviderHandler struct {
 
 // List storage providers
 // @Summary List all storage providers
-// @Description Get a list of all configured storage providers (e.g. S3, Local)
+// @Description Get a list of all configured storage providers.
+// @Description The 'config' field varies by type:
+// @Description - local: {"path": "/tmp/backups"}
+// @Description - s3: {"region": "us-east-1", "bucket": "...", "access_key": "...", "secret_key": "..."}
 // @Tags providers
 // @Produce json
 // @Success 200 {array} db.StorageProvider
@@ -34,7 +37,10 @@ func (h *ProviderHandler) ListStorage(w http.ResponseWriter, r *http.Request) {
 
 // Create storage provider
 // @Summary Create a new storage provider
-// @Description Configure a new storage destination for backups
+// @Description Configure a new storage destination for backups.
+// @Description Supported types and configurations:
+// @Description - local: {"path": "/tmp/backups"}
+// @Description - s3: {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."}
 // @Tags providers
 // @Accept json
 // @Produce json
@@ -60,7 +66,10 @@ func (h *ProviderHandler) CreateStorage(w http.ResponseWriter, r *http.Request) 
 
 // Update storage provider
 // @Summary Update an existing storage provider
-// @Description Update a storage provider's configuration by ID
+// @Description Update a storage provider's configuration by ID.
+// @Description Supported types and configurations:
+// @Description - local: {"path": "/tmp/backups"}
+// @Description - s3: {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."}
 // @Tags providers
 // @Accept json
 // @Produce json
@@ -105,7 +114,9 @@ func (h *ProviderHandler) DeleteStorage(w http.ResponseWriter, r *http.Request) 
 
 // List notification providers
 // @Summary List all notification providers
-// @Description Get a list of all configured notification providers (e.g. Discord)
+// @Description Get a list of all configured notification providers.
+// @Description The 'config' field varies by type:
+// @Description - discord: {"webhook_url": "https://discord.com/api/webhooks/..."}
 // @Tags providers
 // @Produce json
 // @Success 200 {array} db.NotificationProvider
@@ -122,7 +133,9 @@ func (h *ProviderHandler) ListNotification(w http.ResponseWriter, r *http.Reques
 
 // Create notification provider
 // @Summary Create a new notification provider
-// @Description Configure a new destination for backup alerts
+// @Description Configure a new destination for backup alerts.
+// @Description Supported types and configurations:
+// @Description - discord: {"webhook_url": "https://discord.com/api/webhooks/..."}
 // @Tags providers
 // @Accept json
 // @Produce json
@@ -148,7 +161,9 @@ func (h *ProviderHandler) CreateNotification(w http.ResponseWriter, r *http.Requ
 
 // Update notification provider
 // @Summary Update an existing notification provider
-// @Description Update a notification provider's configuration by ID
+// @Description Update a notification provider's configuration by ID.
+// @Description Supported types and configurations:
+// @Description - discord: {"webhook_url": "https://discord.com/api/webhooks/..."}
 // @Tags providers
 // @Accept json
 // @Produce json

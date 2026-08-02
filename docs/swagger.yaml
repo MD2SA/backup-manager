@@ -369,7 +369,10 @@ info:
 paths:
   /executions/{id}:
     get:
-      description: Get full details of a specific backup execution, including logs
+      description: |-
+        Get full details of a specific backup execution.
+        The 'logs' field contains an array of strings formatted as 'TIMESTAMP: MESSAGE'.
+        These logs provide a step-by-step trace of the backup pipeline stages.
       parameters:
       - description: Execution ID
         in: path
@@ -402,8 +405,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Prevent a backup execution from being automatically cleaned up
-        by pinning it
+      description: |-
+        Prevent a backup execution from being automatically cleaned up by pinning it.
+        Pinned executions are ignored by the retention engine's deletion logic.
       parameters:
       - description: Execution ID
         in: path
@@ -486,7 +490,10 @@ paths:
       - health
   /notification-providers:
     get:
-      description: Get a list of all configured notification providers (e.g. Discord)
+      description: |-
+        Get a list of all configured notification providers.
+        The 'config' field varies by type:
+        - discord: {"webhook_url": "https://discord.com/api/webhooks/..."}
       produces:
       - application/json
       responses:
@@ -506,7 +513,10 @@ paths:
     post:
       consumes:
       - application/json
-      description: Configure a new destination for backup alerts
+      description: |-
+        Configure a new destination for backup alerts.
+        Supported types and configurations:
+        - discord: {"webhook_url": "https://discord.com/api/webhooks/..."}
       parameters:
       - description: Notification provider configuration
         in: body
@@ -554,7 +564,10 @@ paths:
     put:
       consumes:
       - application/json
-      description: Update a notification provider's configuration by ID
+      description: |-
+        Update a notification provider's configuration by ID.
+        Supported types and configurations:
+        - discord: {"webhook_url": "https://discord.com/api/webhooks/..."}
       parameters:
       - description: Provider ID
         in: path
@@ -587,7 +600,9 @@ paths:
       - providers
   /profiles:
     get:
-      description: Get a list of all configured backup profiles
+      description: |-
+        Get a list of all configured backup profiles.
+        Profiles link databases to storage destinations via schedules.
       produces:
       - application/json
       responses:
@@ -607,7 +622,10 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a new backup profile with the specified configuration
+      description: |-
+        Create a new backup profile with the specified configuration.
+        Requires a valid storage_provider_id and retention_policy_id.
+        The schedule must be a valid cron expression (e.g., "0 0 * * *").
       parameters:
       - description: Profile configuration
         in: body
@@ -659,7 +677,12 @@ paths:
     put:
       consumes:
       - application/json
-      description: Update a backup profile by its ID
+      description: |-
+        Update a backup profile by its ID.
+        The schedule must be a valid cron expression:
+        - "0 * * * *" (Hourly)
+        - "0 2 * * *" (Daily at 2:00 AM)
+        - "0 0 * * 0" (Weekly on Sunday)
       parameters:
       - description: Profile ID
         in: path
@@ -692,8 +715,10 @@ paths:
       - profiles
   /profiles/{id}/activate:
     post:
-      description: Set a profile as the active one for scheduled backups. All other
-        profiles will be deactivated.
+      description: |-
+        Set a profile as the active one for scheduled backups.
+        This updates the system scheduler to use this profile's schedule.
+        Note: The current system logic may only support one active profile at a time.
       parameters:
       - description: Profile ID
         in: path
@@ -718,7 +743,11 @@ paths:
       - profiles
   /profiles/{id}/executions:
     get:
-      description: Get a history of all backup executions for a profile
+      description: |-
+        Get a history of all backup executions for a profile.
+        Results are sorted by creation date (newest first).
+        Status can be: pending, running, success, failed.
+        The 'logs' field contains an array of strings formatted as 'TIMESTAMP: MESSAGE'.
       parameters:
       - description: Profile ID
         in: path
@@ -747,7 +776,9 @@ paths:
       - executions
   /profiles/{id}/run:
     post:
-      description: Trigger a backup execution for a specific profile now
+      description: |-
+        Trigger an asynchronous backup execution for a specific profile now.
+        This bypasses the schedule and enqueues the job in the runner.
       parameters:
       - description: Profile ID
         in: path
@@ -766,8 +797,13 @@ paths:
       - profiles
   /retention-policies:
     get:
-      description: Get a list of all configured retention policies (how many backups
-        to keep)
+      description: |-
+        Get a list of all configured retention policies.
+        Policies define how many backups are kept for different time intervals:
+        - keep_hourly: Last N hours.
+        - keep_daily: Last N days.
+        - keep_weekly: Last N weeks.
+        - yearly_month: The month (1-12) chosen for yearly preservation.
       produces:
       - application/json
       responses:
@@ -787,7 +823,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Define a new policy for automatic backup cleanup
+      description: |-
+        Define a new policy for automatic backup cleanup.
+        Fields define the 'Grandfather-Father-Son' retention strategy:
+        - keep_daily: 7 means keep one backup per day for 7 days.
+        - yearly_month: 1 means the January backup is kept as the yearly one.
       parameters:
       - description: Retention policy configuration
         in: body
@@ -835,7 +875,9 @@ paths:
     put:
       consumes:
       - application/json
-      description: Update a retention policy's configuration by ID
+      description: |-
+        Update a retention policy's configuration by ID.
+        Allows changing how many backups are kept at each level.
       parameters:
       - description: Policy ID
         in: path
@@ -868,7 +910,11 @@ paths:
       - retention
   /storage-providers:
     get:
-      description: Get a list of all configured storage providers (e.g. S3, Local)
+      description: |-
+        Get a list of all configured storage providers.
+        The 'config' field varies by type:
+        - local: {"path": "/tmp/backups"}
+        - s3: {"region": "us-east-1", "bucket": "...", "access_key": "...", "secret_key": "..."}
       produces:
       - application/json
       responses:
@@ -888,7 +934,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Configure a new storage destination for backups
+      description: |-
+        Configure a new storage destination for backups.
+        Supported types and configurations:
+        - local: {"path": "/tmp/backups"}
+        - s3: {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."}
       parameters:
       - description: Storage provider configuration
         in: body
@@ -936,7 +986,11 @@ paths:
     put:
       consumes:
       - application/json
-      description: Update a storage provider's configuration by ID
+      description: |-
+        Update a storage provider's configuration by ID.
+        Supported types and configurations:
+        - local: {"path": "/tmp/backups"}
+        - s3: {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."}
       parameters:
       - description: Provider ID
         in: path

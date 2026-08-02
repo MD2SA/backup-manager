@@ -17,7 +17,10 @@ type ExecutionHandler struct {
 
 // List executions by profile
 // @Summary List executions for a specific profile
-// @Description Get a history of all backup executions for a profile
+// @Description Get a history of all backup executions for a profile.
+// @Description Results are sorted by creation date (newest first).
+// @Description Status can be: pending, running, success, failed.
+// @Description The 'logs' field contains an array of strings formatted as 'TIMESTAMP: MESSAGE'.
 // @Tags executions
 // @Produce json
 // @Param id path string true "Profile ID"
@@ -44,7 +47,9 @@ func (h *ExecutionHandler) ListByProfile(w http.ResponseWriter, r *http.Request)
 
 // Get execution
 // @Summary Get execution details
-// @Description Get full details of a specific backup execution, including logs
+// @Description Get full details of a specific backup execution.
+// @Description The 'logs' field contains an array of strings formatted as 'TIMESTAMP: MESSAGE'.
+// @Description These logs provide a step-by-step trace of the backup pipeline stages.
 // @Tags executions
 // @Produce json
 // @Param id path string true "Execution ID"
@@ -72,7 +77,8 @@ func (h *ExecutionHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Pin execution
 // @Summary Pin or unpin a backup execution
-// @Description Prevent a backup execution from being automatically cleaned up by pinning it
+// @Description Prevent a backup execution from being automatically cleaned up by pinning it.
+// @Description Pinned executions are ignored by the retention engine's deletion logic.
 // @Tags executions
 // @Accept json
 // @Param id path string true "Execution ID"

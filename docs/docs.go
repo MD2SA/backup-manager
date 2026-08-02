@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/executions/{id}": {
             "get": {
-                "description": "Get full details of a specific backup execution, including logs",
+                "description": "Get full details of a specific backup execution.\nThe 'logs' field contains an array of strings formatted as 'TIMESTAMP: MESSAGE'.\nThese logs provide a step-by-step trace of the backup pipeline stages.",
                 "produces": [
                     "application/json"
                 ],
@@ -64,7 +64,7 @@ const docTemplate = `{
         },
         "/executions/{id}/pin": {
             "post": {
-                "description": "Prevent a backup execution from being automatically cleaned up by pinning it",
+                "description": "Prevent a backup execution from being automatically cleaned up by pinning it.\nPinned executions are ignored by the retention engine's deletion logic.",
                 "consumes": [
                     "application/json"
                 ],
@@ -192,7 +192,7 @@ const docTemplate = `{
         },
         "/notification-providers": {
             "get": {
-                "description": "Get a list of all configured notification providers (e.g. Discord)",
+                "description": "Get a list of all configured notification providers.\nThe 'config' field varies by type:\n- discord: {\"webhook_url\": \"https://discord.com/api/webhooks/...\"}",
                 "produces": [
                     "application/json"
                 ],
@@ -219,7 +219,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Configure a new destination for backup alerts",
+                "description": "Configure a new destination for backup alerts.\nSupported types and configurations:\n- discord: {\"webhook_url\": \"https://discord.com/api/webhooks/...\"}",
                 "consumes": [
                     "application/json"
                 ],
@@ -265,7 +265,7 @@ const docTemplate = `{
         },
         "/notification-providers/{id}": {
             "put": {
-                "description": "Update a notification provider's configuration by ID",
+                "description": "Update a notification provider's configuration by ID.\nSupported types and configurations:\n- discord: {\"webhook_url\": \"https://discord.com/api/webhooks/...\"}",
                 "consumes": [
                     "application/json"
                 ],
@@ -345,7 +345,7 @@ const docTemplate = `{
         },
         "/profiles": {
             "get": {
-                "description": "Get a list of all configured backup profiles",
+                "description": "Get a list of all configured backup profiles.\nProfiles link databases to storage destinations via schedules.",
                 "produces": [
                     "application/json"
                 ],
@@ -372,7 +372,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Create a new backup profile with the specified configuration",
+                "description": "Create a new backup profile with the specified configuration.\nRequires a valid storage_provider_id and retention_policy_id.\nThe schedule must be a valid cron expression (e.g., \"0 0 * * *\").",
                 "consumes": [
                     "application/json"
                 ],
@@ -418,7 +418,7 @@ const docTemplate = `{
         },
         "/profiles/{id}": {
             "put": {
-                "description": "Update a backup profile by its ID",
+                "description": "Update a backup profile by its ID.\nThe schedule must be a valid cron expression:\n- \"0 * * * *\" (Hourly)\n- \"0 2 * * *\" (Daily at 2:00 AM)\n- \"0 0 * * 0\" (Weekly on Sunday)",
                 "consumes": [
                     "application/json"
                 ],
@@ -504,7 +504,7 @@ const docTemplate = `{
         },
         "/profiles/{id}/activate": {
             "post": {
-                "description": "Set a profile as the active one for scheduled backups. All other profiles will be deactivated.",
+                "description": "Set a profile as the active one for scheduled backups.\nThis updates the system scheduler to use this profile's schedule.\nNote: The current system logic may only support one active profile at a time.",
                 "tags": [
                     "profiles"
                 ],
@@ -542,7 +542,7 @@ const docTemplate = `{
         },
         "/profiles/{id}/executions": {
             "get": {
-                "description": "Get a history of all backup executions for a profile",
+                "description": "Get a history of all backup executions for a profile.\nResults are sorted by creation date (newest first).\nStatus can be: pending, running, success, failed.\nThe 'logs' field contains an array of strings formatted as 'TIMESTAMP: MESSAGE'.",
                 "produces": [
                     "application/json"
                 ],
@@ -586,7 +586,7 @@ const docTemplate = `{
         },
         "/profiles/{id}/run": {
             "post": {
-                "description": "Trigger a backup execution for a specific profile now",
+                "description": "Trigger an asynchronous backup execution for a specific profile now.\nThis bypasses the schedule and enqueues the job in the runner.",
                 "tags": [
                     "profiles"
                 ],
@@ -615,7 +615,7 @@ const docTemplate = `{
         },
         "/retention-policies": {
             "get": {
-                "description": "Get a list of all configured retention policies (how many backups to keep)",
+                "description": "Get a list of all configured retention policies.\nPolicies define how many backups are kept for different time intervals:\n- keep_hourly: Last N hours.\n- keep_daily: Last N days.\n- keep_weekly: Last N weeks.\n- yearly_month: The month (1-12) chosen for yearly preservation.",
                 "produces": [
                     "application/json"
                 ],
@@ -642,7 +642,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Define a new policy for automatic backup cleanup",
+                "description": "Define a new policy for automatic backup cleanup.\nFields define the 'Grandfather-Father-Son' retention strategy:\n- keep_daily: 7 means keep one backup per day for 7 days.\n- yearly_month: 1 means the January backup is kept as the yearly one.",
                 "consumes": [
                     "application/json"
                 ],
@@ -688,7 +688,7 @@ const docTemplate = `{
         },
         "/retention-policies/{id}": {
             "put": {
-                "description": "Update a retention policy's configuration by ID",
+                "description": "Update a retention policy's configuration by ID.\nAllows changing how many backups are kept at each level.",
                 "consumes": [
                     "application/json"
                 ],
@@ -768,7 +768,7 @@ const docTemplate = `{
         },
         "/storage-providers": {
             "get": {
-                "description": "Get a list of all configured storage providers (e.g. S3, Local)",
+                "description": "Get a list of all configured storage providers.\nThe 'config' field varies by type:\n- local: {\"path\": \"/tmp/backups\"}\n- s3: {\"region\": \"us-east-1\", \"bucket\": \"...\", \"access_key\": \"...\", \"secret_key\": \"...\"}",
                 "produces": [
                     "application/json"
                 ],
@@ -795,7 +795,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Configure a new storage destination for backups",
+                "description": "Configure a new storage destination for backups.\nSupported types and configurations:\n- local: {\"path\": \"/tmp/backups\"}\n- s3: {\"region\": \"us-east-1\", \"bucket\": \"my-backups\", \"access_key\": \"...\", \"secret_key\": \"...\"}",
                 "consumes": [
                     "application/json"
                 ],
@@ -841,7 +841,7 @@ const docTemplate = `{
         },
         "/storage-providers/{id}": {
             "put": {
-                "description": "Update a storage provider's configuration by ID",
+                "description": "Update a storage provider's configuration by ID.\nSupported types and configurations:\n- local: {\"path\": \"/tmp/backups\"}\n- s3: {\"region\": \"us-east-1\", \"bucket\": \"my-backups\", \"access_key\": \"...\", \"secret_key\": \"...\"}",
                 "consumes": [
                     "application/json"
                 ],

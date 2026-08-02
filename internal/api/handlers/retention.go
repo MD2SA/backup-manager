@@ -17,7 +17,12 @@ type RetentionHandler struct {
 
 // List retention policies
 // @Summary List all retention policies
-// @Description Get a list of all configured retention policies (how many backups to keep)
+// @Description Get a list of all configured retention policies.
+// @Description Policies define how many backups are kept for different time intervals:
+// @Description - keep_hourly: Last N hours.
+// @Description - keep_daily: Last N days.
+// @Description - keep_weekly: Last N weeks.
+// @Description - yearly_month: The month (1-12) chosen for yearly preservation.
 // @Tags retention
 // @Produce json
 // @Success 200 {array} db.RetentionPolicy
@@ -34,7 +39,10 @@ func (h *RetentionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Create retention policy
 // @Summary Create a new retention policy
-// @Description Define a new policy for automatic backup cleanup
+// @Description Define a new policy for automatic backup cleanup.
+// @Description Fields define the 'Grandfather-Father-Son' retention strategy:
+// @Description - keep_daily: 7 means keep one backup per day for 7 days.
+// @Description - yearly_month: 1 means the January backup is kept as the yearly one.
 // @Tags retention
 // @Accept json
 // @Produce json
@@ -60,7 +68,8 @@ func (h *RetentionHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Update retention policy
 // @Summary Update an existing retention policy
-// @Description Update a retention policy's configuration by ID
+// @Description Update a retention policy's configuration by ID.
+// @Description Allows changing how many backups are kept at each level.
 // @Tags retention
 // @Accept json
 // @Produce json
