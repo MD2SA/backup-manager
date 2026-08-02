@@ -1,5 +1,9 @@
 APP_NAME=backup-manager
 
+# Enable Docker BuildKit for faster, professional builds
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
 # Load environment variables from .env file
 ifneq (,$(wildcard ./.env))
     include .env
