@@ -2,9 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
+	"time"
 
 	"github.com/MD2SA/backup-manager/internal/backup"
 	"github.com/MD2SA/backup-manager/internal/config"
@@ -121,11 +122,15 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 		}
 	}
 
+	execCtx.EndTime = time.Now()
+
 	// Always cleanup
 	cleanup := &backup.CleanupStage{}
 	if cErr := cleanup.Execute(execCtx); cErr != nil {
 		execCtx.Log(fmt.Sprintf("Cleanup failed: %v", cErr))
 	}
+
+	logsJSON, _ := json.Marshal(execCtx.Logs)
 
 	// Update execution status
 	updateParams := db.UpdateExecutionParams{
@@ -137,7 +142,7 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 		Size:        pgutil.ToInt8(execCtx.Size),
 		Checksum:    pgutil.ToText(execCtx.Checksum),
 		StoragePath: pgutil.ToText(execCtx.BackupPath),
-		Logs:        []byte(strings.Join(execCtx.Logs, "\n")),
+		Logs:        logsJSON,
 	}
 
 	if err != nil {
