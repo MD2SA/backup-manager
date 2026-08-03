@@ -144,7 +144,6 @@ Core domains include:
 | Logging | slog |
 | Configuration | Environment Variables |
 | Validation | go-playground/validator |
-| CLI | Cobra |
 | Hot Reload | Air |
 | Linting | golangci-lint |
 | Containers | Docker & Docker Compose |
@@ -236,7 +235,6 @@ make test      # Run tests
 make fmt       # Format Go code
 make lint      # Run golangci-lint
 make build     # Build API binary
-make build-cli # Build CLI binary
 make clean     # Remove build artifacts
 ```
 
