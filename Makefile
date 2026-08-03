@@ -37,7 +37,6 @@ help:
 	@echo "  make run        - Run the API server"
 	@echo "  make dev        - Run the API server with live reload (air)"
 	@echo "  make build      - Build the application"
-	@echo "  make build-cli  - Build the CLI application"
 	@echo "  make test       - Run tests"
 	@echo "  make fmt        - Format Go code"
 	@echo "  make lint       - Run golangci-lint"
@@ -57,9 +56,6 @@ dev: $(AIR)
 
 build:
 	go build -o bin/$(APP_NAME)-api ./cmd/api
-
-build-cli:
-	go build -o bin/$(APP_NAME)-cli ./cmd/cli
 
 test:
 	go test ./...
