@@ -20,6 +20,7 @@ type ProfileRequest struct {
 	RetentionPolicyID       string   `json:"retention_policy_id" validate:"required,uuid4"`
 	CompressionType         string   `json:"compression_type" validate:"required,oneof=none gzip"`
 	CompressionLevel        int32    `json:"compression_level" validate:"min=0,max=9"`
+	EncryptionEnabled       bool     `json:"encryption_enabled"`
 }
 
 func (r *ProfileRequest) Validate() error {
@@ -46,6 +47,7 @@ type ProfileResponse struct {
 	RetentionPolicyID       string    `json:"retention_policy_id"`
 	CompressionType         string    `json:"compression_type"`
 	CompressionLevel        int32     `json:"compression_level"`
+	EncryptionEnabled       bool      `json:"encryption_enabled"`
 	CreatedAt               time.Time `json:"created_at"`
 	UpdatedAt               time.Time `json:"updated_at"`
 }
@@ -62,6 +64,7 @@ func ToProfileResponse(p db.Profile, storageIDs []string, notificationIDs []stri
 		RetentionPolicyID:       pgutil.UUIDToString(p.RetentionPolicyID),
 		CompressionType:         p.CompressionType,
 		CompressionLevel:        p.CompressionLevel,
+		EncryptionEnabled:       p.EncryptionEnabled,
 		CreatedAt:               p.CreatedAt.Time,
 		UpdatedAt:               p.UpdatedAt.Time,
 	}

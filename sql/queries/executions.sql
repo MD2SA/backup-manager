@@ -46,7 +46,8 @@ SET
     storage_path = $8,
     logs = $9,
     error_message = $10,
-    is_pinned = $11
+    is_pinned = $11,
+    is_encrypted = $12
 WHERE id = $1
 RETURNING *;
 

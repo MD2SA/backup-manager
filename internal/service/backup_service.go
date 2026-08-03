@@ -93,6 +93,10 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 		},
 	}
 
+	if p.EncryptionEnabled && s.config.AgePublicKey != "" {
+		initialStages = append(initialStages, &backup.AgeEncryptionStage{PublicKey: s.config.AgePublicKey})
+	}
+
 	pipeline := backup.NewPipeline(initialStages...)
 	err = pipeline.Run(execCtx)
 
@@ -144,6 +148,7 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 		Checksum:    pgutil.ToText(execCtx.Checksum),
 		StoragePath: pgutil.ToText(execCtx.BackupPath),
 		Logs:        logsJSON,
+		IsEncrypted: execCtx.IsEncrypted,
 	}
 
 	if err != nil {
@@ -214,8 +219,9 @@ func (s *BackupService) ExecuteRestore(ctx context.Context, executionID pgtype.U
 	}
 
 	pipeline := &backup.RestorePipeline{
-		Storage: storageProvider,
-		TempDir: s.config.TempDir,
+		Storage:       storageProvider,
+		TempDir:       s.config.TempDir,
+		AgePrivateKey: s.config.AgePrivateKey,
 	}
 	pipeline.DBConfig.Host = s.config.TargetDB.Host
 	pipeline.DBConfig.Port = s.config.TargetDB.Port
@@ -223,5 +229,5 @@ func (s *BackupService) ExecuteRestore(ctx context.Context, executionID pgtype.U
 	pipeline.DBConfig.Password = s.config.TargetDB.Password
 	pipeline.DBConfig.DBName = s.config.TargetDB.DBName
 
-	return pipeline.Run(ctx, execution.StoragePath.String)
+	return pipeline.Run(ctx, execution.StoragePath.String, execution.IsEncrypted)
 }

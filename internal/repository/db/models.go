@@ -24,6 +24,7 @@ type Execution struct {
 	ErrorMessage pgtype.Text
 	IsPinned     bool
 	CreatedAt    pgtype.Timestamptz
+	IsEncrypted  bool
 }
 
 type NotificationProvider struct {
@@ -46,6 +47,7 @@ type Profile struct {
 	CompressionLevel  int32
 	CreatedAt         pgtype.Timestamptz
 	UpdatedAt         pgtype.Timestamptz
+	EncryptionEnabled bool
 }
 
 type ProfileNotificationProvider struct {

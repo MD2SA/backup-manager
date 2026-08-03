@@ -7,13 +7,15 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/MD2SA/backup-manager/internal/pkg/crypto"
 	"github.com/MD2SA/backup-manager/internal/storage"
 )
 
 type RestorePipeline struct {
-	Storage  storage.StorageProvider
-	TempDir  string
-	DBConfig struct {
+	Storage       storage.StorageProvider
+	TempDir       string
+	AgePrivateKey string
+	DBConfig      struct {
 		Host     string
 		Port     string
 		User     string
@@ -22,7 +24,7 @@ type RestorePipeline struct {
 	}
 }
 
-func (p *RestorePipeline) Run(ctx context.Context, storagePath string) error {
+func (p *RestorePipeline) Run(ctx context.Context, storagePath string, isEncrypted bool) error {
 	tmpFile := filepath.Join(p.TempDir, fmt.Sprintf("restore-%d.sql", os.Getpid()))
 	defer os.Remove(tmpFile)
 
@@ -32,16 +34,40 @@ func (p *RestorePipeline) Run(ctx context.Context, storagePath string) error {
 	}
 	defer reader.Close()
 
-	f, err := os.Create(tmpFile)
-	if err != nil {
-		return err
-	}
+	if isEncrypted {
+		if p.AgePrivateKey == "" {
+			return fmt.Errorf("backup is encrypted but no Age private key is configured")
+		}
 
-	if _, err := f.ReadFrom(reader); err != nil {
+		// Download to a temporary encrypted file first
+		encFile := tmpFile + ".age"
+		defer os.Remove(encFile)
+
+		f, err := os.Create(encFile)
+		if err != nil {
+			return err
+		}
+		if _, err := f.ReadFrom(reader); err != nil {
+			f.Close()
+			return err
+		}
 		f.Close()
-		return err
+
+		// Decrypt to tmpFile
+		if err := crypto.DecryptWithAge(encFile, tmpFile, p.AgePrivateKey); err != nil {
+			return fmt.Errorf("decryption failed: %w", err)
+		}
+	} else {
+		f, err := os.Create(tmpFile)
+		if err != nil {
+			return err
+		}
+		if _, err := f.ReadFrom(reader); err != nil {
+			f.Close()
+			return err
+		}
+		f.Close()
 	}
-	f.Close()
 
 	cmd := exec.CommandContext(ctx, "psql",
 		"-h", p.DBConfig.Host,
@@ -59,3 +85,4 @@ func (p *RestorePipeline) Run(ctx context.Context, storagePath string) error {
 
 	return nil
 }
+

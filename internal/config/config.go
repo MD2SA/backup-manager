@@ -18,12 +18,14 @@ type DatabaseConfig struct {
 }
 
 type Config struct {
-	Port        string
-	LogLevel    string
-	TempDir     string
-	StoragePath string
-	MetadataDB  DatabaseConfig
-	TargetDB    DatabaseConfig
+	Port          string
+	LogLevel      string
+	TempDir       string
+	StoragePath   string
+	AgePublicKey  string
+	AgePrivateKey string
+	MetadataDB    DatabaseConfig
+	TargetDB      DatabaseConfig
 }
 
 func Load() (Config, error) {
@@ -56,10 +58,12 @@ func Load() (Config, error) {
 	targetSSL := viper.GetString("target_db.sslmode")
 
 	cfg := Config{
-		Port:        viper.GetString("port"),
-		LogLevel:    viper.GetString("log_level"),
-		TempDir:     viper.GetString("temp_dir"),
-		StoragePath: viper.GetString("storage_path"),
+		Port:          viper.GetString("port"),
+		LogLevel:      viper.GetString("log_level"),
+		TempDir:       viper.GetString("temp_dir"),
+		StoragePath:   viper.GetString("storage_path"),
+		AgePublicKey:  viper.GetString("age_public_key"),
+		AgePrivateKey: viper.GetString("age_private_key"),
 		MetadataDB: DatabaseConfig{
 			Host:     metadataHost,
 			Port:     metadataPort,

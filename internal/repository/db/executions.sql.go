@@ -22,7 +22,7 @@ INSERT INTO executions (
     $2,
     now()
 )
-RETURNING id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at
+RETURNING id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at, is_encrypted
 `
 
 type CreateExecutionParams struct {
@@ -47,6 +47,7 @@ func (q *Queries) CreateExecution(ctx context.Context, arg CreateExecutionParams
 		&i.ErrorMessage,
 		&i.IsPinned,
 		&i.CreatedAt,
+		&i.IsEncrypted,
 	)
 	return i, err
 }
@@ -62,7 +63,7 @@ func (q *Queries) DeleteExecution(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getExecution = `-- name: GetExecution :one
-SELECT id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at
+SELECT id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at, is_encrypted
 FROM executions
 WHERE id = $1
 LIMIT 1
@@ -85,12 +86,13 @@ func (q *Queries) GetExecution(ctx context.Context, id pgtype.UUID) (Execution, 
 		&i.ErrorMessage,
 		&i.IsPinned,
 		&i.CreatedAt,
+		&i.IsEncrypted,
 	)
 	return i, err
 }
 
 const getLatestExecution = `-- name: GetLatestExecution :one
-SELECT id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at
+SELECT id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at, is_encrypted
 FROM executions
 WHERE profile_id = $1
 ORDER BY created_at DESC
@@ -114,12 +116,13 @@ func (q *Queries) GetLatestExecution(ctx context.Context, profileID pgtype.UUID)
 		&i.ErrorMessage,
 		&i.IsPinned,
 		&i.CreatedAt,
+		&i.IsEncrypted,
 	)
 	return i, err
 }
 
 const listAllExecutions = `-- name: ListAllExecutions :many
-SELECT id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at
+SELECT id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at, is_encrypted
 FROM executions
 ORDER BY created_at DESC
 `
@@ -147,6 +150,7 @@ func (q *Queries) ListAllExecutions(ctx context.Context) ([]Execution, error) {
 			&i.ErrorMessage,
 			&i.IsPinned,
 			&i.CreatedAt,
+			&i.IsEncrypted,
 		); err != nil {
 			return nil, err
 		}
@@ -159,7 +163,7 @@ func (q *Queries) ListAllExecutions(ctx context.Context) ([]Execution, error) {
 }
 
 const listExecutionsByProfile = `-- name: ListExecutionsByProfile :many
-SELECT id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at
+SELECT id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at, is_encrypted
 FROM executions
 WHERE profile_id = $1
 ORDER BY created_at DESC
@@ -188,6 +192,7 @@ func (q *Queries) ListExecutionsByProfile(ctx context.Context, profileID pgtype.
 			&i.ErrorMessage,
 			&i.IsPinned,
 			&i.CreatedAt,
+			&i.IsEncrypted,
 		); err != nil {
 			return nil, err
 		}
@@ -227,9 +232,10 @@ SET
     storage_path = $8,
     logs = $9,
     error_message = $10,
-    is_pinned = $11
+    is_pinned = $11,
+    is_encrypted = $12
 WHERE id = $1
-RETURNING id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at
+RETURNING id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at, is_encrypted
 `
 
 type UpdateExecutionParams struct {
@@ -244,6 +250,7 @@ type UpdateExecutionParams struct {
 	Logs         json.RawMessage
 	ErrorMessage pgtype.Text
 	IsPinned     bool
+	IsEncrypted  bool
 }
 
 func (q *Queries) UpdateExecution(ctx context.Context, arg UpdateExecutionParams) (Execution, error) {
@@ -259,6 +266,7 @@ func (q *Queries) UpdateExecution(ctx context.Context, arg UpdateExecutionParams
 		arg.Logs,
 		arg.ErrorMessage,
 		arg.IsPinned,
+		arg.IsEncrypted,
 	)
 	var i Execution
 	err := row.Scan(
@@ -275,6 +283,7 @@ func (q *Queries) UpdateExecution(ctx context.Context, arg UpdateExecutionParams
 		&i.ErrorMessage,
 		&i.IsPinned,
 		&i.CreatedAt,
+		&i.IsEncrypted,
 	)
 	return i, err
 }

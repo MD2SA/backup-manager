@@ -96,6 +96,7 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 		RetentionPolicyID: retentionID,
 		CompressionType:   req.CompressionType,
 		CompressionLevel:  req.CompressionLevel,
+		EncryptionEnabled: req.EncryptionEnabled,
 	}
 
 	profile, err := h.Repo.CreateProfile(r.Context(), params, storageIDs, notificationIDs)
@@ -162,6 +163,7 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 		RetentionPolicyID: retentionID,
 		CompressionType:   req.CompressionType,
 		CompressionLevel:  req.CompressionLevel,
+		EncryptionEnabled: req.EncryptionEnabled,
 	}
 
 	profile, err := h.Repo.UpdateProfile(r.Context(), params, storageIDs, notificationIDs)

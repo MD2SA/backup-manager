@@ -21,6 +21,7 @@ type ExecutionContext struct {
 	ExecutionID pgtype.UUID
 	ProfileID   pgtype.UUID
 	ProfileName string // Slugified profile name for storage organization
+	IsEncrypted bool   // Flag to indicate if the backup was encrypted
 
 	// Pipeline state
 	StartTime time.Time

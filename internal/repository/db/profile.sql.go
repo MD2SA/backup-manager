@@ -84,11 +84,12 @@ INSERT INTO profiles (
     schedule,
     retention_policy_id,
     compression_type,
-    compression_level
+    compression_level,
+    encryption_enabled
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7
+    $1,$2,$3,$4,$5,$6,$7,$8
 )
-RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at
+RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled
 `
 
 type CreateProfileParams struct {
@@ -99,6 +100,7 @@ type CreateProfileParams struct {
 	RetentionPolicyID pgtype.UUID
 	CompressionType   string
 	CompressionLevel  int32
+	EncryptionEnabled bool
 }
 
 func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (Profile, error) {
@@ -110,6 +112,7 @@ func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (P
 		arg.RetentionPolicyID,
 		arg.CompressionType,
 		arg.CompressionLevel,
+		arg.EncryptionEnabled,
 	)
 	var i Profile
 	err := row.Scan(
@@ -123,6 +126,7 @@ func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (P
 		&i.CompressionLevel,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EncryptionEnabled,
 	)
 	return i, err
 }
@@ -138,7 +142,7 @@ func (q *Queries) DeleteProfile(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getProfile = `-- name: GetProfile :one
-SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at FROM profiles
+SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled FROM profiles
 WHERE id = $1
 LIMIT 1
 `
@@ -157,6 +161,7 @@ func (q *Queries) GetProfile(ctx context.Context, id pgtype.UUID) (Profile, erro
 		&i.CompressionLevel,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EncryptionEnabled,
 	)
 	return i, err
 }
@@ -212,7 +217,7 @@ func (q *Queries) GetProfileStorageProviderIDs(ctx context.Context, profileID pg
 }
 
 const listProfiles = `-- name: ListProfiles :many
-SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at FROM profiles
+SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled FROM profiles
 ORDER BY name
 `
 
@@ -236,6 +241,7 @@ func (q *Queries) ListProfiles(ctx context.Context) ([]Profile, error) {
 			&i.CompressionLevel,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EncryptionEnabled,
 		); err != nil {
 			return nil, err
 		}
@@ -257,9 +263,10 @@ SET
     retention_policy_id = $6,
     compression_type = $7,
     compression_level = $8,
+    encryption_enabled = $9,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at
+RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled
 `
 
 type UpdateProfileParams struct {
@@ -271,6 +278,7 @@ type UpdateProfileParams struct {
 	RetentionPolicyID pgtype.UUID
 	CompressionType   string
 	CompressionLevel  int32
+	EncryptionEnabled bool
 }
 
 func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (Profile, error) {
@@ -283,6 +291,7 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (P
 		arg.RetentionPolicyID,
 		arg.CompressionType,
 		arg.CompressionLevel,
+		arg.EncryptionEnabled,
 	)
 	var i Profile
 	err := row.Scan(
@@ -296,6 +305,7 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (P
 		&i.CompressionLevel,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EncryptionEnabled,
 	)
 	return i, err
 }

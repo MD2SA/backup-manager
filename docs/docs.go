@@ -1078,6 +1078,9 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean"
                 },
+                "encryption_enabled": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -1118,6 +1121,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "enabled": {
+                    "type": "boolean"
+                },
+                "encryption_enabled": {
                     "type": "boolean"
                 },
                 "id": {

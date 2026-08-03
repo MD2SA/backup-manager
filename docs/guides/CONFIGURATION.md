@@ -16,6 +16,8 @@ Backup Manager is configured via Environment Variables and through the REST API 
 | `APP_TARGET_DB_USER` | User for the target database | `postgres` |
 | `APP_TARGET_DB_PASSWORD`| Password for the target database | - |
 | `APP_TARGET_DB_NAME` | Name of the database to backup | - |
+| `APP_AGE_PUBLIC_KEY` | Age X25519 public key for encryption | - |
+| `APP_AGE_PRIVATE_KEY` | Age X25519 private key for restore | - |
 
 ## Docker User and Permissions
 
@@ -34,6 +36,24 @@ If you need to force a specific identity, you can use the following environment 
 
 ### Why is this useful?
 It eliminates "Permission Denied" errors and ensures that all backup files created by Docker are immediately accessible, movable, and deletable by you on your host machine without using `sudo`.
+
+### User/Group IDs for Docker
+...
+### Backup Encryption (Optional)
+
+To enable client-side encryption using the **Age** format, generate a key pair and set the public key in `APP_AGE_PUBLIC_KEY`. For restoration, the system will require `APP_AGE_PRIVATE_KEY`.
+
+**Generate keys using the age tool**:
+```bash
+# Install age (e.g., brew install age, apt install age)
+age-keygen -o key.txt
+```
+This will create a `key.txt` with your public and private keys.
+
+> [!CAUTION]
+> If you lose your private key, you will not be able to restore any encrypted backups.
+> You can always decrypt backups manually using the official tool:
+> `age --decrypt -i key.txt backup.sql.age > backup.sql`
 
 ## Storage Persistence
 

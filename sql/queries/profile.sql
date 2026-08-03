@@ -15,9 +15,10 @@ INSERT INTO profiles (
     schedule,
     retention_policy_id,
     compression_type,
-    compression_level
+    compression_level,
+    encryption_enabled
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7
+    $1,$2,$3,$4,$5,$6,$7,$8
 )
 RETURNING *;
 
@@ -31,6 +32,7 @@ SET
     retention_policy_id = $6,
     compression_type = $7,
     compression_level = $8,
+    encryption_enabled = $9,
     updated_at = now()
 WHERE id = $1
 RETURNING *;

@@ -1072,6 +1072,9 @@
                 "enabled": {
                     "type": "boolean"
                 },
+                "encryption_enabled": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -1112,6 +1115,9 @@
                     "type": "string"
                 },
                 "enabled": {
+                    "type": "boolean"
+                },
+                "encryption_enabled": {
                     "type": "boolean"
                 },
                 "id": {
