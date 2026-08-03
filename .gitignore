@@ -7,3 +7,4 @@ dist/
 .artifacts/
 .idea/
 tmp/
+backups/
