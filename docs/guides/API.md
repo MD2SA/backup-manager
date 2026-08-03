@@ -25,6 +25,7 @@ The project includes built-in Swagger documentation. To view it:
 *   `GET /profiles/{id}/executions`: List backup history for a specific profile.
 
 ### Executions
+*   `GET /executions`: List all backup executions in the system.
 *   `GET /executions/{id}`: Get detailed logs and status of a specific execution.
 *   `POST /executions/{id}/restore`: Trigger a database restore from this specific backup.
 *   `POST /executions/{id}/pin`: Pin an execution to prevent automatic cleanup (if retention supports it).

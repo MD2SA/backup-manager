@@ -51,6 +51,30 @@ func (h *ExecutionHandler) ListByProfile(w http.ResponseWriter, r *http.Request)
 	apiutil.Success(w, http.StatusOK, res)
 }
 
+// List all executions
+// @Summary List all backup executions
+// @Description Get a history of all backup executions in the system across all profiles.
+// @Description Results are sorted by creation date (newest first).
+// @Tags executions
+// @Produce json
+// @Success 200 {array} dto.ExecutionResponse
+// @Failure 500 {object} apiutil.ErrorResponse
+// @Router /executions [get]
+func (h *ExecutionHandler) GetAll(w http.ResponseWriter, r *http.Request) {
+	executions, err := h.Repo.ListAllExecutions(r.Context())
+	if err != nil {
+		apiutil.InternalError(w, err)
+		return
+	}
+
+	res := make([]dto.ExecutionResponse, len(executions))
+	for i, e := range executions {
+		res[i] = dto.ToExecutionResponse(e)
+	}
+
+	apiutil.Success(w, http.StatusOK, res)
+}
+
 // Get execution
 // @Summary Get execution details
 // @Description Get full details of a specific backup execution.

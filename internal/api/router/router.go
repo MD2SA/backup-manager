@@ -84,6 +84,7 @@ func New(
 		})
 
 		r.Route("/executions", func(r chi.Router) {
+			r.Get("/", executionHandler.GetAll)
 			r.Get("/{id}", executionHandler.Get)
 			r.Post("/{id}/restore", restoreHandler.Trigger)
 			r.Post("/{id}/pin", executionHandler.Pin)

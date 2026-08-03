@@ -15,6 +15,35 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/executions": {
+            "get": {
+                "description": "Get a history of all backup executions in the system across all profiles.\nResults are sorted by creation date (newest first).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "List all backup executions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionResponse"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/executions/{id}": {
             "get": {
                 "description": "Get full details of a specific backup execution.\nThe 'logs' field contains an array of strings formatted as 'TIMESTAMP: MESSAGE'.\nThese logs provide a step-by-step trace of the backup pipeline stages.",
