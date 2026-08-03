@@ -15,6 +15,7 @@ type RestorePipeline struct {
 	Storage       storage.StorageProvider
 	TempDir       string
 	AgePrivateKey string
+	AgePassphrase string
 	DBConfig      struct {
 		Host     string
 		Port     string
@@ -35,10 +36,6 @@ func (p *RestorePipeline) Run(ctx context.Context, storagePath string, isEncrypt
 	defer reader.Close()
 
 	if isEncrypted {
-		if p.AgePrivateKey == "" {
-			return fmt.Errorf("backup is encrypted but no Age private key is configured")
-		}
-
 		// Download to a temporary encrypted file first
 		encFile := tmpFile + ".age"
 		defer os.Remove(encFile)
@@ -53,10 +50,20 @@ func (p *RestorePipeline) Run(ctx context.Context, storagePath string, isEncrypt
 		}
 		f.Close()
 
-		// Decrypt to tmpFile
-		if err := crypto.DecryptWithAge(encFile, tmpFile, p.AgePrivateKey); err != nil {
-			return fmt.Errorf("decryption failed: %w", err)
+		// Attempt decryption
+		if p.AgePassphrase != "" {
+			if err := crypto.DecryptWithPassphrase(encFile, tmpFile, p.AgePassphrase); err == nil {
+				goto restored
+			}
 		}
+
+		if p.AgePrivateKey != "" {
+			if err := crypto.DecryptWithAge(encFile, tmpFile, p.AgePrivateKey); err == nil {
+				goto restored
+			}
+		}
+
+		return fmt.Errorf("decryption failed: no valid passphrase or private key provided for encrypted backup")
 	} else {
 		f, err := os.Create(tmpFile)
 		if err != nil {
@@ -69,6 +76,7 @@ func (p *RestorePipeline) Run(ctx context.Context, storagePath string, isEncrypt
 		f.Close()
 	}
 
+restored:
 	cmd := exec.CommandContext(ctx, "psql",
 		"-h", p.DBConfig.Host,
 		"-p", p.DBConfig.Port,

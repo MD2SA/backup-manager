@@ -16,7 +16,8 @@ Backup Manager is configured via Environment Variables and through the REST API 
 | `APP_TARGET_DB_USER` | User for the target database | `postgres` |
 | `APP_TARGET_DB_PASSWORD`| Password for the target database | - |
 | `APP_TARGET_DB_NAME` | Name of the database to backup | - |
-| `APP_AGE_PUBLIC_KEY` | Age X25519 public key for encryption | - |
+| `APP_ENCRYPTION_PASSPHRASE` | Passphrase for "Simple Mode" encryption | - |
+| `APP_AGE_PUBLIC_KEY` | Age X25519 public key for "Pro Mode" encryption | - |
 | `APP_AGE_PRIVATE_KEY` | Age X25519 private key for restore | - |
 
 ## Docker User and Permissions
@@ -41,19 +42,26 @@ It eliminates "Permission Denied" errors and ensures that all backup files creat
 ...
 ### Backup Encryption (Optional)
 
-To enable client-side encryption using the **Age** format, generate a key pair and set the public key in `APP_AGE_PUBLIC_KEY`. For restoration, the system will require `APP_AGE_PRIVATE_KEY`.
+Backup Manager supports two encryption modes using the **Age** standard.
 
-**Generate keys using the age tool**:
+#### Mode A: Simple (Passphrase)
+Just set the `APP_ENCRYPTION_PASSPHRASE` environment variable with a strong password.
+
+#### Mode B: Pro (Keypair)
+Generate a key pair and set the public key in `APP_AGE_PUBLIC_KEY`. For restoration, the system will require `APP_AGE_PRIVATE_KEY`.
+
+**Generate keys using the built-in utility**:
 ```bash
-# Install age (e.g., brew install age, apt install age)
-age-keygen -o key.txt
+# Docker
+docker run --rm md2sa/backup-manager:latest keygen
+# Source
+go run ./cmd/api keygen
 ```
-This will create a `key.txt` with your public and private keys.
 
 > [!CAUTION]
-> If you lose your private key, you will not be able to restore any encrypted backups.
+> If you lose your passphrase or private key, you will not be able to restore any encrypted backups.
 > You can always decrypt backups manually using the official tool:
-> `age --decrypt -i key.txt backup.sql.age > backup.sql`
+> `age --decrypt backup.sql.age > backup.sql`
 
 ## Storage Persistence
 

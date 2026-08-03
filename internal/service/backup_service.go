@@ -93,8 +93,11 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 		},
 	}
 
-	if p.EncryptionEnabled && s.config.AgePublicKey != "" {
-		initialStages = append(initialStages, &backup.AgeEncryptionStage{PublicKey: s.config.AgePublicKey})
+	if p.EncryptionEnabled {
+		initialStages = append(initialStages, &backup.AgeEncryptionStage{
+			PublicKey:  s.config.AgePublicKey,
+			Passphrase: s.config.EncryptionPassphrase,
+		})
 	}
 
 	pipeline := backup.NewPipeline(initialStages...)
@@ -222,6 +225,7 @@ func (s *BackupService) ExecuteRestore(ctx context.Context, executionID pgtype.U
 		Storage:       storageProvider,
 		TempDir:       s.config.TempDir,
 		AgePrivateKey: s.config.AgePrivateKey,
+		AgePassphrase: s.config.EncryptionPassphrase,
 	}
 	pipeline.DBConfig.Host = s.config.TargetDB.Host
 	pipeline.DBConfig.Port = s.config.TargetDB.Port

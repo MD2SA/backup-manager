@@ -1,21 +1,78 @@
 # Backup Manager
 
-A self-hosted service that automates PostgreSQL backups with scheduling, retention policies, cloud storage, restore workflows, and monitoring. It is designed to be deployed as a Docker service alongside existing applications.
+A self-hosted service that automates PostgreSQL backups with scheduling, retention policies, cloud storage, restore workflows, and monitoring.
 
 > **Status:** 🚧 Active development
 
 ---
 
-## Features
+## 🚀 Getting Started
 
-*   **Automated Scheduling**: Cron-based backup triggers per profile.
-*   **Multi-Destination Storage**: Simultaneous backup to multiple providers (S3, Local Filesystem, etc.).
-*   **Multi-Channel Notifications**: Real-time alerts via Discord, Email, and more.
-*   **Flexible Retention Policies**: GFS (Grandfather-Father-Son) retention management to save storage space.
-*   **Backup Verification**: Automatic integrity checks using checksums and archive validation.
-*   **Restore Workflows**: Integrated database restoration from existing backups.
-*   **REST API**: Fully documented API for management and monitoring.
-*   **Modular Architecture**: Easily extendable with new storage or notification adapters.
+You can run Backup Manager either as a pre-built Docker image or directly from the source code.
+
+### Option A: Docker Image (Recommended)
+
+This is the easiest way to get started. No need to install Go or build dependencies.
+
+1.  **Create a `docker-compose.yml`**:
+    ```yaml
+    services:
+      backup-manager:
+        image: md2sa/backup-manager:latest
+        ports:
+          - "8080:8080"
+        environment:
+          - APP_BACKUP_PATH=./backups
+          - APP_METADATA_DB_URL=postgres://...
+          - APP_TARGET_DB_HOST=...
+          # - APP_ENCRYPTION_PASSPHRASE=... (Optional for simple encryption)
+        volumes:
+          - ./backups:/backups
+    ```
+2.  **Start the service**:
+    ```bash
+    docker-compose up -d
+    ```
+
+### Option B: From Source
+
+Ideal for development or custom deployments.
+
+1.  **Clone and install tools**:
+    ```bash
+    git clone https://github.com/MD2SA/backup-manager.git
+    cd backup-manager
+    make tools
+    ```
+2.  **Configure and Run**:
+    ```bash
+    cp .env.example .env
+    # Edit .env with your database details
+    make migrate
+    make dev
+    ```
+
+---
+
+## 🔐 Backup Encryption
+
+Backup Manager features professional, end-to-end encryption using the **Age** standard. You can choose between two modes:
+
+### 1. Simple Mode (Passphrase)
+Just set the `APP_ENCRYPTION_PASSPHRASE` environment variable. This is the easiest way to secure your backups.
+
+### 2. Pro Mode (X25519 Keypair)
+For maximum security, you can use a public/private key pair. Generate them using the built-in utility:
+
+**For Docker users**:
+```bash
+docker run --rm md2sa/backup-manager:latest keygen
+```
+
+**For Source users**:
+```bash
+go run ./cmd/api keygen
+```
 
 ---
 

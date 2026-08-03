@@ -16,22 +16,28 @@ import (
 
 // AgeEncryptionStage encrypts the backup file using Age
 type AgeEncryptionStage struct {
-	PublicKey string
+	PublicKey  string
+	Passphrase string
 }
 
 func (s *AgeEncryptionStage) Name() string { return "Encryption" }
 
 func (s *AgeEncryptionStage) Execute(ctx *ExecutionContext) error {
-	if s.PublicKey == "" {
-		ctx.Log("No Age public key provided, skipping encryption stage")
-		return nil
-	}
-
 	encPath := ctx.LocalPath + ".age"
-	ctx.Log("Encrypting backup using Age (X25519)")
 
-	if err := crypto.EncryptWithAge(ctx.LocalPath, encPath, s.PublicKey); err != nil {
-		return fmt.Errorf("encryption failed: %w", err)
+	if s.Passphrase != "" {
+		ctx.Log("Encrypting backup using Age (Passphrase)")
+		if err := crypto.EncryptWithPassphrase(ctx.LocalPath, encPath, s.Passphrase); err != nil {
+			return fmt.Errorf("encryption failed: %w", err)
+		}
+	} else if s.PublicKey != "" {
+		ctx.Log("Encrypting backup using Age (X25519 Public Key)")
+		if err := crypto.EncryptWithAge(ctx.LocalPath, encPath, s.PublicKey); err != nil {
+			return fmt.Errorf("encryption failed: %w", err)
+		}
+	} else {
+		ctx.Log("No encryption key or passphrase provided, skipping encryption stage")
+		return nil
 	}
 
 	// Remove unencrypted file and update local path
