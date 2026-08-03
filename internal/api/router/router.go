@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	_ "github.com/MD2SA/backup-manager/docs"
 	"github.com/MD2SA/backup-manager/internal/api/handlers"
@@ -13,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/go-chi/httprate"
 	"github.com/jackc/pgx/v5/pgtype"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
@@ -22,12 +24,15 @@ func New(
 	repo repository.Repository,
 	monitorService *monitor.Service,
 	adminKey string,
+	rateLimitRequests int,
+	rateLimitWindow time.Duration,
 	onTrigger func(pgtype.UUID) error,
 	onRestore func(context.Context, pgtype.UUID) error,
 	onActivate func(db.Profile),
 ) *chi.Mux {
 	r := chi.NewRouter()
 
+	r.Use(middleware.RealIP)
 	r.Use(apimiddleware.Logger(logger))
 	r.Use(middleware.Recoverer)
 
@@ -56,6 +61,7 @@ func New(
 	retentionHandler := &handlers.RetentionHandler{Repo: repo}
 
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Use(httprate.LimitByIP(rateLimitRequests, rateLimitWindow))
 		r.Use(apimiddleware.ApiKeyAuth(adminKey))
 		r.Get("/health", handlers.Health)
 		r.Get("/health/summary", monitorHandler.HealthSummary)

@@ -76,7 +76,7 @@ func New(ctx context.Context) (*App, error) {
 		_ = a.Runner.Enqueue(profileID)
 	})
 
-	r := router.New(log, repo, monitorService, a.Config.AdminKey, func(profileID pgtype.UUID) error {
+	r := router.New(log, repo, monitorService, a.Config.AdminKey, a.Config.RateLimitRequests, a.Config.RateLimitWindow, func(profileID pgtype.UUID) error {
 		return a.Runner.Enqueue(profileID)
 	}, a.BackupService.ExecuteRestore, func(p db.Profile) {
 		if err := a.Scheduler.SetActiveJob(p.ID, p.Schedule); err != nil {

@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
@@ -26,6 +27,8 @@ type Config struct {
 	AgePrivateKey        string
 	EncryptionPassphrase string
 	AdminKey             string
+	RateLimitRequests    int
+	RateLimitWindow      time.Duration
 	MetadataDB           DatabaseConfig
 	TargetDB             DatabaseConfig
 }
@@ -42,6 +45,8 @@ func Load() (Config, error) {
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("log_level", "info")
 	viper.SetDefault("storage_path", "/backups")
+	viper.SetDefault("rate_limit_requests", 100)
+	viper.SetDefault("rate_limit_window", "1m")
 
 	// Metadata Database (Internal state)
 	metadataHost := viper.GetString("metadata_db.host")
@@ -68,6 +73,8 @@ func Load() (Config, error) {
 		AgePrivateKey:        viper.GetString("age_private_key"),
 		EncryptionPassphrase: viper.GetString("encryption_passphrase"),
 		AdminKey:             viper.GetString("admin_key"),
+		RateLimitRequests:    viper.GetInt("rate_limit_requests"),
+		RateLimitWindow:      viper.GetDuration("rate_limit_window"),
 		MetadataDB: DatabaseConfig{
 			Host:     metadataHost,
 			Port:     metadataPort,

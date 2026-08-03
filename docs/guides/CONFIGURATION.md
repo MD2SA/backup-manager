@@ -16,6 +16,9 @@ Backup Manager is configured via Environment Variables and through the REST API 
 | `APP_TARGET_DB_USER` | User for the target database | `postgres` |
 | `APP_TARGET_DB_PASSWORD`| Password for the target database | - |
 | `APP_TARGET_DB_NAME` | Name of the database to backup | - |
+| `APP_ADMIN_KEY` | Static API Key for authentication | - |
+| `APP_RATE_LIMIT_REQUESTS` | Max requests within the window | `100` |
+| `APP_RATE_LIMIT_WINDOW` | Time window for rate limiting (e.g. 1m, 1h) | `1m` |
 | `APP_ENCRYPTION_PASSPHRASE` | Passphrase for "Simple Mode" encryption | - |
 | `APP_AGE_PUBLIC_KEY` | Age X25519 public key for "Pro Mode" encryption | - |
 | `APP_AGE_PRIVATE_KEY` | Age X25519 private key for restore | - |
