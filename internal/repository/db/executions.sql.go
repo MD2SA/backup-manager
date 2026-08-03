@@ -118,6 +118,46 @@ func (q *Queries) GetLatestExecution(ctx context.Context, profileID pgtype.UUID)
 	return i, err
 }
 
+const listAllExecutions = `-- name: ListAllExecutions :many
+SELECT id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at
+FROM executions
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListAllExecutions(ctx context.Context) ([]Execution, error) {
+	rows, err := q.db.Query(ctx, listAllExecutions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Execution
+	for rows.Next() {
+		var i Execution
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfileID,
+			&i.Status,
+			&i.StartTime,
+			&i.EndTime,
+			&i.Duration,
+			&i.Size,
+			&i.Checksum,
+			&i.StoragePath,
+			&i.Logs,
+			&i.ErrorMessage,
+			&i.IsPinned,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listExecutionsByProfile = `-- name: ListExecutionsByProfile :many
 SELECT id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at
 FROM executions

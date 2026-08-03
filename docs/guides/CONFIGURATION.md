@@ -51,23 +51,20 @@ To ensure your backups are saved on your host machine, you **must** define the `
 
 ### Storage Provider Configuration (API)
 
-When creating a **Storage Provider** of type `local` via the REST API, you specify a `path` that is **relative** to the system's root backup directory.
+When creating a **Storage Provider** of type `local` via the REST API, the configuration is simplified. The system automatically handles organization by profile name.
 
 ```json
 {
   "name": "Local Disk",
   "type": "local",
-  "config": {
-    "path": "" 
-  }
+  "config": {}
 }
 ```
 
 > [!TIP]
-> - **Leave `path` empty** (recommended) to store backups organized by profile name directly in the root of your `APP_BACKUP_PATH`.
-> - The files are automatically organized as: `[APP_BACKUP_PATH]/[profile-name]/[YYYYMMDD-HHMMSS]-[execution-id].sql`.
-> - Using a name like `daily` will add another layer: `[APP_BACKUP_PATH]/daily/[profile-name]/...`.
-
+> - Backups are automatically organized as: `[APP_BACKUP_PATH]/[profile-name]/[YYYYMMDD-HHMMSS]-[execution-id].sql`.
+> - Each profile manages its own retention independently. Backups in the `daily` folder will not be affected by the cleanup rules of the `weekly` profile.
+> - The internal path `/backups` is automatically created with correct permissions during build.
 
 ## Dynamic Configuration (API)
 
@@ -77,12 +74,7 @@ Storage and Notification providers are created via the API. Each provider has a 
 
 #### Local Filesystem
 *   **Type**: `local`
-*   **Config**:
-    ```json
-    {
-      "path": ""
-    }
-    ```
+*   **Config**: `{}` (No additional path configuration required)
 
 #### S3 Compatible
 *   **Type**: `s3`

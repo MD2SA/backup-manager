@@ -17,6 +17,11 @@ FROM executions
 WHERE profile_id = $1
 ORDER BY created_at DESC;
 
+-- name: ListAllExecutions :many
+SELECT *
+FROM executions
+ORDER BY created_at DESC;
+
 -- name: CreateExecution :one
 INSERT INTO executions (
     profile_id,

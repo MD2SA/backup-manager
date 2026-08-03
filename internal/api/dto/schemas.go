@@ -1,7 +1,6 @@
 package dto
 
 type LocalConfig struct {
-	Path string `json:"path" validate:"required"`
 }
 
 type S3Config struct {

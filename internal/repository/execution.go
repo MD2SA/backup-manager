@@ -12,6 +12,7 @@ type ExecutionRepository interface {
 	UpdateExecution(ctx context.Context, arg db.UpdateExecutionParams) (db.Execution, error)
 	GetExecution(ctx context.Context, id pgtype.UUID) (db.Execution, error)
 	ListExecutionsByProfile(ctx context.Context, profileID pgtype.UUID) ([]db.Execution, error)
+	ListAllExecutions(ctx context.Context) ([]db.Execution, error)
 	DeleteExecution(ctx context.Context, id pgtype.UUID) error
 	SetExecutionPinned(ctx context.Context, arg db.SetExecutionPinnedParams) error
 	GetLatestExecution(ctx context.Context, profileID pgtype.UUID) (db.Execution, error)
@@ -31,6 +32,10 @@ func (r *Postgres) GetExecution(ctx context.Context, id pgtype.UUID) (db.Executi
 
 func (r *Postgres) ListExecutionsByProfile(ctx context.Context, profileID pgtype.UUID) ([]db.Execution, error) {
 	return r.queries.ListExecutionsByProfile(ctx, profileID)
+}
+
+func (r *Postgres) ListAllExecutions(ctx context.Context) ([]db.Execution, error) {
+	return r.queries.ListAllExecutions(ctx)
 }
 
 func (r *Postgres) DeleteExecution(ctx context.Context, id pgtype.UUID) error {

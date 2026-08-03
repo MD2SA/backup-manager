@@ -94,7 +94,7 @@ func (s *StorageStage) Execute(ctx *ExecutionContext) error {
 		}
 		defer f.Close()
 
-		// Key format: profile-name/YYYYMMDD-HHMMSS-execution_id.sql
+		// Key format: profile-slug/YYYYMMDD-HHMMSS-execution_id.sql
 		timestamp := time.Now().Format("20060102-150405")
 		key := fmt.Sprintf("%s/%s-%s.sql", ctx.ProfileName, timestamp, ctx.ExecutionID)
 		err = s.Provider.Upload(ctx.Context, key, f)
