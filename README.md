@@ -25,6 +25,7 @@ This is the easiest way to get started. No need to install Go or build dependenc
           - APP_BACKUP_PATH=./backups
           - APP_METADATA_DB_URL=postgres://...
           - APP_TARGET_DB_HOST=...
+          - APP_ADMIN_KEY=your-secure-api-key # Optional but recommended
           # - APP_ENCRYPTION_PASSPHRASE=... (Optional for simple encryption)
         volumes:
           - ./backups:/backups
@@ -54,8 +55,18 @@ Ideal for development or custom deployments.
 
 ---
 
-## 🔐 Backup Encryption
+## 🔐 Security
 
+### API Authentication
+To protect your API, set the `APP_ADMIN_KEY` environment variable. Once set, all requests to the `/api/v1` endpoints must include the `X-API-Key` header:
+
+```bash
+curl -H "X-API-Key: your-secure-api-key" http://localhost:8080/api/v1/profiles
+```
+
+If no key is set, the application will run in **Insecure Mode** and display a warning on startup.
+
+### Backup Encryption
 Backup Manager features professional, end-to-end encryption using the **Age** standard. You can choose between two modes:
 
 ### 1. Simple Mode (Passphrase)

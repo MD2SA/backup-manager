@@ -21,6 +21,7 @@ func New(
 	logger *slog.Logger,
 	repo repository.Repository,
 	monitorService *monitor.Service,
+	adminKey string,
 	onTrigger func(pgtype.UUID) error,
 	onRestore func(context.Context, pgtype.UUID) error,
 	onActivate func(db.Profile),
@@ -55,6 +56,7 @@ func New(
 	retentionHandler := &handlers.RetentionHandler{Repo: repo}
 
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Use(apimiddleware.ApiKeyAuth(adminKey))
 		r.Get("/health", handlers.Health)
 		r.Get("/health/summary", monitorHandler.HealthSummary)
 

@@ -67,12 +67,16 @@ func New(ctx context.Context) (*App, error) {
 	// Initialize Backup Runner (Serial execution)
 	a.Runner = backup.NewBackupRunner(log, a.BackupService.ExecuteBackup)
 
+	if a.Config.AdminKey == "" {
+		log.Warn("SECURITY WARNING: No APP_ADMIN_KEY set. The API is open to anyone with network access.")
+	}
+
 	// Initialize Scheduler
 	a.Scheduler = scheduler.New(log, func(profileID pgtype.UUID) {
 		_ = a.Runner.Enqueue(profileID)
 	})
 
-	r := router.New(log, repo, monitorService, func(profileID pgtype.UUID) error {
+	r := router.New(log, repo, monitorService, a.Config.AdminKey, func(profileID pgtype.UUID) error {
 		return a.Runner.Enqueue(profileID)
 	}, a.BackupService.ExecuteRestore, func(p db.Profile) {
 		if err := a.Scheduler.SetActiveJob(p.ID, p.Schedule); err != nil {

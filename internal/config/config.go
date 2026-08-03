@@ -25,6 +25,7 @@ type Config struct {
 	AgePublicKey         string
 	AgePrivateKey        string
 	EncryptionPassphrase string
+	AdminKey             string
 	MetadataDB           DatabaseConfig
 	TargetDB             DatabaseConfig
 }
@@ -66,6 +67,7 @@ func Load() (Config, error) {
 		AgePublicKey:         viper.GetString("age_public_key"),
 		AgePrivateKey:        viper.GetString("age_private_key"),
 		EncryptionPassphrase: viper.GetString("encryption_passphrase"),
+		AdminKey:             viper.GetString("admin_key"),
 		MetadataDB: DatabaseConfig{
 			Host:     metadataHost,
 			Port:     metadataPort,
