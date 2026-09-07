@@ -106,6 +106,30 @@ func TestConfig_AdminKeyRequiredInProduction(t *testing.T) {
 	}
 }
 
+func TestLoadLenient_NoAdminKeyRequiredInProduction(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("APP_TEMP_DIR", "/tmp")
+	t.Setenv("APP_METADATA_DB_HOST", "localhost")
+	t.Setenv("APP_METADATA_DB_PORT", "5432")
+	t.Setenv("APP_METADATA_DB_USER", "u")
+	t.Setenv("APP_METADATA_DB_PASSWORD", "p")
+	t.Setenv("APP_METADATA_DB_DBNAME", "db")
+	t.Setenv("APP_METADATA_DB_SSLMODE", "disable")
+
+	cfg, err := LoadLenient()
+	if err != nil {
+		t.Fatalf("LoadLenient() in production without AdminKey should pass: %v", err)
+	}
+	if cfg.Env != "production" {
+		t.Fatalf("expected env=production, got %q", cfg.Env)
+	}
+
+	// Load() must still fail in the same environment.
+	if _, err := Load(); err == nil {
+		t.Fatal("expected Load() to fail in production without AdminKey")
+	}
+}
+
 func TestParseList(t *testing.T) {
 	tests := []struct {
 		name  string

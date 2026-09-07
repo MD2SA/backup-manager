@@ -1,6 +1,8 @@
 package crypto
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -132,6 +134,54 @@ func DecryptWithPassphrase(srcPath, dstPath, passphrase string) error {
 	}
 
 	return nil
+}
+
+// DecryptKeyed decrypts a source file to a destination file using an optional
+// passphrase (scrypt identity) and/or an optional X25519 identity (private key).
+// At least one must be non-empty. Each provided identity is tried in turn.
+func DecryptKeyed(srcPath, dstPath, passphrase, identityStr string) error {
+	if passphrase == "" && identityStr == "" {
+		return errors.New("no decryption key provided: passphrase or age identity is required")
+	}
+
+	var identities []age.Identity
+	if passphrase != "" {
+		id, err := age.NewScryptIdentity(passphrase)
+		if err != nil {
+			return fmt.Errorf("failed to create scrypt identity: %w", err)
+		}
+		identities = append(identities, id)
+	}
+	if identityStr != "" {
+		id, err := age.ParseX25519Identity(identityStr)
+		if err != nil {
+			return fmt.Errorf("failed to parse identity: %w", err)
+		}
+		identities = append(identities, id)
+	}
+
+	srcData, err := os.ReadFile(srcPath)
+	if err != nil {
+		return err
+	}
+
+	var lastErr error
+	for _, identity := range identities {
+		src := bytes.NewReader(srcData)
+		plain, err := age.Decrypt(src, identity)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		dstData, err := io.ReadAll(plain)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt data: %w", err)
+		}
+		return os.WriteFile(dstPath, dstData, 0644)
+	}
+
+	return fmt.Errorf("decryption failed (wrong passphrase or identity?): %w", lastErr)
 }
 
 // GenerateX25519KeyPair generates a new X25519 key pair for use with Age.

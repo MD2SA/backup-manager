@@ -16,22 +16,16 @@ import (
 )
 
 type Service struct {
-	logger  *slog.Logger
-	cfg     config.Config
-	cron    *cron.Cron
-	passKey []byte // derived AES key for age encryption (nil if no passphrase)
+	logger *slog.Logger
+	cfg    config.Config
+	cron   *cron.Cron
 }
 
 func New(logger *slog.Logger, cfg config.Config) *Service {
-	var passKey []byte
-	if cfg.MetadataBackupPassphrase != "" {
-		passKey = crypto.DeriveConfigKey(cfg.MetadataBackupPassphrase)
-	}
 	return &Service{
-		logger:  logger,
-		cfg:     cfg,
-		cron:    cron.New(),
-		passKey: passKey,
+		logger: logger,
+		cfg:    cfg,
+		cron:   cron.New(),
 	}
 }
 
@@ -82,9 +76,9 @@ func (s *Service) dump() error {
 		return err
 	}
 
-	if s.passKey != nil {
+	if s.cfg.MetadataBackupPassphrase != "" {
 		encrypted := dumpFile + ".age"
-		if err := encryptFile(dumpFile, encrypted, s.passKey); err != nil {
+		if err := crypto.EncryptWithPassphrase(dumpFile, encrypted, s.cfg.MetadataBackupPassphrase); err != nil {
 			return fmt.Errorf("encrypt metadata backup: %w", err)
 		}
 		_ = os.Remove(dumpFile)
@@ -171,16 +165,4 @@ func (s *Service) prune() error {
 	}
 
 	return nil
-}
-
-func encryptFile(src, dst string, key []byte) error {
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	encrypted, err := crypto.EncodeProviderConfig(key, data)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(dst, encrypted, 0644)
 }

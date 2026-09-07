@@ -43,6 +43,18 @@ type Config struct {
 }
 
 func Load() (Config, error) {
+	return load(true)
+}
+
+// LoadLenient loads the configuration like Load but skips rules that only make
+// sense for the long-running API (e.g. the mandatory admin key in production).
+// It is used by maintenance commands such as the metadata restore CLI, which
+// may legitimately run without the API key configured.
+func LoadLenient() (Config, error) {
+	return load(false)
+}
+
+func load(requireAdminKey bool) (Config, error) {
 	// Load .env file if it exists (local development)
 	_ = godotenv.Load()
 
@@ -114,7 +126,7 @@ func Load() (Config, error) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(requireAdminKey); err != nil {
 		return Config{}, err
 	}
 
@@ -122,13 +134,17 @@ func Load() (Config, error) {
 }
 
 func (c *Config) Validate() error {
+	return c.validate(true)
+}
+
+func (c *Config) validate(requireAdminKey bool) error {
 	// Global validation
 	if c.TempDir == "" {
 		return errors.New("temporary directory is required (APP_TEMP_DIR)")
 	}
 
 	// In production the API must never run without an admin key (Insecure Mode).
-	if c.IsProduction() && c.AdminKey == "" {
+	if requireAdminKey && c.IsProduction() && c.AdminKey == "" {
 		return errors.New("APP_ADMIN_KEY is required when APP_ENV=production")
 	}
 
