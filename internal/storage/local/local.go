@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 type LocalStorage struct {
@@ -50,4 +51,26 @@ func (s *LocalStorage) Exists(ctx context.Context, key string) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func (s *LocalStorage) List(ctx context.Context, prefix string) ([]string, error) {
+	root := filepath.Join(s.BasePath, prefix)
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var keys []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		keys = append(keys, filepath.Join(prefix, e.Name()))
+	}
+
+	sort.Strings(keys)
+	return keys, nil
 }

@@ -132,6 +132,12 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 				execCtx.Log(fmt.Sprintf("Stage %s completed successfully for provider %s", stage.Name(), pgutil.UUIDToString(sID)))
 			}
 		}
+
+		// Embed a metadata snapshot into the profile's storage providers (DR).
+		// Failures here are logged and never fail the main backup execution.
+		if s.config.MetadataBackupEmbed {
+			s.embedMetadata(ctx, p)
+		}
 	}
 
 	execCtx.EndTime = time.Now()

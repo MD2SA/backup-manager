@@ -23,4 +23,8 @@ type StorageProvider interface {
 
 	// Exists checks if an artifact is present at the specified key.
 	Exists(ctx context.Context, key string) (bool, error)
+
+	// List returns the keys under prefix, sorted lexically.
+	// Keys are relative to the provider's root and prefixed with the given prefix.
+	List(ctx context.Context, prefix string) ([]string, error)
 }

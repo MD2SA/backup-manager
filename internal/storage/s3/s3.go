@@ -3,6 +3,7 @@ package s3
 import (
 	"context"
 	"io"
+	"sort"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -70,4 +71,35 @@ func (s *S3Provider) Exists(ctx context.Context, key string) (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+// List returns object keys under prefix, sorted lexically.
+// Pagination is handled internally via ListObjectsV2 continuation tokens.
+func (s *S3Provider) List(ctx context.Context, prefix string) ([]string, error) {
+	var keys []string
+	var token *string
+
+	for {
+		out, err := s.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:            aws.String(s.bucket),
+			Prefix:            aws.String(prefix),
+			ContinuationToken: token,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		for _, obj := range out.Contents {
+			keys = append(keys, aws.ToString(obj.Key))
+		}
+
+		if aws.ToBool(out.IsTruncated) && out.NextContinuationToken != nil {
+			token = out.NextContinuationToken
+			continue
+		}
+		break
+	}
+
+	sort.Strings(keys)
+	return keys, nil
 }
