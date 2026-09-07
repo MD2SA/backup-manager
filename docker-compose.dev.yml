@@ -3,30 +3,38 @@ services:
     image: postgres:17-alpine
     container_name: backup-manager-target-db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: project_db
+      POSTGRES_USER: ${APP_TARGET_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${APP_TARGET_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${APP_TARGET_DB_DBNAME:-project_db}
+    ports:
+      # Host publish port -> container port. PostgreSQL inside always listens on 5432;
+      # APP_TARGET_DB_PORT is only the host-facing port (default 5433 for local dev).
+      - "${APP_TARGET_DB_PORT:-5433}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d project_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   backup-manager:
     environment:
-      - APP_LOG_LEVEL=debug
-      - APP_TEMP_DIR=/tmp
-      - APP_METADATA_DB_PORT=5432
-      - APP_METADATA_DB_USER=postgres
-      - APP_METADATA_DB_PASSWORD=postgres
-      - APP_METADATA_DB_DBNAME=backup_manager
-      - APP_METADATA_DB_SSLMODE=disable
-      - APP_TARGET_DB_HOST=target-db
-      - APP_TARGET_DB_PORT=5432
-      - APP_TARGET_DB_USER=postgres
-      - APP_TARGET_DB_PASSWORD=postgres
-      - APP_TARGET_DB_DBNAME=project_db
-      - APP_TARGET_DB_SSLMODE=disable
+      # Global
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-debug}
+      APP_TEMP_DIR: ${APP_TEMP_DIR:-/tmp}
+      # Within Docker the app connects to its siblings by service name on the internal
+      # port (5432). Never use localhost or the host-facing APP_*_DB_PORT values here.
+      APP_METADATA_DB_HOST: metadata-db
+      APP_METADATA_DB_PORT: 5432
+      APP_METADATA_DB_USER: ${APP_METADATA_DB_USER:-postgres}
+      APP_METADATA_DB_PASSWORD: ${APP_METADATA_DB_PASSWORD:-postgres}
+      APP_METADATA_DB_DBNAME: ${APP_METADATA_DB_DBNAME:-backup_manager}
+      APP_METADATA_DB_SSLMODE: ${APP_METADATA_DB_SSLMODE:-disable}
+      APP_TARGET_DB_HOST: target-db
+      APP_TARGET_DB_PORT: 5432
+      APP_TARGET_DB_USER: ${APP_TARGET_DB_USER:-postgres}
+      APP_TARGET_DB_PASSWORD: ${APP_TARGET_DB_PASSWORD:-postgres}
+      APP_TARGET_DB_DBNAME: ${APP_TARGET_DB_DBNAME:-project_db}
+      APP_TARGET_DB_SSLMODE: ${APP_TARGET_DB_SSLMODE:-disable}
     depends_on:
       target-db:
         condition: service_healthy
