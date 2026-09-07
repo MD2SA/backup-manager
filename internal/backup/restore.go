@@ -27,28 +27,28 @@ type RestorePipeline struct {
 
 func (p *RestorePipeline) Run(ctx context.Context, storagePath string, isEncrypted bool) error {
 	tmpFile := filepath.Join(p.TempDir, fmt.Sprintf("restore-%d.sql", os.Getpid()))
-	defer os.Remove(tmpFile)
+	defer func() { _ = os.Remove(tmpFile) }()
 
 	reader, err := p.Storage.Download(ctx, storagePath)
 	if err != nil {
 		return fmt.Errorf("failed to download backup: %w", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	if isEncrypted {
 		// Download to a temporary encrypted file first
 		encFile := tmpFile + ".age"
-		defer os.Remove(encFile)
+		defer func() { _ = os.Remove(encFile) }()
 
 		f, err := os.Create(encFile)
 		if err != nil {
 			return err
 		}
 		if _, err := f.ReadFrom(reader); err != nil {
-			f.Close()
+			_ = f.Close()
 			return err
 		}
-		f.Close()
+		_ = f.Close()
 
 		// Attempt decryption
 		if p.AgePassphrase != "" {
@@ -70,10 +70,10 @@ func (p *RestorePipeline) Run(ctx context.Context, storagePath string, isEncrypt
 			return err
 		}
 		if _, err := f.ReadFrom(reader); err != nil {
-			f.Close()
+			_ = f.Close()
 			return err
 		}
-		f.Close()
+		_ = f.Close()
 	}
 
 restored:
@@ -93,4 +93,3 @@ restored:
 
 	return nil
 }
-

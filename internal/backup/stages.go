@@ -68,10 +68,10 @@ func (s *VerificationStage) Execute(ctx *ExecutionContext) error {
 			ctx.Log(fmt.Sprintf("Running verification strategy: %s", strategy.Name()))
 			ok, result, err := strategy.Verify(ctx.Context, ctx.LocalPath)
 			if err != nil {
-				return fmt.Errorf("Verification strategy %s failed: %w", strategy.Name(), err)
+				return fmt.Errorf("verification strategy %s failed: %w", strategy.Name(), err)
 			}
 			if !ok {
-				return fmt.Errorf("Verification strategy %s failed: %s", strategy.Name(), result)
+				return fmt.Errorf("verification strategy %s failed: %s", strategy.Name(), result)
 			}
 
 			if strategy.Name() == "Checksum" {
@@ -134,7 +134,7 @@ func (s *StorageStage) Execute(ctx *ExecutionContext) error {
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		// Key format: profile-slug/YYYYMMDD-HHMMSS-execution_id.sql
 		timestamp := time.Now().Format("20060102-150405")

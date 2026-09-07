@@ -78,7 +78,7 @@ func (r *Postgres) CreateProfile(ctx context.Context, params db.CreateProfilePar
 	if err != nil {
 		return ProfileFull{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	q := r.queries.WithTx(tx)
 
@@ -123,7 +123,7 @@ func (r *Postgres) UpdateProfile(ctx context.Context, params db.UpdateProfilePar
 	if err != nil {
 		return ProfileFull{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	q := r.queries.WithTx(tx)
 

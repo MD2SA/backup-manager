@@ -20,7 +20,7 @@ func (s *ArchiveStrategy) Verify(ctx context.Context, path string) (bool, string
 	if err != nil {
 		return false, "file unreadable", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Check if file is empty
 	info, err := f.Stat()
@@ -49,7 +49,7 @@ func (s *ArchiveStrategy) Verify(ctx context.Context, path string) (bool, string
 		if err != nil {
 			return false, "invalid gzip stream", err
 		}
-		defer gz.Close()
+		defer func() { _ = gz.Close() }()
 		reader = gz
 
 		header = make([]byte, 262)
@@ -57,13 +57,11 @@ func (s *ArchiveStrategy) Verify(ctx context.Context, path string) (bool, string
 		reader = io.MultiReader(bytes.NewReader(header[:n]), reader)
 	}
 
-	format := "unknown"
+	format := "plain_sql"
 	if n >= 5 && string(header[:5]) == "PGDMP" {
 		format = "postgres_custom"
 	} else if n >= 262 && string(header[257:262]) == "ustar" {
 		format = "tar"
-	} else {
-		format = "plain_sql"
 	}
 
 	switch format {

@@ -43,7 +43,7 @@ func main() {
 
 	application, err := app.New(ctx)
 	if err != nil {
-		os.Stderr.WriteString("Fatal error while starting the application: " + err.Error() + "\n")
+		fmt.Fprintf(os.Stderr, "Fatal error while starting the application: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -77,7 +77,7 @@ func main() {
 
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			application.Logger.Error("Graceful shutdown failed", "error", err)
-			server.Close()
+			_ = server.Close()
 		}
 
 		application.Logger.Info("Server shut down successfully")

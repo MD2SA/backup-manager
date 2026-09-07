@@ -30,7 +30,7 @@ func (s *LocalStorage) Upload(ctx context.Context, key string, reader io.Reader)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	_, err = io.Copy(f, reader)
 	return err

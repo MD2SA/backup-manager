@@ -19,13 +19,13 @@ func EncryptWithAge(srcPath, dstPath, publicKey string) error {
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	dst, err := os.Create(dstPath)
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
+	defer func() { _ = dst.Close() }()
 
 	w, err := age.Encrypt(dst, recipient)
 	if err != nil {
@@ -33,7 +33,7 @@ func EncryptWithAge(srcPath, dstPath, publicKey string) error {
 	}
 
 	if _, err := io.Copy(w, src); err != nil {
-		w.Close()
+		_ = w.Close()
 		return fmt.Errorf("failed to encrypt data: %w", err)
 	}
 
@@ -51,13 +51,13 @@ func DecryptWithAge(srcPath, dstPath, identityStr string) error {
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	dst, err := os.Create(dstPath)
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
+	defer func() { _ = dst.Close() }()
 
 	r, err := age.Decrypt(src, identity)
 	if err != nil {
@@ -82,13 +82,13 @@ func EncryptWithPassphrase(srcPath, dstPath, passphrase string) error {
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	dst, err := os.Create(dstPath)
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
+	defer func() { _ = dst.Close() }()
 
 	w, err := age.Encrypt(dst, r)
 	if err != nil {
@@ -96,7 +96,7 @@ func EncryptWithPassphrase(srcPath, dstPath, passphrase string) error {
 	}
 
 	if _, err := io.Copy(w, src); err != nil {
-		w.Close()
+		_ = w.Close()
 		return fmt.Errorf("failed to encrypt data: %w", err)
 	}
 
@@ -114,13 +114,13 @@ func DecryptWithPassphrase(srcPath, dstPath, passphrase string) error {
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	dst, err := os.Create(dstPath)
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
+	defer func() { _ = dst.Close() }()
 
 	r, err := age.Decrypt(src, i)
 	if err != nil {
@@ -143,4 +143,3 @@ func GenerateX25519KeyPair() (publicKey string, privateKey string, err error) {
 
 	return identity.Recipient().String(), identity.String(), nil
 }
-

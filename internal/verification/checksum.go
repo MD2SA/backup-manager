@@ -17,7 +17,7 @@ func (s *ChecksumStrategy) Verify(ctx context.Context, path string) (bool, strin
 	if err != nil {
 		return false, "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {

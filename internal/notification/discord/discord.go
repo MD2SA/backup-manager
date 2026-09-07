@@ -36,10 +36,10 @@ func (d *DiscordProvider) Send(ctx context.Context, event notification.Event, me
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("Discord API returned status %d", resp.StatusCode)
+		return fmt.Errorf("discord API returned status %d", resp.StatusCode)
 	}
 
 	return nil
