@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"time"
 
 	_ "github.com/MD2SA/backup-manager/docs"
@@ -32,7 +33,7 @@ func New(
 ) *chi.Mux {
 	r := chi.NewRouter()
 
-	r.Use(middleware.RealIP)
+	r.Use(middleware.ClientIPFromRemoteAddr)
 	r.Use(apimiddleware.Logger(logger))
 	r.Use(middleware.Recoverer)
 
@@ -61,7 +62,9 @@ func New(
 	retentionHandler := &handlers.RetentionHandler{Repo: repo}
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Use(httprate.LimitByIP(rateLimitRequests, rateLimitWindow))
+		r.Use(httprate.LimitBy(rateLimitRequests, rateLimitWindow, func(r *http.Request) (string, error) {
+			return httprate.CanonicalizeIP(middleware.GetClientIP(r.Context())), nil
+		}))
 		r.Use(apimiddleware.ApiKeyAuth(adminKey))
 		r.Get("/health", handlers.Health)
 		r.Get("/health/summary", monitorHandler.HealthSummary)
