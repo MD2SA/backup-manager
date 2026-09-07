@@ -126,25 +126,41 @@ func (c *Config) Validate() error {
 		return errors.New("metadata database SSL mode is required (APP_METADATA_DB_SSLMODE)")
 	}
 
-	// Validate Target DB
+	// Note: Target DB validation is deferred to runtime (ValidateTargetDB)
+	// to allow the service to start even if infrastructure is not yet fully configured.
+
+	return nil
+}
+
+// IsTargetDBConfigured returns true if all mandatory Target DB fields are present.
+func (c *Config) IsTargetDBConfigured() bool {
+	return c.TargetDB.Host != "" &&
+		c.TargetDB.Port != "" &&
+		c.TargetDB.User != "" &&
+		c.TargetDB.Password != "" &&
+		c.TargetDB.DBName != ""
+}
+
+// ValidateTargetDB ensures the target database configuration is complete.
+// This should be called before any backup or restore operation.
+func (c *Config) ValidateTargetDB() error {
 	if c.TargetDB.Host == "" {
-		return errors.New("target database host is required (APP_TARGET_DB_HOST)")
+		return errors.New("target database host is missing (APP_TARGET_DB_HOST)")
 	}
 	if c.TargetDB.Port == "" {
-		return errors.New("target database port is required (APP_TARGET_DB_PORT)")
+		return errors.New("target database port is missing (APP_TARGET_DB_PORT)")
 	}
 	if c.TargetDB.User == "" {
-		return errors.New("target database user is required (APP_TARGET_DB_USER)")
+		return errors.New("target database user is missing (APP_TARGET_DB_USER)")
 	}
 	if c.TargetDB.Password == "" {
-		return errors.New("target database password is required (APP_TARGET_DB_PASSWORD)")
+		return errors.New("target database password is missing (APP_TARGET_DB_PASSWORD)")
 	}
 	if c.TargetDB.DBName == "" {
-		return errors.New("target database name is required (APP_TARGET_DB_DBNAME)")
+		return errors.New("target database name is missing (APP_TARGET_DB_DBNAME)")
 	}
 	if c.TargetDB.SSLMode == "" {
-		return errors.New("target database SSL mode is required (APP_TARGET_DB_SSLMODE)")
+		return errors.New("target database SSL mode is missing (APP_TARGET_DB_SSLMODE)")
 	}
-
 	return nil
 }

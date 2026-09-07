@@ -64,6 +64,8 @@ func New(ctx context.Context) (*App, error) {
 		ProviderService: providerService,
 	}
 
+	a.logInfrastructureStatus()
+
 	// Initialize Backup Runner (Serial execution)
 	a.Runner = backup.NewBackupRunner(log, a.BackupService.ExecuteBackup)
 
@@ -107,4 +109,24 @@ func (a *App) Start(ctx context.Context) {
 			break // Only one should be enabled
 		}
 	}
+}
+
+func (a *App) logInfrastructureStatus() {
+	a.Logger.Info("Infrastructure status",
+		"metadata_db", "configured",
+		"target_db", a.formatStatus(a.Config.IsTargetDBConfigured(), "configured", "MISSING (Backups will fail)"),
+		"storage_path", a.Config.StoragePath,
+		"encryption", a.formatStatus(a.Config.AgePublicKey != "" || a.Config.EncryptionPassphrase != "", "enabled", "disabled"),
+	)
+
+	if !a.Config.IsTargetDBConfigured() {
+		a.Logger.Warn("Target Database is not configured. Any backup or restore attempt will fail.")
+	}
+}
+
+func (a *App) formatStatus(ok bool, success, failure string) string {
+	if ok {
+		return success
+	}
+	return failure
 }

@@ -47,6 +47,10 @@ func NewBackupService(
 }
 
 func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID) error {
+	if err := s.ensureTargetDB("Backup"); err != nil {
+		return err
+	}
+
 	p, err := s.repo.GetProfile(ctx, profileID)
 	if err != nil {
 		return err
@@ -192,6 +196,10 @@ func (s *BackupService) notify(ctx context.Context, providerID pgtype.UUID, even
 }
 
 func (s *BackupService) ExecuteRestore(ctx context.Context, executionID pgtype.UUID) error {
+	if err := s.ensureTargetDB("Restore"); err != nil {
+		return err
+	}
+
 	execution, err := s.repo.GetExecution(ctx, executionID)
 	if err != nil {
 		return err
@@ -234,4 +242,12 @@ func (s *BackupService) ExecuteRestore(ctx context.Context, executionID pgtype.U
 	pipeline.DBConfig.DBName = s.config.TargetDB.DBName
 
 	return pipeline.Run(ctx, execution.StoragePath.String, execution.IsEncrypted)
+}
+
+func (s *BackupService) ensureTargetDB(op string) error {
+	if err := s.config.ValidateTargetDB(); err != nil {
+		s.logger.Error(fmt.Sprintf("%s aborted: Target Database is not configured", op), "error", err)
+		return fmt.Errorf("infrastructure error: %w", err)
+	}
+	return nil
 }
