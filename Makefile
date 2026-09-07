@@ -18,7 +18,9 @@ DB_PORT ?= $(APP_METADATA_DB_PORT)
 DB_NAME ?= $(APP_METADATA_DB_DBNAME)
 DB_SSLMODE ?= $(APP_METADATA_DB_SSLMODE)
 
+ifneq ($(DB_USER),)
 DATABASE_URL ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
+endif
 
 # Tools
 LOCALBIN ?= $(shell pwd)/bin
@@ -96,7 +98,7 @@ $(AIR): $(LOCALBIN)
 	test -s $(LOCALBIN)/air || GOBIN=$(LOCALBIN) go install github.com/air-verse/air@v1.67.3
 
 $(GOLANGCI_LINT): $(LOCALBIN)
-	test -s $(LOCALBIN)/golangci-lint || GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+	test -s $(LOCALBIN)/golangci-lint || GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
 
 clean:
 	rm -rf bin
