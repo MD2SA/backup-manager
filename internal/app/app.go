@@ -38,13 +38,13 @@ type App struct {
 func New(ctx context.Context) (*App, error) {
 	cfg, err := config.Load()
 	if err != nil {
-		return nil, fmt.Errorf("Configuration error: %w", err)
+		return nil, fmt.Errorf("configuration error: %w", err)
 	}
 	log := logger.New(cfg.LogLevel)
 
 	dbPool, err := database.New(ctx, cfg.MetadataDB)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to initialize database: %w", err)
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
 	repo := repository.NewPostgres(dbPool)

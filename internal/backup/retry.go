@@ -24,5 +24,5 @@ func Retry(ctx context.Context, attempts int, delay time.Duration, fn func() err
 			delay *= 2 // Exponential backoff
 		}
 	}
-	return fmt.Errorf("After %d attempts, last error: %w", attempts, err)
+	return fmt.Errorf("after %d attempts, last error: %w", attempts, err)
 }

@@ -103,47 +103,47 @@ func Load() (Config, error) {
 func (c *Config) Validate() error {
 	// Global validation
 	if c.TempDir == "" {
-		return errors.New("Temporary directory is required (APP_TEMP_DIR)")
+		return errors.New("temporary directory is required (APP_TEMP_DIR)")
 	}
 
-	// Validate Metadata DB
+	// Validate Metadata DB (Mandatory for service startup)
 	if c.MetadataDB.Host == "" {
-		return errors.New("Metadata database host is required (APP_METADATA_DB_HOST)")
+		return errors.New("metadata database host is required (APP_METADATA_DB_HOST)")
 	}
 	if c.MetadataDB.Port == "" {
-		return errors.New("Metadata database port is required (APP_METADATA_DB_PORT)")
+		return errors.New("metadata database port is required (APP_METADATA_DB_PORT)")
 	}
 	if c.MetadataDB.User == "" {
-		return errors.New("Metadata database user is required (APP_METADATA_DB_USER)")
+		return errors.New("metadata database user is required (APP_METADATA_DB_USER)")
 	}
 	if c.MetadataDB.Password == "" {
-		return errors.New("Metadata database password is required (APP_METADATA_DB_PASSWORD)")
+		return errors.New("metadata database password is required (APP_METADATA_DB_PASSWORD)")
 	}
 	if c.MetadataDB.DBName == "" {
-		return errors.New("Metadata database name is required (APP_METADATA_DB_DBNAME)")
+		return errors.New("metadata database name is required (APP_METADATA_DB_DBNAME)")
 	}
 	if c.MetadataDB.SSLMode == "" {
-		return errors.New("Metadata database SSL mode is required (APP_METADATA_DB_SSLMODE)")
+		return errors.New("metadata database SSL mode is required (APP_METADATA_DB_SSLMODE)")
 	}
 
 	// Validate Target DB
 	if c.TargetDB.Host == "" {
-		return errors.New("Target database host is required (APP_TARGET_DB_HOST)")
+		return errors.New("target database host is required (APP_TARGET_DB_HOST)")
 	}
 	if c.TargetDB.Port == "" {
-		return errors.New("Target database port is required (APP_TARGET_DB_PORT)")
+		return errors.New("target database port is required (APP_TARGET_DB_PORT)")
 	}
 	if c.TargetDB.User == "" {
-		return errors.New("Target database user is required (APP_TARGET_DB_USER)")
+		return errors.New("target database user is required (APP_TARGET_DB_USER)")
 	}
 	if c.TargetDB.Password == "" {
-		return errors.New("Target database password is required (APP_TARGET_DB_PASSWORD)")
+		return errors.New("target database password is required (APP_TARGET_DB_PASSWORD)")
 	}
 	if c.TargetDB.DBName == "" {
-		return errors.New("Target database name is required (APP_TARGET_DB_DBNAME)")
+		return errors.New("target database name is required (APP_TARGET_DB_DBNAME)")
 	}
 	if c.TargetDB.SSLMode == "" {
-		return errors.New("Target database SSL mode is required (APP_TARGET_DB_SSLMODE)")
+		return errors.New("target database SSL mode is required (APP_TARGET_DB_SSLMODE)")
 	}
 
 	return nil

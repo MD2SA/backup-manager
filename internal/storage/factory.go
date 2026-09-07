@@ -24,6 +24,6 @@ func NewProvider(ctx context.Context, pType string, config map[string]interface{
 
 		return s3.New(ctx, region, bucket, accessKey, secretKey)
 	default:
-		return nil, fmt.Errorf("Unknown storage type: %s", pType)
+		return nil, fmt.Errorf("unknown storage type: %s", pType)
 	}
 }
