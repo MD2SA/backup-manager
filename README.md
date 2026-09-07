@@ -290,11 +290,40 @@ To stop the development stack:
 make docker-dev-down
 ```
 
+This service exposes **only an HTTP API** (`/api/v1`). It is designed to be
+consumed by dashboards and tools built by whoever operates it; there is no
+bundled UI.
+
 ### Important Deployment Notes
 
-* **Auto-Adaptive Identity:** The Docker image automatically detects the owner of the mounted `/backups` volume and runs with those permissions. This ensures created backups are owned by your host user without manual configuration. You can still override this using `PUID` and `PGID` environment variables.
-* **Database Compatibility:** The image includes `postgresql16-client`. This is compatible with PostgreSQL 13 through 17.
-* **Automatic Migrations:** The container automatically runs database migrations on the metadata database during startup. If migrations fail, the container will exit with an error.
+* **Authentication:** Set `APP_ADMIN_KEY`. With `APP_ENV=production` the
+  service **refuses to start** without it, so Insecure Mode can never reach a
+  production instance. All requests must include the `X-API-Key` header.
+* **Reverse proxy:** Put the service behind a TLS-terminating proxy (Caddy,
+  nginx, Traefik); configure `APP_CORS_ORIGINS` with your dashboard origin and
+  `APP_TRUSTED_PROXIES` with the proxy IPs/CIDRs so rate limiting sees real
+  client IPs.
+* **Secrets at rest:** Set `APP_CONFIG_ENCRYPT_KEY` to encrypt provider
+  credentials (S3, Discord) in the metadata database. Changing it later
+  invalidates existing provider configs.
+* **Metadata database is internal** in the production compose stack — it exposes
+  no host ports and is reachable only by the manager container.
+* **Disaster recovery built-in:** each backup execution also uploads an
+  encrypted snapshot of the management state (profiles, providers, history) to
+  the same storage providers, so a fresh instance can be rebuilt. See
+  `docs/guides/CONFIGURATION.md` → "Metadata Disaster Recovery".
+* **Protect the database you manage:** enable the metadata self-backup with
+  `APP_METADATA_BACKUP_SCHEDULE` (plus `APP_METADATA_BACKUP_PASSPHRASE`), so
+  profiles, providers, and history survive incidents.
+* **Auto-Adaptive Identity:** The Docker image automatically detects the owner
+  of the mounted `/backups` volume and runs with those permissions. This ensures
+  created backups are owned by your host user without manual configuration. You
+  can still override this using `PUID` and `PGID` environment variables.
+* **Database Compatibility:** The image includes `postgresql16-client`. This is
+  compatible with PostgreSQL 13 through 17.
+* **Automatic Migrations:** The container automatically runs database migrations
+  on the metadata database during startup. If migrations fail, the container
+  will exit with an error.
 
 ---
 

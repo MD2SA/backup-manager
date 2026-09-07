@@ -12,10 +12,12 @@ import (
 	"github.com/MD2SA/backup-manager/internal/database"
 	"github.com/MD2SA/backup-manager/internal/logger"
 	"github.com/MD2SA/backup-manager/internal/monitor"
+	"github.com/MD2SA/backup-manager/internal/pkg/crypto"
 	"github.com/MD2SA/backup-manager/internal/repository"
 	"github.com/MD2SA/backup-manager/internal/repository/db"
 	"github.com/MD2SA/backup-manager/internal/retention"
 	"github.com/MD2SA/backup-manager/internal/scheduler"
+	"github.com/MD2SA/backup-manager/internal/selfbackup"
 	"github.com/MD2SA/backup-manager/internal/service"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,6 +35,7 @@ type App struct {
 	Monitor         *monitor.Service
 	BackupService   *service.BackupService
 	ProviderService *service.ProviderService
+	MetadataBackup  *selfbackup.Service
 }
 
 func New(ctx context.Context) (*App, error) {
@@ -47,7 +50,7 @@ func New(ctx context.Context) (*App, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	repo := repository.NewPostgres(dbPool)
+	repo := repository.NewPostgres(dbPool, configKeyForRepo(cfg))
 	retentionEngine := retention.New(repo)
 	monitorService := monitor.New(repo)
 	providerService := service.NewProviderService(repo, cfg)
@@ -73,12 +76,17 @@ func New(ctx context.Context) (*App, error) {
 		log.Warn("SECURITY WARNING: No APP_ADMIN_KEY set. The API is open to anyone with network access.")
 	}
 
+	trustedProxies, err := cfg.TrustedProxyPrefixes()
+	if err != nil {
+		return nil, fmt.Errorf("invalid trusted proxies: %w", err)
+	}
+
 	// Initialize Scheduler
 	a.Scheduler = scheduler.New(log, func(profileID pgtype.UUID) {
 		_ = a.Runner.Enqueue(profileID)
 	})
 
-	r := router.New(log, repo, monitorService, a.Config.AdminKey, a.Config.RateLimitRequests, a.Config.RateLimitWindow, func(profileID pgtype.UUID) error {
+	r := router.New(log, repo, monitorService, a.Config.AdminKey, a.Config.RateLimitRequests, a.Config.RateLimitWindow, a.Config.CORSOrigins, trustedProxies, func(profileID pgtype.UUID) error {
 		return a.Runner.Enqueue(profileID)
 	}, a.BackupService.ExecuteRestore, func(p db.Profile) {
 		if err := a.Scheduler.SetActiveJob(p.ID, p.Schedule); err != nil {
@@ -87,12 +95,16 @@ func New(ctx context.Context) (*App, error) {
 	})
 	a.Router = r
 
+	// Initialize metadata backup service (scheduled pg_dump of internal state).
+	a.MetadataBackup = selfbackup.New(log, cfg)
+
 	return a, nil
 }
 
 func (a *App) Start(ctx context.Context) {
 	a.Runner.Start(ctx)
 	a.Scheduler.Start()
+	a.MetadataBackup.Start()
 
 	// Load the currently enabled profile into scheduler
 	profiles, err := a.Repo.ListProfiles(ctx)
@@ -129,4 +141,13 @@ func (a *App) formatStatus(ok bool, success, failure string) string {
 		return success
 	}
 	return failure
+}
+
+// configKeyForRepo derives the AES key for provider-config encryption at rest.
+// With no key configured, provider configs are stored in plaintext (dev mode).
+func configKeyForRepo(cfg config.Config) []byte {
+	if cfg.ConfigEncryptionKey == "" {
+		return nil
+	}
+	return crypto.DeriveConfigKey(cfg.ConfigEncryptionKey)
 }

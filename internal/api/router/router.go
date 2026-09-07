@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"time"
 
 	_ "github.com/MD2SA/backup-manager/docs"
@@ -27,24 +28,20 @@ func New(
 	adminKey string,
 	rateLimitRequests int,
 	rateLimitWindow time.Duration,
+	corsOrigins []string,
+	trustedProxies []netip.Prefix,
 	onTrigger func(pgtype.UUID) error,
 	onRestore func(context.Context, pgtype.UUID) error,
 	onActivate func(db.Profile),
 ) *chi.Mux {
 	r := chi.NewRouter()
 
-	r.Use(middleware.ClientIPFromRemoteAddr)
-	r.Use(apimiddleware.Logger(logger))
 	r.Use(middleware.Recoverer)
+	r.Use(apimiddleware.RequestID)
+	r.Use(apimiddleware.ClientIP(trustedProxies))
+	r.Use(apimiddleware.Logger(logger))
 
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300,
-	}))
+	r.Use(corsHandler(corsOrigins))
 
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
@@ -63,9 +60,10 @@ func New(
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(httprate.LimitBy(rateLimitRequests, rateLimitWindow, func(r *http.Request) (string, error) {
-			return httprate.CanonicalizeIP(middleware.GetClientIP(r.Context())), nil
+			return httprate.CanonicalizeIP(apimiddleware.GetClientIP(r.Context())), nil
 		}))
 		r.Use(apimiddleware.ApiKeyAuth(adminKey))
+
 		r.Get("/health", handlers.Health)
 		r.Get("/health/summary", monitorHandler.HealthSummary)
 
@@ -97,7 +95,6 @@ func New(
 		r.Route("/executions", func(r chi.Router) {
 			r.Get("/", executionHandler.GetAll)
 			r.Get("/{id}", executionHandler.Get)
-			r.Post("/{id}/restore", restoreHandler.Trigger)
 			r.Post("/{id}/pin", executionHandler.Pin)
 		})
 
@@ -107,12 +104,29 @@ func New(
 			r.Route("/{id}", func(r chi.Router) {
 				r.Put("/", profileHandler.Update)
 				r.Delete("/", profileHandler.Delete)
-				r.Post("/run", profileHandler.RunNow)
+				r.Post("/run", apimiddleware.Idempotency(profileHandler.RunNow))
 				r.Post("/activate", profileHandler.Activate)
 				r.Get("/executions", executionHandler.ListByProfile)
 			})
 		})
+
+		r.Post("/executions/{id}/restore", apimiddleware.Idempotency(restoreHandler.Trigger))
 	})
 
 	return r
+}
+
+// corsHandler produces a CORS middleware from a list of allowed origins.
+func corsHandler(origins []string) func(http.Handler) http.Handler {
+	if len(origins) == 0 {
+		origins = []string{"http://localhost:3000"}
+	}
+	return cors.Handler(cors.Options{
+		AllowedOrigins:   origins,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-API-Key", "X-Idempotency-Key", "X-Request-ID"},
+		ExposedHeaders:   []string{"X-Request-ID"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	})
 }

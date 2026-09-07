@@ -10,6 +10,8 @@ import (
 	"github.com/MD2SA/backup-manager/internal/repository/db"
 )
 
+const maskedSecret = "********"
+
 type StorageProviderRequest struct {
 	Name   string          `json:"name" validate:"required"`
 	Type   string          `json:"type" validate:"required,oneof=local s3"`
@@ -50,8 +52,7 @@ type StorageProviderResponse struct {
 }
 
 func ToStorageProviderResponse(p db.StorageProvider) StorageProviderResponse {
-	var config any
-	_ = json.Unmarshal(p.Config, &config)
+	config := maskConfigByType(p.Type, p.Config)
 	return StorageProviderResponse{
 		ID:        pgutil.UUIDToString(p.ID),
 		Name:      p.Name,
@@ -96,8 +97,7 @@ type NotificationProviderResponse struct {
 }
 
 func ToNotificationProviderResponse(p db.NotificationProvider) NotificationProviderResponse {
-	var config any
-	_ = json.Unmarshal(p.Config, &config)
+	config := maskConfigByType(p.Type, p.Config)
 	return NotificationProviderResponse{
 		ID:        pgutil.UUIDToString(p.ID),
 		Name:      p.Name,
@@ -106,4 +106,51 @@ func ToNotificationProviderResponse(p db.NotificationProvider) NotificationProvi
 		CreatedAt: p.CreatedAt.Time,
 		UpdatedAt: p.UpdatedAt.Time,
 	}
+}
+
+// maskConfigByType replaces sensitive fields with maskedSecret in a JSON config.
+func maskConfigByType(providerType string, raw json.RawMessage) any {
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return raw
+	}
+
+	var secretKeys []string
+	switch providerType {
+	case "s3":
+		secretKeys = []string{"secret_key", "access_key"}
+	case "discord":
+		secretKeys = []string{"webhook_url"}
+	}
+
+	for _, k := range secretKeys {
+		if _, ok := m[k]; ok {
+			m[k] = maskedSecret
+		}
+	}
+
+	return m
+}
+
+// MergeProviderSecrets preserves the original secret values from existing
+// when the incoming request contains only the masked placeholder.
+func MergeProviderSecrets(incoming map[string]any, existing map[string]any, providerType string) map[string]any {
+	var secretKeys []string
+	switch providerType {
+	case "s3":
+		secretKeys = []string{"secret_key", "access_key"}
+	case "discord":
+		secretKeys = []string{"webhook_url"}
+	}
+
+	for _, k := range secretKeys {
+		inVal, _ := incoming[k].(string)
+		if inVal == maskedSecret {
+			if orig, ok := existing[k]; ok {
+				incoming[k] = orig
+			}
+		}
+	}
+
+	return incoming
 }

@@ -8,11 +8,18 @@ import (
 type Postgres struct {
 	pool    *pgxpool.Pool
 	queries *db.Queries
+	encKey  []byte
 }
 
-func NewPostgres(pool *pgxpool.Pool) *Postgres {
+// NewPostgres creates a repository. configEncryptionKey is the AES key used to
+// encrypt/decrypt provider configurations at rest (may be nil in dev mode).
+func NewPostgres(pool *pgxpool.Pool, configEncryptionKey []byte) *Postgres {
+	if len(configEncryptionKey) == 0 {
+		configEncryptionKey = nil
+	}
 	return &Postgres{
 		pool:    pool,
 		queries: db.New(pool),
+		encKey:  configEncryptionKey,
 	}
 }

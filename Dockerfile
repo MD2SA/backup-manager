@@ -49,6 +49,7 @@ RUN apk add --no-cache \
 
 ENV APP_PORT=8080 \
     APP_LOG_LEVEL=info \
+    APP_ENV=development \
     APP_TEMP_DIR=/tmp \
     APP_STORAGE_PATH=/backups
 

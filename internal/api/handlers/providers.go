@@ -115,6 +115,18 @@ func (h *ProviderHandler) UpdateStorage(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Preserve secret values when the client sends back masked placeholders.
+	if existing, exErr := h.Repo.GetStorageProvider(r.Context(), id); exErr == nil {
+		var incoming, existingMap map[string]any
+		if json.Unmarshal(req.Config, &incoming) == nil && json.Unmarshal(existing.Config, &existingMap) == nil {
+			merged := dto.MergeProviderSecrets(incoming, existingMap, req.Type)
+			mergedBytes, err := json.Marshal(merged)
+			if err == nil {
+				req.Config = mergedBytes
+			}
+		}
+	}
+
 	params := db.UpdateStorageProviderParams{
 		ID:     id,
 		Name:   req.Name,
@@ -246,6 +258,18 @@ func (h *ProviderHandler) UpdateNotification(w http.ResponseWriter, r *http.Requ
 	if err := req.Validate(); err != nil {
 		apiutil.Error(w, http.StatusBadRequest, err.Error())
 		return
+	}
+
+	// Preserve secret values when the client sends back masked placeholders.
+	if existing, exErr := h.Repo.GetNotificationProvider(r.Context(), id); exErr == nil {
+		var incoming, existingMap map[string]any
+		if json.Unmarshal(req.Config, &incoming) == nil && json.Unmarshal(existing.Config, &existingMap) == nil {
+			merged := dto.MergeProviderSecrets(incoming, existingMap, req.Type)
+			mergedBytes, err := json.Marshal(merged)
+			if err == nil {
+				req.Config = mergedBytes
+			}
+		}
 	}
 
 	params := db.UpdateNotificationProviderParams{

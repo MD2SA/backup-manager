@@ -8,20 +8,34 @@ Backup Manager is configured via Environment Variables and through the REST API 
 |----------|-------------|---------|
 | `APP_PORT` | Port for the API server | `8080` |
 | `APP_LOG_LEVEL` | Logging level (debug, info, warn, error) | `info` |
+| `APP_ENV` | Runtime environment (`development` or `production`) | `development` |
 | `APP_TEMP_DIR` | Directory for temporary backup files | `/tmp` |
 | `APP_BACKUP_PATH` | (Docker only) Host path for backup persistence | **Mandatory** |
+| `APP_ADMIN_KEY` | Static API Key for authentication (**required in production**) | - |
+| `APP_CORS_ORIGINS` | Comma-separated allowed origins for CORS | `http://localhost:3000` |
+| `APP_TRUSTED_PROXIES` | Comma-separated IPs/CIDRs of reverse proxies (for correct client IP via X-Forwarded-For) | - |
+| `APP_CONFIG_ENCRYPT_KEY` | Passphrase to encrypt provider configs at rest (AES-256-GCM). Empty = plaintext (dev). | - |
 | `APP_METADATA_DB_URL` | PostgreSQL connection URL for internal state | `postgres://...` |
+| `APP_METADATA_DB_HOST` | Metadata database host | - |
+| `APP_METADATA_DB_PORT` | Metadata database port | - |
+| `APP_METADATA_DB_USER` | Metadata database user | - |
+| `APP_METADATA_DB_PASSWORD`| Metadata database password | - |
+| `APP_METADATA_DB_DBNAME` | Metadata database name | - |
+| `APP_METADATA_DB_SSLMODE`| Metadata database SSL mode | - |
 | `APP_TARGET_DB_HOST` | Host of the database to backup | `localhost` |
 | `APP_TARGET_DB_PORT` | Port of the database to backup | `5432` |
 | `APP_TARGET_DB_USER` | User for the target database | `postgres` |
 | `APP_TARGET_DB_PASSWORD`| Password for the target database | - |
 | `APP_TARGET_DB_NAME` | Name of the database to backup | - |
-| `APP_ADMIN_KEY` | Static API Key for authentication | - |
 | `APP_RATE_LIMIT_REQUESTS` | Max requests within the window | `100` |
 | `APP_RATE_LIMIT_WINDOW` | Time window for rate limiting (e.g. 1m, 1h) | `1m` |
-| `APP_ENCRYPTION_PASSPHRASE` | Passphrase for "Simple Mode" encryption | - |
-| `APP_AGE_PUBLIC_KEY` | Age X25519 public key for "Pro Mode" encryption | - |
+| `APP_ENCRYPTION_PASSPHRASE` | Passphrase for "Simple Mode" backup encryption | - |
+| `APP_AGE_PUBLIC_KEY` | Age X25519 public key for "Pro Mode" backup encryption | - |
 | `APP_AGE_PRIVATE_KEY` | Age X25519 private key for restore | - |
+| `APP_METADATA_BACKUP_SCHEDULE` | Cron expression for metadata self-backup (empty = disabled) | - |
+| `APP_METADATA_BACKUP_PASSPHRASE` | Passphrase to encrypt metadata snapshots (embed fallback + local cron) | - |
+| `APP_METADATA_BACKUP_RETENTION` | Number of metadata snapshots to keep, per profile/provider | `14` |
+| `APP_METADATA_BACKUP_EMBED` | Embed an encrypted metadata snapshot into every backup execution | `true` |
 
 ## Docker User and Permissions
 
@@ -156,3 +170,63 @@ Example `POST /api/v1/profiles`:
   "compression_level": 6
 }
 ```
+
+## Reverse Proxy & Client IP
+
+When running behind a reverse proxy (nginx, Caddy, Traefik, Cloudflare), set
+`APP_TRUSTED_PROXIES` to the proxy IPs or CIDRs. The service then resolves the
+real client IP from `X-Forwarded-For` for rate limiting and logging:
+
+```env
+APP_TRUSTED_PROXIES=127.0.0.1,172.16.0.0/12
+```
+
+Bare IPs are treated as host prefixes (e.g. `127.0.0.1` → `/32`). Any value in
+`APP_TRUSTED_PROXIES` that is not a valid IP or CIDR causes the service to fail
+at startup.
+
+## Metadata Disaster Recovery
+
+Backup Manager protects its own management state (profiles, providers,
+retention policies, execution history) so it can be re-created after losing the
+host. There are two complementary mechanisms, both using `pg_dump -Fc` (requires
+`pg_dump` in PATH).
+
+### 1. Embedded into every backup (recommended, enabled by default)
+
+The simplest way to guarantee DR: each backup execution also uploads an
+encrypted metadata snapshot to **every storage provider of the profile**. If you
+back up to S3, the metadata rides along to S3 automatically — no separate
+destination to configure.
+
+*   Enabled by default; disable with `APP_METADATA_BACKUP_EMBED=false`.
+*   Object key: `meta/<profile-id>/metadata-<timestamp>.dump.age`.
+*   Retention: `APP_METADATA_BACKUP_RETENTION` (default `14`) oldest snapshots
+    are pruned, isolated **per profile and per provider** (a shared provider
+    never mixes or deletes another profile's metadata).
+
+**Encryption chain — the metadata is never uploaded in plaintext:**
+1. If the profile has encryption enabled, the snapshot is encrypted with the
+   **same keys as the data backup** (profile passphrase, or Age public key).
+2. Otherwise, it falls back to `APP_METADATA_BACKUP_PASSPHRASE`.
+3. If none is available, the metadata is **skipped with a warning** — the data
+   backup itself is unaffected.
+
+A metadata failure (dump, encryption, or upload) is logged but **never fails the
+main backup execution**.
+
+### 2. Scheduled local self-backup (optional)
+
+Backup Manager can also dump its own database on a cron schedule to the local
+storage path:
+
+```env
+APP_METADATA_BACKUP_SCHEDULE=0 3 * * *
+APP_METADATA_BACKUP_PASSPHRASE=some-strong-passphrase
+APP_METADATA_BACKUP_RETENTION=14
+```
+
+Backups are written to `[APP_BACKUP_PATH]/metadata/metadata-<timestamp>.dump`
+(or `.dump.age` when a passphrase is set). This is a local copy — sync it off the
+host if you want remote coverage; the embedding mechanism above already covers
+the cloud case automatically.

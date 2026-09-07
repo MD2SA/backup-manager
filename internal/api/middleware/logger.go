@@ -15,13 +15,17 @@ func Logger(logger *slog.Logger) func(next http.Handler) http.Handler {
 			t1 := time.Now()
 
 			defer func() {
-				logger.Info("request completed",
+				attrs := []any{
 					"method", r.Method,
 					"path", r.URL.Path,
 					"status", ww.Status(),
 					"duration", time.Since(t1),
-					"remote", r.RemoteAddr,
-				)
+					"remote", GetClientIP(r.Context()),
+				}
+				if reqID := GetRequestID(r.Context()); reqID != "" {
+					attrs = append(attrs, "request_id", reqID)
+				}
+				logger.Info("request completed", attrs...)
 			}()
 
 			next.ServeHTTP(ww, r)

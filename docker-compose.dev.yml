@@ -15,10 +15,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    # Must share the app's internal network so the app can resolve 'target-db'.
+    networks:
+      - internal
 
   backup-manager:
     environment:
       # Global
+      APP_ENV: development
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-debug}
       APP_TEMP_DIR: ${APP_TEMP_DIR:-/tmp}
       # Within Docker the app connects to its siblings by service name on the internal

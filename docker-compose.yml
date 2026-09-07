@@ -1,16 +1,17 @@
 services:
-  # Metadata Database (Internal State)
+  # Metadata Database (Internal State - NOT publicly exposed)
   metadata-db:
     image: postgres:17-alpine
     container_name: backup-manager-metadata-db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${APP_METADATA_DB_USER:?Metadata database user is required}
       POSTGRES_PASSWORD: ${APP_METADATA_DB_PASSWORD:?Metadata database password is required}
       POSTGRES_DB: ${APP_METADATA_DB_DBNAME:?Metadata database name is required}
-    ports:
-      # Host publish port -> container port. PostgreSQL inside always listens on 5432;
-      # APP_METADATA_DB_PORT is only the host-facing port (default 5432 for local dev).
-      - "${APP_METADATA_DB_PORT:-5432}:5432"
+    # Metadata DB is internal only; no host port exposed.
+    # The app container connects to metadata-db:5432 via Docker networking.
+    networks:
+      - internal
     volumes:
       - metadata_db_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,6 +19,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
 
   # The Backup Manager Microservice
   backup-manager:
@@ -25,14 +31,20 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: backup-manager-app
+    restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8080"
     environment:
       # Global Settings
+      - APP_ENV=production
+      - APP_PORT=${APP_PORT:-8080}
       - APP_LOG_LEVEL=${APP_LOG_LEVEL:-info}
       - APP_TEMP_DIR=${APP_TEMP_DIR:?Temporary directory for staging backups is required}
-      # Metadata DB Connection (service name + internal port 5432;
-      # the host-facing publish port is APP_METADATA_DB_PORT)
+      - APP_ADMIN_KEY=${APP_ADMIN_KEY:?APP_ADMIN_KEY is required in production}
+      - APP_CORS_ORIGINS=${APP_CORS_ORIGINS:-}
+      - APP_TRUSTED_PROXIES=${APP_TRUSTED_PROXIES:-}
+      - APP_CONFIG_ENCRYPT_KEY=${APP_CONFIG_ENCRYPT_KEY:-}
+      # Metadata DB Connection (service name + internal port 5432)
       - APP_METADATA_DB_HOST=metadata-db
       - APP_METADATA_DB_PORT=5432
       - APP_METADATA_DB_USER=${APP_METADATA_DB_USER:?Metadata database user is required}
@@ -46,11 +58,28 @@ services:
       - APP_TARGET_DB_PASSWORD=${APP_TARGET_DB_PASSWORD:-}
       - APP_TARGET_DB_DBNAME=${APP_TARGET_DB_DBNAME:-}
       - APP_TARGET_DB_SSLMODE=${APP_TARGET_DB_SSLMODE:-}
+      # Metadata self-backup (disabled local cron by default; embed enabled by default)
+      - APP_METADATA_BACKUP_SCHEDULE=${APP_METADATA_BACKUP_SCHEDULE:-}
+      - APP_METADATA_BACKUP_PASSPHRASE=${APP_METADATA_BACKUP_PASSPHRASE:-}
+      - APP_METADATA_BACKUP_RETENTION=${APP_METADATA_BACKUP_RETENTION:-14}
+      - APP_METADATA_BACKUP_EMBED=${APP_METADATA_BACKUP_EMBED:-true}
     volumes:
       - ${APP_BACKUP_PATH:?Backup storage path on the host is required (APP_BACKUP_PATH)}:/backups
     depends_on:
       metadata-db:
         condition: service_healthy
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+
+networks:
+  internal:
+    driver: bridge
+    internal: false  # app needs outbound for S3/Discord; metadata DB stays internal
 
 volumes:
   metadata_db_data:

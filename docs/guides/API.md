@@ -49,4 +49,32 @@ The project includes built-in Swagger documentation. To view it:
 *   `DELETE /retention-policies/{id}`: Remove a retention policy.
 
 ## Authentication
-*(Currently not implemented - planned for future release)*
+
+All `/api/v1` endpoints (except `/health`) require the `X-API-Key` header.
+
+```bash
+curl -H "X-API-Key: your-secure-api-key" http://localhost:8080/api/v1/profiles
+```
+
+*   The key is set with the `APP_ADMIN_KEY` environment variable.
+*   When `APP_ENV=production`, the service **fails to start** without an admin key.
+*   In development, if no key is set the service runs in **Insecure Mode** and logs a warning.
+
+### Idempotency
+
+`POST /profiles/{id}/run` and `POST /executions/{id}/restore` accept an optional
+`X-Idempotency-Key` header. Replaying the same method + path + key within 24 hours
+returns the original response without re-triggering the operation.
+
+### Request Correlation
+
+Every response includes an `X-Request-ID` header. If you send your own
+`X-Request-ID`, it is echoed back; otherwise a unique ID is generated. Reference
+it when reporting issues.
+
+### Provider Secrets
+
+Storage provider (`secret_key`, `access_key`) and notification provider
+(`webhook_url`) values are **masked** in API responses. When updating a provider,
+send the masked placeholder (`********`) in fields you want unchanged; the stored
+value is preserved.

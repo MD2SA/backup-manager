@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -19,18 +20,26 @@ type DatabaseConfig struct {
 }
 
 type Config struct {
-	Port                 string
-	LogLevel             string
-	TempDir              string
-	StoragePath          string
-	AgePublicKey         string
-	AgePrivateKey        string
-	EncryptionPassphrase string
-	AdminKey             string
-	RateLimitRequests    int
-	RateLimitWindow      time.Duration
-	MetadataDB           DatabaseConfig
-	TargetDB             DatabaseConfig
+	Port                     string
+	LogLevel                 string
+	Env                      string
+	TempDir                  string
+	StoragePath              string
+	AgePublicKey             string
+	AgePrivateKey            string
+	EncryptionPassphrase     string
+	AdminKey                 string
+	ConfigEncryptionKey      string
+	RateLimitRequests        int
+	RateLimitWindow          time.Duration
+	CORSOrigins              []string
+	TrustedProxies           []string
+	MetadataBackupSchedule   string
+	MetadataBackupPassphrase string
+	MetadataBackupRetention  int
+	MetadataBackupEmbed      bool
+	MetadataDB               DatabaseConfig
+	TargetDB                 DatabaseConfig
 }
 
 func Load() (Config, error) {
@@ -44,9 +53,13 @@ func Load() (Config, error) {
 	// Global settings
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("log_level", "info")
+	viper.SetDefault("env", "development")
 	viper.SetDefault("storage_path", "/backups")
 	viper.SetDefault("rate_limit_requests", 100)
 	viper.SetDefault("rate_limit_window", "1m")
+	viper.SetDefault("cors_origins", "http://localhost:3000")
+	viper.SetDefault("metadata_backup_retention", 14)
+	viper.SetDefault("metadata_backup_embed", true)
 
 	// Metadata Database (Internal state)
 	metadataHost := viper.GetString("metadata_db.host")
@@ -65,16 +78,24 @@ func Load() (Config, error) {
 	targetSSL := viper.GetString("target_db.sslmode")
 
 	cfg := Config{
-		Port:                 viper.GetString("port"),
-		LogLevel:             viper.GetString("log_level"),
-		TempDir:              viper.GetString("temp_dir"),
-		StoragePath:          viper.GetString("storage_path"),
-		AgePublicKey:         viper.GetString("age_public_key"),
-		AgePrivateKey:        viper.GetString("age_private_key"),
-		EncryptionPassphrase: viper.GetString("encryption_passphrase"),
-		AdminKey:             viper.GetString("admin_key"),
-		RateLimitRequests:    viper.GetInt("rate_limit_requests"),
-		RateLimitWindow:      viper.GetDuration("rate_limit_window"),
+		Port:                     viper.GetString("port"),
+		LogLevel:                 viper.GetString("log_level"),
+		Env:                      viper.GetString("env"),
+		TempDir:                  viper.GetString("temp_dir"),
+		StoragePath:              viper.GetString("storage_path"),
+		AgePublicKey:             viper.GetString("age_public_key"),
+		AgePrivateKey:            viper.GetString("age_private_key"),
+		EncryptionPassphrase:     viper.GetString("encryption_passphrase"),
+		AdminKey:                 viper.GetString("admin_key"),
+		ConfigEncryptionKey:      viper.GetString("config_encrypt_key"),
+		RateLimitRequests:        viper.GetInt("rate_limit_requests"),
+		RateLimitWindow:          viper.GetDuration("rate_limit_window"),
+		CORSOrigins:              parseList(viper.GetString("cors_origins")),
+		TrustedProxies:           parseList(viper.GetString("trusted_proxies")),
+		MetadataBackupSchedule:   viper.GetString("metadata_backup_schedule"),
+		MetadataBackupPassphrase: viper.GetString("metadata_backup_passphrase"),
+		MetadataBackupRetention:  viper.GetInt("metadata_backup_retention"),
+		MetadataBackupEmbed:      viper.GetBool("metadata_backup_embed"),
 		MetadataDB: DatabaseConfig{
 			Host:     metadataHost,
 			Port:     metadataPort,
@@ -106,6 +127,15 @@ func (c *Config) Validate() error {
 		return errors.New("temporary directory is required (APP_TEMP_DIR)")
 	}
 
+	// In production the API must never run without an admin key (Insecure Mode).
+	if c.IsProduction() && c.AdminKey == "" {
+		return errors.New("APP_ADMIN_KEY is required when APP_ENV=production")
+	}
+
+	if _, err := normalizeTrustedProxies(c.TrustedProxies); err != nil {
+		return err
+	}
+
 	// Validate Metadata DB (Mandatory for service startup)
 	if c.MetadataDB.Host == "" {
 		return errors.New("metadata database host is required (APP_METADATA_DB_HOST)")
@@ -130,6 +160,62 @@ func (c *Config) Validate() error {
 	// to allow the service to start even if infrastructure is not yet fully configured.
 
 	return nil
+}
+
+// IsProduction reports whether the service runs in production mode.
+func (c *Config) IsProduction() bool {
+	return c.Env == "production" || c.Env == "prod"
+}
+
+// TrustedProxyPrefixes normalizes the configured trusted proxies into
+// netip.Prefix values, converting bare IPs into host prefixes.
+func (c *Config) TrustedProxyPrefixes() ([]netip.Prefix, error) {
+	return normalizeTrustedProxies(c.TrustedProxies)
+}
+
+// parseList splits a comma-separated env value into a slice of trimmed items.
+func parseList(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+// normalizeTrustedProxies parses and normalizes proxy prefixes, upgrading
+// bare addresses (e.g. "127.0.0.1") to host prefixes ("127.0.0.1/32").
+func normalizeTrustedProxies(proxies []string) ([]netip.Prefix, error) {
+	prefixes := make([]netip.Prefix, 0, len(proxies))
+	for _, raw := range proxies {
+		p, err := parsePrefix(raw)
+		if err != nil {
+			return nil, err
+		}
+		prefixes = append(prefixes, p)
+	}
+	return prefixes, nil
+}
+
+func parsePrefix(raw string) (netip.Prefix, error) {
+	if strings.Contains(raw, "/") {
+		p, err := netip.ParsePrefix(raw)
+		if err != nil {
+			return netip.Prefix{}, errors.New("invalid proxy in APP_TRUSTED_PROXIES: " + raw)
+		}
+		return p, nil
+	}
+
+	addr, err := netip.ParseAddr(raw)
+	if err != nil {
+		return netip.Prefix{}, errors.New("invalid proxy in APP_TRUSTED_PROXIES: " + raw)
+	}
+	return netip.PrefixFrom(addr.Unmap(), addr.BitLen()), nil
 }
 
 // IsTargetDBConfigured returns true if all mandatory Target DB fields are present.

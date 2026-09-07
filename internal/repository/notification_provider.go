@@ -16,25 +16,77 @@ type NotificationProviderRepository interface {
 }
 
 func (r *Postgres) GetNotificationProvider(ctx context.Context, id pgtype.UUID) (db.NotificationProvider, error) {
-	return r.queries.GetNotificationProvider(ctx, id)
+	provider, err := r.queries.GetNotificationProvider(ctx, id)
+	if err != nil {
+		return provider, err
+	}
+	config, err := r.decryptProviderConfig(provider.Config)
+	if err != nil {
+		return provider, err
+	}
+	provider.Config = config
+	return provider, nil
 }
 
 func (r *Postgres) ListNotificationProviders(ctx context.Context) ([]db.NotificationProvider, error) {
-	return r.queries.ListNotificationProviders(ctx)
+	providers, err := r.queries.ListNotificationProviders(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range providers {
+		config, err := r.decryptProviderConfig(providers[i].Config)
+		if err != nil {
+			return nil, err
+		}
+		providers[i].Config = config
+	}
+	return providers, nil
 }
 
 func (r *Postgres) CreateNotificationProvider(
 	ctx context.Context,
 	arg db.CreateNotificationProviderParams,
 ) (db.NotificationProvider, error) {
-	return r.queries.CreateNotificationProvider(ctx, arg)
+	config, err := r.encryptProviderConfig(arg.Config)
+	if err != nil {
+		return db.NotificationProvider{}, err
+	}
+	arg.Config = config
+
+	provider, err := r.queries.CreateNotificationProvider(ctx, arg)
+	if err != nil {
+		return db.NotificationProvider{}, err
+	}
+
+	config, err = r.decryptProviderConfig(provider.Config)
+	if err != nil {
+		return provider, err
+	}
+	provider.Config = config
+	return provider, nil
 }
 
 func (r *Postgres) UpdateNotificationProvider(
 	ctx context.Context,
 	arg db.UpdateNotificationProviderParams,
 ) (db.NotificationProvider, error) {
-	return r.queries.UpdateNotificationProvider(ctx, arg)
+	config, err := r.encryptProviderConfig(arg.Config)
+	if err != nil {
+		return db.NotificationProvider{}, err
+	}
+	arg.Config = config
+
+	provider, err := r.queries.UpdateNotificationProvider(ctx, arg)
+	if err != nil {
+		return db.NotificationProvider{}, err
+	}
+
+	config, err = r.decryptProviderConfig(provider.Config)
+	if err != nil {
+		return provider, err
+	}
+	provider.Config = config
+	return provider, nil
 }
 
 func (r *Postgres) DeleteNotificationProvider(ctx context.Context, id pgtype.UUID) error {
