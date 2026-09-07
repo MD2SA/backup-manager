@@ -227,6 +227,57 @@ APP_METADATA_BACKUP_RETENTION=14
 ```
 
 Backups are written to `[APP_BACKUP_PATH]/metadata/metadata-<timestamp>.dump`
-(or `.dump.age` when a passphrase is set). This is a local copy — sync it off the
-host if you want remote coverage; the embedding mechanism above already covers
-the cloud case automatically.
+(or `.dump.age` when a passphrase is set, encrypted with **age** — the same
+portable format used by the embedded snapshots, decryptable with the standard
+`age` CLI). This is a local copy — sync it off the host if you want remote
+coverage; the embedding mechanism above already covers the cloud case
+automatically.
+
+### 3. Restoring the metadata database
+
+`backup-manager metadata-restore` decrypts a snapshot and restores it into the
+metadata database with `pg_restore`. Run it **before** starting the service (the
+restored database already contains the `goose_db_version` table, so the boot
+migrations are skipped):
+
+```sh
+# Restore the newest local snapshot (age-encrypted, uses
+# APP_METADATA_BACKUP_PASSPHRASE and/or APP_AGE_PRIVATE_KEY to decrypt)
+backup-manager metadata-restore
+
+# Restore a specific snapshot downloaded from a storage provider
+backup-manager metadata-restore --file meta/12345/metadata-20260907-102030.dump.age
+
+# Validate a snapshot without writing anything to the database
+backup-manager metadata-restore --file snapshot.age --dry-run
+
+# Restore over an existing database (pg_restore --clean --if-exists)
+backup-manager metadata-restore --replace
+```
+
+The command accepts four flags:
+
+| Flag | Meaning |
+| --- | --- |
+| `--file` | Snapshot path. Omitted → newest snapshot in `[APP_BACKUP_PATH]/metadata`. |
+| `--passphrase` | Overrides `APP_METADATA_BACKUP_PASSPHRASE`. |
+| `--identity` | Overrides `APP_AGE_PRIVATE_KEY` (Age X25519 private key). |
+| `--replace` | Allow restoring over a non-empty database (`--clean --if-exists`). |
+| `--dry-run` | Only validate (`pg_restore --list`), write nothing. |
+
+Supported snapshot formats (auto-detected from the file header):
+**age** (current), **legacy `enc_v1`** (produced by older builds of the local
+self-backup) and **plaintext**. Age snapshots require a passphrase or identity;
+legacy `enc_v1` snapshots require the metadata passphrase; plaintext snapshots
+are restored as-is.
+
+By default the command refuses to restore into a database that already contains
+data; pass `--replace` only if you intend to overwrite it. In Docker:
+
+```sh
+docker compose run --rm backup-manager backup-manager metadata-restore
+```
+
+Downloading the snapshot from a cloud provider is not automated: fetch the
+`meta/<profile-id>/metadata-*.dump.age` object manually (e.g. with the AWS CLI)
+and pass its path with `--file`.

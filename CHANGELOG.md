@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Metadata embedded in backups:** each backup execution also uploads an encrypted metadata snapshot (`meta/<profile-id>/metadata-<timestamp>.dump.age`) to every storage provider of the profile (`APP_METADATA_BACKUP_EMBED`, default on). Encryption uses the profile's backup keys, falling back to `APP_METADATA_BACKUP_PASSPHRASE`; it is never uploaded in plaintext and never fails the data backup. Retention is isolated per profile/provider.
 - **Production compose hardening:** the metadata database no longer publishes host ports, services use `restart: unless-stopped`, and resource limits are declared.
 - **CI/CD:** GitHub Actions workflow running lint, vet, test (with `-race`), and build, plus Docker image publishing to GHCR with semantic version and branch tags.
+- **Metadata restore CLI:** `backup-manager metadata-restore` decrypts (age/legacy `enc_v1`/plaintext) and restores a metadata snapshot into the database before boot; supports `--file`, `--passphrase`, `--identity`, `--replace`, and `--dry-run`. The local self-backup now encrypts with age (`EncryptWithPassphrase`), the same portable format used by the embedded snapshots.
 - **License:** project is now MIT licensed and publishes a Changelog.
 
 ## [0.1.0] - Initial development release
