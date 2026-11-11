@@ -60,6 +60,14 @@ The test suite includes:
 The recovery integration test runs twice: once with the profile encryption
 passphrase and once with an Age X25519 identity.
 
+A separate integration test uses an in-memory S3-compatible server to cover the
+real AWS SDK upload/list/download paths:
+
+- backup artifacts and embedded metadata are uploaded to S3;
+- metadata is recovered with `recover metadata --s3-*`;
+- data is recovered through the S3 provider restored from metadata;
+- checksums match the source database.
+
 Requirements: `pg_dump`, `pg_restore` and `psql` in `PATH`, plus permission to
 create databases.
 

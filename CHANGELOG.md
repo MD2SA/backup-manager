@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Multi-passphrase metadata decryption:** metadata snapshots encrypted with
   either the profile encryption passphrase or `METADATA_BACKUP_PASSPHRASE` are
   now tried automatically during recovery.
+- **S3 recovery integration:** an in-memory S3-compatible server exercises
+  upload, metadata recovery and data recovery through the real AWS SDK.
 - **Container recovery drill:** `scripts/recovery-drill.sh` and
   `make recovery-drill` exercise the real image end to end, including metadata
   and target database loss, Age decryption, checksum/schema comparison and the
