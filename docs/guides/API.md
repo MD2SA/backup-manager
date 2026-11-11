@@ -92,19 +92,47 @@ container and orchestrator probes and do not require a key.
 curl -H "X-API-Key: your-api-key" http://localhost:8080/api/v1/profiles
 ```
 
-*   The key is the `ADMIN_KEY` secret in `secrets.env`.
+*   Keys belong to users and are stored as SHA-256 hashes. The plaintext key is
+    shown only once when created.
+*   The service has a **single admin role**: every authenticated user has full
+    access. Separate keys provide attribution, rotation and revocation.
+*   On first start, `ADMIN_KEY` bootstraps the first admin
+    (`admin@localhost`) and remains valid as that admin's API key.
+*   Keys can have an expiry (`expires_in_days`) and can be revoked immediately.
 *   When `server.env` is `production`, the service **fails to start** without
     an admin key.
-*   In development, if no key is configured the service runs in **Insecure
-    Mode** and logs a warning.
-*   Generate a key with `openssl rand -base64 32` or let `backup-manager init`
-    create one.
+*   In development, if no users and no `ADMIN_KEY` exist, the service runs in
+    **Insecure Mode** with a warning.
+
+### Users and API keys
+
+*   `GET /auth/me`: current user and key prefix.
+*   `GET /auth/keys`: list your keys (metadata only).
+*   `POST /auth/keys`: create a key for yourself; returns the plaintext once.
+*   `POST /auth/keys/{id}/revoke`: revoke one of your keys.
+*   `GET /users`: list users.
+*   `POST /users`: create a user (`email`, `name`).
+*   `GET /users/{id}`, `PUT /users/{id}`, `DELETE /users/{id}`: read, update or
+    deactivate a user. Deactivation revokes all of that user's keys.
+*   `GET /users/{id}/keys`: list a user's keys.
+*   `POST /users/{id}/keys`: create a key for a user; returns the plaintext once.
+*   `POST /users/{id}/keys/{keyID}/revoke`: revoke a user's key.
+*   `GET /audit`: global audit log (limit/offset). Mutating requests are recorded
+    automatically with user, key, IP, request ID and status.
+
+The last active user cannot be deactivated. Use the CLI for lockout recovery:
+
+```bash
+backup-manager user create --config ... --email admin2@example.com --name "Admin 2"
+backup-manager key create --config ... --email admin2@example.com --name recovery
+```
 
 ### Idempotency
 
 `POST /profiles/{id}/run` and `POST /executions/{id}/restore` accept an optional
-`X-Idempotency-Key` header. Replaying the same method + path + key within 24 hours
-returns the original response without re-triggering the operation.
+`X-Idempotency-Key` header. Replaying the same method + path + authenticated
+user + key within 24 hours returns the original response without re-triggering
+the operation. Keys are scoped per user.
 
 ### Request Correlation
 

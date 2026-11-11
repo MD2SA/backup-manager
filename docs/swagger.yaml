@@ -1,5 +1,89 @@
 basePath: /api/v1
 definitions:
+  github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse:
+    properties:
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      last_used_at:
+        type: string
+      name:
+        type: string
+      prefix:
+        type: string
+      revoked_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.AuditEntryResponse:
+    properties:
+      action:
+        type: string
+      api_key_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      ip:
+        type: string
+      metadata:
+        type: object
+      request_id:
+        type: string
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      user_id:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.CreateAPIKeyRequest:
+    properties:
+      expires_in_days:
+        maximum: 3650
+        minimum: 1
+        type: integer
+      name:
+        type: string
+    required:
+    - name
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.CreateAPIKeyResponse:
+    properties:
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      key:
+        type: string
+      last_used_at:
+        type: string
+      name:
+        type: string
+      prefix:
+        type: string
+      revoked_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.CreateUserRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+    required:
+    - email
+    - name
+    type: object
   github_com_MD2SA_backup-manager_internal_api_dto.ExecutionResponse:
     properties:
       checksum:
@@ -32,6 +116,17 @@ definitions:
         type: string
       storage_path:
         type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.MeResponse:
+    properties:
+      insecure:
+        type: boolean
+      key_id:
+        type: string
+      key_prefix:
+        type: string
+      user:
+        $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserResponse'
     type: object
   github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderRequest:
     properties:
@@ -175,6 +270,10 @@ definitions:
         type: string
       request_id:
         type: string
+      requested_by_key_id:
+        type: string
+      requested_by_user_id:
+        type: string
       started_at:
         type: string
       status:
@@ -264,6 +363,33 @@ definitions:
       updated_at:
         type: string
     type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.UpdateUserRequest:
+    properties:
+      active:
+        type: boolean
+      email:
+        type: string
+      name:
+        type: string
+    required:
+    - email
+    - name
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.UserResponse:
+    properties:
+      active:
+        type: boolean
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
   github_com_MD2SA_backup-manager_internal_monitor.HealthStatus:
     enum:
     - healthy
@@ -303,6 +429,123 @@ info:
   title: Backup Manager API
   version: "1.0"
 paths:
+  /audit:
+    get:
+      parameters:
+      - description: Limit (default 100, max 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.AuditEntryResponse'
+            type: array
+      summary: List audit entries
+      tags:
+      - audit
+  /auth/keys:
+    get:
+      description: List key metadata (never the key itself).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: List the current user's API keys
+      tags:
+      - auth
+    post:
+      consumes:
+      - application/json
+      description: Create a new API key. The plaintext key is returned exactly once.
+      parameters:
+      - description: Key metadata
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.CreateAPIKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.CreateAPIKeyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Create an API key for the current user
+      tags:
+      - auth
+  /auth/keys/{id}/revoke:
+    post:
+      parameters:
+      - description: API key ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Revoke one of the current user's API keys
+      tags:
+      - auth
+  /auth/me:
+    get:
+      description: Get the user, key ID and key prefix associated with the current
+        API key.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.MeResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Get the authenticated user
+      tags:
+      - auth
   /executions:
     get:
       description: |-
@@ -1118,6 +1361,157 @@ paths:
       summary: Update an existing storage provider
       tags:
       - storage-providers
+  /users:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserResponse'
+            type: array
+      summary: List users
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: User
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Create a user
+      tags:
+      - users
+  /users/{id}:
+    delete:
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserResponse'
+      summary: Deactivate a user and revoke its keys
+      tags:
+      - users
+    get:
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserResponse'
+      summary: Get a user
+      tags:
+      - users
+    put:
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UpdateUserRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserResponse'
+      summary: Update a user
+      tags:
+      - users
+  /users/{id}/keys:
+    get:
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse'
+            type: array
+      summary: List a user's API keys
+      tags:
+      - users
+    post:
+      description: The plaintext key is returned exactly once.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Key metadata
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.CreateAPIKeyRequest'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.CreateAPIKeyResponse'
+      summary: Create an API key for a user
+      tags:
+      - users
+  /users/{id}/keys/{keyID}/revoke:
+    post:
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: API key ID
+        in: path
+        name: keyID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse'
+      summary: Revoke an API key belonging to a user
+      tags:
+      - users
 securityDefinitions:
   ApiKeyAuth:
     in: header

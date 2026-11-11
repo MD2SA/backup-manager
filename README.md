@@ -168,10 +168,21 @@ make init-dev
 
 ## Security
 
-- **API authentication:** every `/api/v1` request requires `X-API-Key`. The key
-  is the `ADMIN_KEY` secret. `/healthz` and `/readyz` are public for
-  orchestrators. In production (`server.env: production`) the service refuses to
-  start without an admin key.
+- **API authentication:** every `/api/v1` request requires `X-API-Key`.
+  Keys belong to users, are stored as SHA-256 hashes, and can be revoked
+  individually. The service has a **single admin role**: every authenticated
+  user has full access, but each person has their own key for attribution and
+  revocation. `/healthz` and `/readyz` remain public for orchestrators.
+- **Bootstrap admin:** on first start, `ADMIN_KEY` becomes the first admin
+  user's API key (`admin@localhost`). Existing clients keep working. After
+  that, create additional users and keys through `/api/v1/users`,
+  `/api/v1/auth/keys`, or the CLI (`backup-manager user create` /
+  `backup-manager key create`).
+- **Audit log:** mutating API calls are recorded with the user, key, IP,
+  request ID and response status. Inspect it at `GET /api/v1/audit`.
+- **Production gate:** with `server.env: production` the service refuses to
+  start without `CONFIG_ENCRYPT_KEY` and backup encryption. `ADMIN_KEY` is
+  required until an active user exists; after bootstrap it can be removed.
 - **Provider credentials at rest:** S3 credentials and Discord webhook URLs are
   AES-256-GCM encrypted in the metadata database when
   `CONFIG_ENCRYPT_KEY` is set. Production requires it.
@@ -192,6 +203,40 @@ backup-manager keygen
 
 Store the private key in `secrets.env` as `AGE_PRIVATE_KEY` and keep a secure
 offline copy. **Without it you cannot restore Age-encrypted backups.**
+
+## Users and API keys
+
+Every user has the same admin role. The difference is accountability: each
+person or automation gets its own key, which can be revoked without affecting
+anyone else.
+
+```bash
+# First admin (from ADMIN_KEY) is created automatically on first start.
+curl -H "X-API-Key: $ADMIN_KEY" http://localhost:8080/api/v1/auth/me
+
+# Create a user and a key for them.
+curl -H "X-API-Key: $ADMIN_KEY" -H 'Content-Type: application/json' \
+  -d '{"email":"ops@example.com","name":"Ops Team"}' \
+  http://localhost:8080/api/v1/users
+
+curl -H "X-API-Key: $ADMIN_KEY" -H 'Content-Type: application/json' \
+  -d '{"name":"ci"}' \
+  http://localhost:8080/api/v1/users/$USER_ID/keys
+
+# The plaintext key is returned exactly once. Revoke it later with:
+curl -H "X-API-Key: $ADMIN_KEY" -X POST \
+  http://localhost:8080/api/v1/users/$USER_ID/keys/$KEY_ID/revoke
+```
+
+Users can also create and revoke their own keys via `/api/v1/auth/keys`.
+Lockout recovery without the API:
+
+```bash
+backup-manager user create --config /etc/backup-manager/config.yaml \
+  --email admin2@example.com --name "Admin 2"
+backup-manager key create --config /etc/backup-manager/config.yaml \
+  --email admin2@example.com --name recovery
+```
 
 ---
 
@@ -284,8 +329,9 @@ clients that should be disconnected. See the
 - [ ] `chmod 600 secrets.env`.
 - [ ] Keep `secrets.env` and the Age private key in a secure backup.
 - [ ] Run `config check --connect` against the real metadata and target databases.
-- [ ] Set `server.env: production`; the service then requires an admin key, a
-      config encryption key, and backup encryption.
+- [ ] Set `server.env: production`; the service then requires a config
+      encryption key and backup encryption. Keep `ADMIN_KEY` for the first boot
+      (and as a recovery key) until an active user exists.
 - [ ] Put the service behind a TLS-terminating proxy; set `cors_origins` and
       `trusted_proxies`.
 - [ ] Use a dedicated PostgreSQL role for the target database with read access,

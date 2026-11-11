@@ -251,7 +251,7 @@ are ignored. Values containing spaces or `#` may be double-quoted.
 |---|---|---|
 | `METADATA_DB_PASSWORD` | yes | Password for `metadata_database`. |
 | `TARGET_DB_PASSWORD` | if target configured | Password for `target_database`. |
-| `ADMIN_KEY` | in production | Bootstrap API key (`X-API-Key`). Generate with `openssl rand -base64 32`. |
+| `ADMIN_KEY` | first boot / recovery | Bootstrap admin API key (`X-API-Key`). On the first start it seeds the `admin@localhost` user and remains valid until revoked. After an active user exists it can be removed from the secrets file. Generate with `openssl rand -base64 32`. |
 | `CONFIG_ENCRYPT_KEY` | in production | AES-256-GCM key for provider credentials at rest. Changing it invalidates existing provider configs. |
 | `AGE_PRIVATE_KEY` | for Age restores | Age X25519 private key (`AGE-SECRET-KEY-...`). |
 | `ENCRYPTION_PASSPHRASE` | optional | Passphrase used when a profile enables passphrase encryption. |
@@ -318,8 +318,8 @@ the bundled service.
 ## Production checklist
 
 1. `server.env: "production"`.
-2. `ADMIN_KEY`, `CONFIG_ENCRYPT_KEY` and an encryption mode configured; the
-   service refuses to start otherwise.
+2. `CONFIG_ENCRYPT_KEY` and an encryption mode configured; the service refuses
+   to start otherwise. `ADMIN_KEY` is required until an active user exists.
 3. `secrets.env` mode `0600`, owned by the service user, excluded from Git.
 4. Absolute `storage.path` and `storage.temp_dir`, on a persistent volume.
 5. `sslmode: "require"` (or stricter) for both databases.
@@ -333,6 +333,32 @@ the bundled service.
     backup.
 
 ---
+
+## Authentication and users
+
+Backup Manager has a **single admin role**: every authenticated user can use the
+full API. Users exist to give each person or automation an independent key that
+can be revoked without impacting anyone else.
+
+- On first start with `ADMIN_KEY` set, the service creates `admin@localhost` and
+  stores the hash of `ADMIN_KEY` as its bootstrap API key. Existing clients keep
+  using the same key.
+- After that, manage users and keys through `/api/v1/users`,
+  `/api/v1/auth/keys` and `/api/v1/audit`, or from the host:
+
+  ```bash
+  backup-manager user create --config ... --email admin2@example.com --name "Admin 2"
+  backup-manager key create --config ... --email admin2@example.com --name recovery
+  ```
+
+- API keys are stored as SHA-256 hashes and shown only once.
+- Keys can expire and be revoked immediately.
+- The last active user cannot be deactivated.
+- Mutating API requests are written to the audit log with user, key, IP,
+  request ID and status.
+- If no users and no `ADMIN_KEY` exist in development, the service starts in
+  insecure mode with a warning. In production, at least one active user must
+  exist or `ADMIN_KEY` must be set for the first bootstrap.
 
 ## Migrating from environment variables (schema 0.1)
 

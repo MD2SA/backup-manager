@@ -59,6 +59,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   terminated.
 - **Backup portability:** new dumps use `--no-owner --no-acl`, and the target
   `sslmode` is applied to `pg_dump`, `psql` and `pg_restore`.
+- **Multi-user authentication:** new `users` and `api_keys` tables with SHA-256
+  key hashes, expiry and immediate revocation. Every user has the single admin
+  role; keys provide identity, attribution and revocation.
+- **Bootstrap and recovery:** `ADMIN_KEY` seeds `admin@localhost` on first boot
+  and keeps working as that admin's key. CLI `user create` / `key create`
+  provide lockout recovery.
+- **Audit log:** mutating API requests are recorded with user, key, IP, request
+  ID and status; `GET /audit` exposes the log.
+- **User/key API and self-service rotation:** `/auth/me`, `/auth/keys`,
+  `/users`, `/users/{id}/keys` and revocation endpoints.
+- **Per-user controls:** rate limiting per authenticated user and idempotency
+  keys scoped by user; restore jobs record `requested_by_user_id` and
+  `requested_by_key_id`.
 
 ### Security
 - **Secrets isolation:** secrets are not loaded into the process environment,
