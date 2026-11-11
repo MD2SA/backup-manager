@@ -23,18 +23,36 @@ func (s *LocalStorage) Name() string { return "local" }
 
 func (s *LocalStorage) Upload(ctx context.Context, key string, reader io.Reader) error {
 	fullPath := filepath.Join(s.BasePath, key)
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+	dir := filepath.Dir(fullPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 
-	f, err := os.Create(fullPath)
+	// Write to a temporary file and rename it into place. A crash during an
+	// upload must never leave a partial object at the final key.
+	tmp, err := os.CreateTemp(dir, ".upload-*")
 	if err != nil {
 		return err
 	}
-	defer func() { _ = f.Close() }()
+	tmpName := tmp.Name()
+	defer func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+	}()
 
-	_, err = io.Copy(f, reader)
-	return err
+	if _, err := io.Copy(tmp, reader); err != nil {
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpName, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, fullPath)
 }
 
 func (s *LocalStorage) Download(ctx context.Context, key string) (io.ReadCloser, error) {

@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/etc/backup-manager/config.yaml` and `secrets.env` next to it.
 
 ### Added
+- **Production hardening:** the single-instance advisory lock is now acquired
+  before migrations, so two replicas cannot race the schema version table.
+  Backups left in `pending`/`running` by a crash are marked failed on startup,
+  and local storage uploads are written to a temporary file and atomically
+  renamed into place.
 - **Recovery engine tests:** recovery orchestration now lives in
   `internal/recovery` with a thin CLI, unit tests for snapshot discovery,
   target guards, execution resolution and provider fallback, plus a

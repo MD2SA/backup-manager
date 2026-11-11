@@ -74,3 +74,12 @@ WHERE profile_id = sqlc.arg(profile_id)
   AND (sqlc.arg(cursor_time)::timestamptz IS NULL OR (created_at, id) < (sqlc.arg(cursor_time), sqlc.arg(cursor_id)::uuid))
 ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg(page_limit);
+
+-- name: ReconcileInterruptedBackups :execrows
+UPDATE executions
+SET
+    status = 'failed',
+    end_time = now(),
+    duration = CASE WHEN start_time IS NULL THEN NULL ELSE now() - start_time END,
+    error_message = COALESCE(error_message, 'interrupted by restart')
+WHERE status IN ('pending', 'running');

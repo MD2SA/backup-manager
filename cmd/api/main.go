@@ -114,13 +114,21 @@ func runServe(args []string) {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
+	// Hold the instance lock before migrations so two replicas starting at the
+	// same time cannot race goose or the schema version table.
+	instanceLock, err := database.AcquireInstanceLock(ctx, cfg.MetadataDB)
+	if err != nil {
+		fatal("single-instance guard: %v", err)
+	}
+	defer instanceLock.Release(context.Background())
+
 	if !*noMigrate {
 		if err := database.Migrate(ctx, cfg.MetadataDB, *migrationsDir, 60*time.Second); err != nil {
 			fatal("Database migration failed: %v", err)
 		}
 	}
 
-	application, err := app.New(ctx, cfg)
+	application, err := app.NewWithOptions(ctx, cfg, app.Options{InstanceLock: instanceLock})
 	if err != nil {
 		fatal("Fatal error while starting the application: %v", err)
 	}

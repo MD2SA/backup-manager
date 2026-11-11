@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -123,5 +124,32 @@ func TestListRecursive(t *testing.T) {
 	}
 	if len(keys) != 2 {
 		t.Fatalf("expected 2 recursive keys, got %d: %v", len(keys), keys)
+	}
+}
+
+func TestUpload_Atomic(t *testing.T) {
+	dir := t.TempDir()
+	ls, err := New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ls.Upload(context.Background(), "profile/artifact.sql", strings.NewReader("complete")); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "profile/artifact.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "complete" {
+		t.Fatalf("unexpected content: %q", got)
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, "profile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".upload-") {
+			t.Fatalf("temporary upload file left behind: %s", entry.Name())
+		}
 	}
 }

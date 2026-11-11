@@ -47,17 +47,30 @@ type App struct {
 	InstanceLock    *database.InstanceLock
 }
 
+// Options allows the caller to pass resources that must be acquired before
+// migrations, such as the single-instance lock.
+type Options struct {
+	InstanceLock *database.InstanceLock
+}
+
 func New(ctx context.Context, cfg config.Config) (*App, error) {
+	return NewWithOptions(ctx, cfg, Options{})
+}
+
+func NewWithOptions(ctx context.Context, cfg config.Config, opts Options) (*App, error) {
 	log := logger.New(cfg.LogLevel)
 
 	dbPool, err := database.New(ctx, cfg.MetadataDB)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
-	instanceLock, err := database.AcquireInstanceLock(ctx, cfg.MetadataDB)
-	if err != nil {
-		dbPool.Close()
-		return nil, fmt.Errorf("single-instance guard: %w", err)
+	instanceLock := opts.InstanceLock
+	if instanceLock == nil {
+		instanceLock, err = database.AcquireInstanceLock(ctx, cfg.MetadataDB)
+		if err != nil {
+			dbPool.Close()
+			return nil, fmt.Errorf("single-instance guard: %w", err)
+		}
 	}
 
 	repo := repository.NewPostgres(dbPool, configKeyForRepo(cfg))
@@ -129,6 +142,11 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 }
 
 func (a *App) Start(ctx context.Context) {
+	if reconciled, err := a.Repo.ReconcileInterruptedBackups(ctx); err != nil {
+		a.Logger.Error("Failed to reconcile interrupted backups", "error", err)
+	} else if reconciled > 0 {
+		a.Logger.Warn("Marked interrupted backups as failed", "count", reconciled)
+	}
 	if reconciled, err := a.Repo.ReconcileInterruptedRestores(ctx); err != nil {
 		a.Logger.Error("Failed to reconcile interrupted restores", "error", err)
 	} else if reconciled > 0 {

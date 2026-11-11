@@ -19,6 +19,7 @@ type ExecutionRepository interface {
 	DeleteExecution(ctx context.Context, id pgtype.UUID) error
 	SetExecutionPinned(ctx context.Context, arg db.SetExecutionPinnedParams) error
 	GetLatestExecution(ctx context.Context, profileID pgtype.UUID) (db.Execution, error)
+	ReconcileInterruptedBackups(ctx context.Context) (int64, error)
 }
 
 func (r *Postgres) CreateExecution(ctx context.Context, arg db.CreateExecutionParams) (db.Execution, error) {
@@ -59,6 +60,10 @@ func (r *Postgres) DeleteExecution(ctx context.Context, id pgtype.UUID) error {
 
 func (r *Postgres) SetExecutionPinned(ctx context.Context, arg db.SetExecutionPinnedParams) error {
 	return r.queries.SetExecutionPinned(ctx, arg)
+}
+
+func (r *Postgres) ReconcileInterruptedBackups(ctx context.Context) (int64, error) {
+	return r.queries.ReconcileInterruptedBackups(ctx)
 }
 
 func (r *Postgres) GetLatestExecution(ctx context.Context, profileID pgtype.UUID) (db.Execution, error) {

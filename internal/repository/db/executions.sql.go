@@ -309,6 +309,24 @@ func (q *Queries) ListExecutionsPage(ctx context.Context, arg ListExecutionsPage
 	return items, nil
 }
 
+const reconcileInterruptedBackups = `-- name: ReconcileInterruptedBackups :execrows
+UPDATE executions
+SET
+    status = 'failed',
+    end_time = now(),
+    duration = CASE WHEN start_time IS NULL THEN NULL ELSE now() - start_time END,
+    error_message = COALESCE(error_message, 'interrupted by restart')
+WHERE status IN ('pending', 'running')
+`
+
+func (q *Queries) ReconcileInterruptedBackups(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, reconcileInterruptedBackups)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setExecutionPinned = `-- name: SetExecutionPinned :exec
 UPDATE executions
 SET is_pinned = $2
