@@ -8,3 +8,9 @@ dist/
 .idea/
 tmp/
 backups/
+
+# Local configuration and secrets (never commit)
+/config.yaml
+/secrets.env
+/secrets.*.env
+!/secrets.example.env

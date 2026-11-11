@@ -4,22 +4,11 @@ APP_NAME=backup-manager
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 
-# Load environment variables from .env file
+# Load environment variables from .env file (Docker Compose / host settings).
+# They are Make variables only; recipes opt in explicitly, so `make run` does
+# not put database passwords into the application's environment.
 ifneq (,$(wildcard ./.env))
     include .env
-    export
-endif
-
-# Database URL construction for migrations (Internal state)
-DB_USER ?= $(APP_METADATA_DB_USER)
-DB_PASSWORD ?= $(APP_METADATA_DB_PASSWORD)
-DB_HOST ?= $(APP_METADATA_DB_HOST)
-DB_PORT ?= $(APP_METADATA_DB_PORT)
-DB_NAME ?= $(APP_METADATA_DB_DBNAME)
-DB_SSLMODE ?= $(APP_METADATA_DB_SSLMODE)
-
-ifneq ($(DB_USER),)
-DATABASE_URL ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
 endif
 
 # Tools
@@ -36,6 +25,11 @@ GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 .PHONY: help
 help:
 	@echo "Available commands:"
+	@echo "  make init       - Generate config.yaml and secrets.env"
+	@echo "  make init-docker - Generate config for docker-compose.yml"
+	@echo "  make init-dev   - Generate config for the dev stack (target-db)"
+	@echo "  make config-check - Validate the configuration (no DB connection)"
+	@echo "  make docker-config-check - Validate inside the Compose stack"
 	@echo "  make run        - Run the API server"
 	@echo "  make dev        - Run the API server with live reload (air)"
 	@echo "  make build      - Build the application"
@@ -44,14 +38,31 @@ help:
 	@echo "  make lint       - Run golangci-lint"
 	@echo "  make swagger    - Generate Swagger documentation"
 	@echo "  make sqlc       - Generate SQLC code"
-	@echo "  make migrate    - Run database migrations"
+	@echo "  make migrate    - Apply database migrations"
 	@echo "  make docker-dev-up   - Start full dev stack (App + Metadata DB + Target DB)"
 	@echo "  make docker-dev-down - Stop and remove dev stack"
 	@echo "  make tools      - Install all required tools locally"
 	@echo "  make clean      - Remove build artifacts"
 
+init:
+	go run ./cmd/api init
+
+init-docker:
+	POSTGRES_USER="$(POSTGRES_USER)" POSTGRES_PASSWORD="$(POSTGRES_PASSWORD)" POSTGRES_DB="$(POSTGRES_DB)" \
+		go run ./cmd/api init --docker
+
+init-dev:
+	POSTGRES_USER="$(POSTGRES_USER)" POSTGRES_PASSWORD="$(POSTGRES_PASSWORD)" POSTGRES_DB="$(POSTGRES_DB)" TARGET_DB_NAME="$(TARGET_DB_NAME)" \
+		go run ./cmd/api init --dev
+
+config-check:
+	go run ./cmd/api config check
+
+docker-config-check:
+	docker compose run --rm backup-manager config check --connect
+
 run:
-	go run ./cmd/api
+	go run ./cmd/api serve
 
 dev: $(AIR)
 	$(AIR)
@@ -69,19 +80,21 @@ lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run
 
 swagger: $(SWAG)
-	$(SWAG) init -g cmd/api/main.go -o docs --parseDependency --parseInternal
+	# swag v1.16.6 cannot parse Go 1.27's standard library; use the project's
+	# Go 1.26 toolchain to regenerate docs if your local Go is newer.
+	GOTOOLCHAIN=go1.26.5 go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/api/main.go -o docs --parseDependency --parseInternal
 
 sqlc: $(SQLC)
 	$(SQLC) generate
 
-migrate: $(GOOSE)
-	$(GOOSE) -dir sql/migrations postgres "$(DATABASE_URL)" up
+migrate:
+	go run ./cmd/api migrate
 
 docker-dev-up:
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
 docker-dev-down:
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml down
 
 tools: $(SWAG) $(SQLC) $(GOOSE) $(AIR) $(GOLANGCI_LINT)
 

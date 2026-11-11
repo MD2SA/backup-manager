@@ -27,29 +27,21 @@ if [ "$(id -u)" = "0" ]; then
     exec su-exec appuser "$0" "$@"
 fi
 
-# Construct Metadata Database URL for migrations
-DB_USER=$APP_METADATA_DB_USER
-DB_PASSWORD=$APP_METADATA_DB_PASSWORD
-DB_HOST=$APP_METADATA_DB_HOST
-DB_PORT=$APP_METADATA_DB_PORT
-DB_NAME=$APP_METADATA_DB_DBNAME
-DB_SSLMODE=$APP_METADATA_DB_SSLMODE
-
-# Validate mandatory configuration
-if [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_HOST" ] || [ -z "$DB_PORT" ] || [ -z "$DB_NAME" ] || [ -z "$DB_SSLMODE" ]; then
-  echo "Error: Mandatory metadata database configuration is missing."
-  exit 1
+# Explicit command (e.g. metadata-restore, keygen, config check) wins.
+if [ "$#" -gt 0 ]; then
+    exec /usr/local/bin/backup-manager "$@"
 fi
 
-DATABASE_URL="postgres://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME?sslmode=$DB_SSLMODE"
-
-echo "Database: Waiting for metadata database at $DB_HOST:$DB_PORT..."
-while ! pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" > /dev/null 2>&1; do
-  sleep 1
-done
-
-echo "Database: Running migrations..."
-/usr/local/bin/goose -dir /app/sql/migrations postgres "$DATABASE_URL" up
+CONFIG_PATH=${APP_CONFIG_PATH:-/etc/backup-manager/config.yaml}
+if [ ! -f "$CONFIG_PATH" ]; then
+    echo "Error: configuration file not found at $CONFIG_PATH"
+    echo
+    echo "Create one with:"
+    echo "  docker run --rm -it -u \"\$(id -u):\$(id -g)\" -v \"\$PWD:/work\" -w /work <image> init --docker"
+    echo
+    echo "Then mount config.yaml at $CONFIG_PATH and secrets.env next to it."
+    exit 1
+fi
 
 echo "Starting Backup Manager..."
-exec /usr/local/bin/backup-manager
+exec /usr/local/bin/backup-manager serve

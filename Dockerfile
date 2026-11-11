@@ -9,10 +9,6 @@ RUN apk add --no-cache git
 # Set Go Proxy for faster and more reliable downloads
 ENV GOPROXY=https://proxy.golang.org,direct
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go install github.com/pressly/goose/v3/cmd/goose@v3.27.3
-
 COPY go.mod go.sum ./
 
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -44,19 +40,15 @@ RUN apk add --no-cache \
     shadow && \
     addgroup -S -g 101 appgroup && \
     adduser -S -u 100 -G appgroup appuser && \
-    mkdir -p /backups && \
-    chown -R appuser:appgroup /backups
+    mkdir -p /backups /etc/backup-manager && \
+    chown -R appuser:appgroup /backups /etc/backup-manager
 
-ENV APP_PORT=8080 \
-    APP_LOG_LEVEL=info \
-    APP_ENV=development \
-    APP_TEMP_DIR=/tmp \
-    APP_STORAGE_PATH=/backups
+ENV APP_CONFIG_PATH=/etc/backup-manager/config.yaml \
+    APP_MIGRATIONS_DIR=/app/sql/migrations
 
 WORKDIR /app
 
 COPY --from=builder /bin/backup-manager /usr/local/bin/backup-manager
-COPY --from=builder /go/bin/goose /usr/local/bin/goose
 COPY --chown=appuser:appgroup sql/migrations ./sql/migrations
 COPY --chown=appuser:appgroup scripts/entrypoint.sh ./scripts/entrypoint.sh
 
@@ -66,7 +58,7 @@ VOLUME ["/backups"]
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${APP_PORT}/api/v1/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/healthz || exit 1
 
-ENTRYPOINT ["./scripts/entrypoint.sh"]
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]

@@ -28,7 +28,7 @@ jobs:
 
       - name: Format check
         run: |
-          go fmt ./...
+          test -z "$(gofmt -l .)"
 
       - name: Vet
         run: go vet ./...
@@ -41,6 +41,19 @@ jobs:
 
       - name: Build
         run: go build ./...
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Configuration smoke test
+        run: |
+          go run ./cmd/api init --non-interactive --force \
+            --config /tmp/bm-config.yaml --secrets /tmp/bm-secrets.env \
+            --storage-path /tmp/bm-backups --temp-dir /tmp \
+            --metadata-host localhost --metadata-port 5432 \
+            --metadata-user postgres --metadata-db test \
+            --metadata-password test --encryption passphrase
+          go run ./cmd/api config check --config /tmp/bm-config.yaml
 
   docker:
     name: Build & push image

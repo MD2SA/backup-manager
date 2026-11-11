@@ -1,15 +1,17 @@
 services:
-  # Metadata Database (Internal State - NOT publicly exposed)
+  # Metadata Database (internal state - NOT publicly exposed)
+  #
+  # Its credentials live in .env (POSTGRES_*). They must match the
+  # `metadata_database` section and the METADATA_DB_PASSWORD secret used by the
+  # application's config.yaml/secrets.env.
   metadata-db:
     image: postgres:17-alpine
     container_name: backup-manager-metadata-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${APP_METADATA_DB_USER:?Metadata database user is required}
-      POSTGRES_PASSWORD: ${APP_METADATA_DB_PASSWORD:?Metadata database password is required}
-      POSTGRES_DB: ${APP_METADATA_DB_DBNAME:?Metadata database name is required}
-    # Metadata DB is internal only; no host port exposed.
-    # The app container connects to metadata-db:5432 via Docker networking.
+      POSTGRES_USER: ${POSTGRES_USER:?Metadata database user is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Metadata database password is required}
+      POSTGRES_DB: ${POSTGRES_DB:?Metadata database name is required}
     networks:
       - internal
     volumes:
@@ -30,41 +32,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: ${IMAGE_TAG:-backup-manager:latest}
     container_name: backup-manager-app
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8080"
     environment:
-      # Global Settings
-      - APP_ENV=production
-      - APP_PORT=${APP_PORT:-8080}
-      - APP_LOG_LEVEL=${APP_LOG_LEVEL:-info}
-      - APP_TEMP_DIR=${APP_TEMP_DIR:?Temporary directory for staging backups is required}
-      - APP_ADMIN_KEY=${APP_ADMIN_KEY:?APP_ADMIN_KEY is required in production}
-      - APP_CORS_ORIGINS=${APP_CORS_ORIGINS:-}
-      - APP_TRUSTED_PROXIES=${APP_TRUSTED_PROXIES:-}
-      - APP_CONFIG_ENCRYPT_KEY=${APP_CONFIG_ENCRYPT_KEY:-}
-      # Metadata DB Connection (service name + internal port 5432)
-      - APP_METADATA_DB_HOST=metadata-db
-      - APP_METADATA_DB_PORT=5432
-      - APP_METADATA_DB_USER=${APP_METADATA_DB_USER:?Metadata database user is required}
-      - APP_METADATA_DB_PASSWORD=${APP_METADATA_DB_PASSWORD:?Metadata database password is required}
-      - APP_METADATA_DB_DBNAME=${APP_METADATA_DB_DBNAME:?Metadata database name is required}
-      - APP_METADATA_DB_SSLMODE=${APP_METADATA_DB_SSLMODE:?Metadata database SSL mode is required}
-      # Target DB Connection (Optional at startup, mandatory for backup execution)
-      - APP_TARGET_DB_HOST=${APP_TARGET_DB_HOST:-}
-      - APP_TARGET_DB_PORT=${APP_TARGET_DB_PORT:-}
-      - APP_TARGET_DB_USER=${APP_TARGET_DB_USER:-}
-      - APP_TARGET_DB_PASSWORD=${APP_TARGET_DB_PASSWORD:-}
-      - APP_TARGET_DB_DBNAME=${APP_TARGET_DB_DBNAME:-}
-      - APP_TARGET_DB_SSLMODE=${APP_TARGET_DB_SSLMODE:-}
-      # Metadata self-backup (disabled local cron by default; embed enabled by default)
-      - APP_METADATA_BACKUP_SCHEDULE=${APP_METADATA_BACKUP_SCHEDULE:-}
-      - APP_METADATA_BACKUP_PASSPHRASE=${APP_METADATA_BACKUP_PASSPHRASE:-}
-      - APP_METADATA_BACKUP_RETENTION=${APP_METADATA_BACKUP_RETENTION:-14}
-      - APP_METADATA_BACKUP_EMBED=${APP_METADATA_BACKUP_EMBED:-true}
+      APP_CONFIG_PATH: /etc/backup-manager/config.yaml
+      APP_MIGRATIONS_DIR: /app/sql/migrations
     volumes:
       - ${APP_BACKUP_PATH:?Backup storage path on the host is required (APP_BACKUP_PATH)}:/backups
+      - ${CONFIG_PATH:-./config.yaml}:/etc/backup-manager/config.yaml:ro
+      - ${SECRETS_PATH:-./secrets.env}:/etc/backup-manager/secrets.env:ro
     depends_on:
       metadata-db:
         condition: service_healthy

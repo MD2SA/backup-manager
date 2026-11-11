@@ -5,9 +5,13 @@ tmp
 bin
 node_modules
 .env
+config.yaml
+secrets.env
+secrets.*.env
+backups
+*.log
 Dockerfile
 docker-compose.yml
 README.md
 Makefile
 sqlc.yaml
-*.log
