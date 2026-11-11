@@ -176,11 +176,6 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 		}
 	}
 
-	// Embedded metadata snapshots are best-effort and never fail the backup.
-	if s.config.MetadataBackupEmbed && dumpOK {
-		s.embedMetadata(ctx, p)
-	}
-
 	// Apply retention once, after every provider has had a chance to receive
 	// the new backup. Retention failures are operational warnings, not backup
 	// failures: the new copy is already safely stored.
@@ -257,6 +252,14 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 	}
 
 	_, updateErr := s.repo.UpdateExecution(ctx, updateParams)
+
+	// Embedded metadata snapshots are best-effort and never fail the backup.
+	// They are taken after the execution row is finalized so a recovered
+	// metadata database contains the accurate status, checksum and storage path
+	// of the backup that carried the snapshot.
+	if s.config.MetadataBackupEmbed && dumpOK {
+		s.embedMetadata(ctx, p)
+	}
 
 	if s.metrics != nil {
 		profileIDText := pgutil.UUIDToString(profileID)

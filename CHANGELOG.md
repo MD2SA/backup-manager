@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `backup-manager init`. See `docs/guides/CONFIGURATION.md` for the complete
   migration table.
 - **CLI:** `backup-manager` now exposes explicit commands: `serve` (default),
-  `init`, `config check`, `migrate`, `keygen`, `metadata-restore` and `version`.
+  `init`, `config check`, `migrate`, `keygen`, `verify`, `recover` and `version`.
+  `metadata-restore` remains as a deprecated alias for `recover metadata`.
 - **Automatic migrations:** `serve` applies pending migrations in-process
   (with a 60-second database wait) instead of relying on the Goose CLI in the
   container entrypoint.
@@ -23,6 +24,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/etc/backup-manager/config.yaml` and `secrets.env` next to it.
 
 ### Added
+- **Recovery CLI:** `backup-manager recover metadata` lists and restores the
+  newest metadata snapshot from local storage, an explicit file, or S3/S3-
+  compatible storage (`--s3-bucket`, `--s3-endpoint`, `--s3-path-style`).
+  `--dry-run` validates without writing and `--replace` allows an in-place
+  restore. Supports `--list`, `--profile-id` and passphrase/Age overrides.
+- **Data recovery CLI:** `backup-manager recover data` restores the latest
+  successful execution of a profile, a specific execution or a local artifact.
+  It verifies checksums, decrypts/decompresses, refuses to target the metadata
+  database, and supports `--target-dsn`, `--verify-only`,
+  `--terminate-connections` and `--confirm`.
+- **Metadata snapshot accuracy:** embedded snapshots are now taken after the
+  execution row is finalized, so a recovered metadata database contains the
+  correct success status, checksum and storage path of the backup that carried
+  the snapshot.
+- **Recovery drills:** `backup-manager verify` validates one or more executions
+  and can apply an artifact to an empty scratch database.
+- **Recursive local listing:** local storage can list nested prefixes for
+  metadata recovery without changing the existing shallow `List` contract.
 - **`config.yaml` + `secrets.env`:** strict YAML schema (`version: 1`), unknown
   fields fail fast, and secrets are read directly from a file instead of the
   process environment.

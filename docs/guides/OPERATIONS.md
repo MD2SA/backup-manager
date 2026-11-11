@@ -130,6 +130,46 @@ target_database:
   restore_user: restore_admin
 ```
 
+## Recovery after host loss
+
+The emergency path assumes the host, metadata database and local storage are
+gone, but the off-host recovery kit and remote backups survived.
+
+1. Deploy a fresh PostgreSQL instance and create an empty metadata database.
+2. Restore the manager state with the snapshot embedded in a remote backup:
+
+   ```bash
+   backup-manager recover metadata --config /etc/backup-manager/config.yaml \
+     --s3-bucket my-backups --s3-prefix meta/ \
+     --s3-access-key "$AWS_ACCESS_KEY_ID" \
+     --s3-secret-key "$AWS_SECRET_ACCESS_KEY"
+   ```
+
+   Use `--dry-run` first to validate the snapshot. Use `--profile-id` when you
+   know which profile's snapshot you want. Local installs can omit the S3 flags
+   (the command searches `<storage.path>/meta/` and `<storage.path>/metadata/`)
+   or pass `--file`.
+
+3. Restore the data into an empty target database:
+
+   ```bash
+   backup-manager recover data --config /etc/backup-manager/config.yaml \
+     --profile <profile-uuid> --confirm
+   ```
+
+   `--execution` selects a specific backup, `--file` works without a metadata
+   database, `--target-dsn` points at a scratch/replacement database and
+   `--terminate-connections` disconnects active clients. `--verify-only`
+   validates without writing.
+
+4. Start the service and confirm `/readyz`, `/version`, the profiles and a
+   successful new backup.
+
+Keep the recovery kit off-host: `config.yaml`, `secrets.env`,
+`CONFIG_ENCRYPT_KEY`, the Age private key or metadata passphrase, S3
+credentials and the image tag. Without the encryption material the snapshots
+cannot be opened.
+
 ## API key rotation
 
 1. Create a new key for the user (`POST /users/{id}/keys` or `POST /auth/keys`).
@@ -157,7 +197,7 @@ backup-manager key create --config /etc/backup-manager/config.yaml \
 
 Rollback to a previous image is safe while the schema remains compatible; newer
 tables are ignored by older binaries. Restoring a metadata snapshot requires
-`metadata-restore` before boot.
+`recover metadata` before boot (`metadata-restore` is a deprecated alias).
 
 ## Incident checklist
 
@@ -166,7 +206,9 @@ tables are ignored by older binaries. Restoring a metadata snapshot requires
 3. Check `/api/v1/metrics` for failures, overdue and queue depth.
 4. Verify storage providers and target database connectivity.
 5. For a failed restore, use `verify_only` first and inspect `GET /restores/{id}`.
-6. Use the audit log for who triggered the change.
+6. If the metadata database is lost, run `recover metadata` before starting the
+   service; then use `recover data` for the target database.
+7. Use the audit log for who triggered the change.
 
 ## Limits
 

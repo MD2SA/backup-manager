@@ -517,30 +517,81 @@ it off the host or rely on the embedded snapshots for remote coverage.
 
 ### 3. Restoring the metadata database
 
-Run before starting the service:
+Use `recover metadata` before starting the service. It searches local snapshots
+by default, can download from S3, and validates/decrypts before writing.
 
 ```bash
+# List local snapshots (embedded meta/<profile-id>/ + scheduled metadata/)
+backup-manager recover metadata --config /etc/backup-manager/config.yaml --list
+
 # Newest local snapshot
-backup-manager metadata-restore --config /etc/backup-manager/config.yaml
+backup-manager recover metadata --config /etc/backup-manager/config.yaml
 
-# Specific snapshot
-backup-manager metadata-restore --config ... --file snapshot.dump.age
+# One profile only
+backup-manager recover metadata --config ... --profile-id <profile-uuid>
 
-# Validate only
-backup-manager metadata-restore --config ... --file snapshot.dump.age --dry-run
+# Specific snapshot, validate only, or restore over a non-empty database
+backup-manager recover metadata --config ... --file snapshot.dump.age
+backup-manager recover metadata --config ... --file snapshot.dump.age --dry-run
+backup-manager recover metadata --config ... --file snapshot.dump.age --replace
 
-# Restore over a non-empty database
-backup-manager metadata-restore --config ... --replace
+# Directly from S3/S3-compatible storage
+backup-manager recover metadata --config ... \
+  --s3-bucket my-backups --s3-prefix meta/ \
+  --s3-access-key ... --s3-secret-key ...
 ```
+
+S3 flags may also come from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+`AWS_REGION` and `AWS_ENDPOINT_URL`. For MinIO or R2 add `--s3-endpoint`,
+`--s3-path-style` and, for plain HTTP, `--s3-use-ssl=false`. Prefer environment
+variables over command-line keys, which are visible in the process list.
 
 Supported formats are auto-detected: age (current), legacy `enc_v1`, and
 plaintext. Age snapshots require `METADATA_BACKUP_PASSPHRASE` or
-`AGE_PRIVATE_KEY`. By default the command refuses to restore into a database
-that already contains user objects.
+`AGE_PRIVATE_KEY`; pass `--passphrase`/`--identity` to override the config.
+By default the command refuses to restore into a database that already contains
+user objects.
 
-Downloading an embedded snapshot from a cloud provider is not automated: fetch
-the `meta/<profile-id>/metadata-*.dump.age` object with your provider's CLI and
-pass it with `--file`.
+`metadata-restore` remains as a deprecated alias for `recover metadata`.
+
+### 4. Restoring data after host loss
+
+`recover data` works from the metadata database or from a local artifact. It
+verifies the checksum, decrypts, decompresses and applies the backup to an
+**empty** target.
+
+```bash
+# Latest successful execution of a profile
+backup-manager recover data --config ... --profile <profile-uuid> --confirm
+
+# Specific execution (optionally force one storage provider)
+backup-manager recover data --config ... --execution <execution-uuid> --confirm
+backup-manager recover data --config ... --execution <uuid> --provider-id <provider-uuid> --confirm
+
+# Local artifact when the metadata database is unavailable
+backup-manager recover data --config ... --file backup.sql.gz --confirm
+
+# Validate only; never touches the target
+backup-manager recover data --config ... --execution <uuid> --verify-only
+```
+
+Use `--target-dsn` to restore into a scratch/replacement database instead of
+`target_database` from the config, and `--terminate-connections` when clients
+must be disconnected. The command refuses to target the metadata database.
+
+### 5. Recovery kit
+
+Keep these off-host, encrypted, and accessible without the failed server:
+
+- `config.yaml` and `secrets.env` (or the secret manager equivalents);
+- `CONFIG_ENCRYPT_KEY` (provider credentials are encrypted with it);
+- the Age private key or `METADATA_BACKUP_PASSPHRASE`;
+- S3 endpoint, bucket and credentials, if used;
+- the container image tag and this CLI.
+
+Without the encryption key or passphrase, encrypted metadata and data snapshots
+cannot be recovered. Test the kit periodically with `recover data --verify-only`
+and a restore into an empty scratch database.
 
 ---
 

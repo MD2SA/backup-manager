@@ -121,27 +121,9 @@ func verifyExecution(
 	execution db.Execution,
 	scratch *backup.RestoreTarget,
 ) error {
-	records, err := repo.ListExecutionStorage(ctx, execution.ID)
+	candidates, err := executionArtifactCandidates(ctx, repo, execution, pgtype.UUID{})
 	if err != nil {
 		return err
-	}
-
-	type candidate struct {
-		providerID  pgtype.UUID
-		storagePath string
-	}
-	var candidates []candidate
-	for _, record := range records {
-		candidates = append(candidates, candidate{providerID: record.ProviderID, storagePath: record.StoragePath})
-	}
-	if len(candidates) == 0 && execution.StoragePath.Valid {
-		profile, profileErr := repo.GetProfile(ctx, execution.ProfileID)
-		if profileErr != nil {
-			return profileErr
-		}
-		for _, providerID := range profile.StorageProviderIDs {
-			candidates = append(candidates, candidate{providerID: providerID, storagePath: execution.StoragePath.String})
-		}
 	}
 	if len(candidates) == 0 {
 		return fmt.Errorf("execution has no storage copy")
@@ -151,19 +133,12 @@ func verifyExecution(
 	verified := false
 	applied := false
 	for _, candidate := range candidates {
-		provider, resolveErr := providers.ResolveStorageProvider(ctx, candidate.providerID)
-		if resolveErr != nil {
-			lastErr = resolveErr
-			continue
-		}
-
-		artifact, prepErr := backup.PrepareArtifact(
+		artifact, prepErr := prepareCandidateArtifact(
 			ctx,
-			provider,
-			candidate.storagePath,
-			cfg.TempDir,
-			execution.Checksum.String,
-			execution.IsEncrypted,
+			providers,
+			cfg,
+			execution,
+			candidate,
 			cfg.EncryptionPassphrase,
 			cfg.AgePrivateKey,
 			func(format string, args ...any) {

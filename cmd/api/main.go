@@ -14,7 +14,6 @@ import (
 	"github.com/MD2SA/backup-manager/internal/config"
 	"github.com/MD2SA/backup-manager/internal/database"
 	"github.com/MD2SA/backup-manager/internal/logger"
-	"github.com/MD2SA/backup-manager/internal/metarestore"
 	"github.com/MD2SA/backup-manager/internal/pkg/crypto"
 	"github.com/MD2SA/backup-manager/internal/version"
 )
@@ -48,7 +47,10 @@ func main() {
 	case "keygen":
 		runKeygen()
 	case "metadata-restore":
-		runMetadataRestore(os.Args[2:])
+		fmt.Fprintln(os.Stderr, "warning: metadata-restore is deprecated; use 'recover metadata'")
+		recoverMetadata(os.Args[2:])
+	case "recover":
+		runRecover(os.Args[2:])
 	case "user":
 		runUser(os.Args[2:])
 	case "key":
@@ -74,7 +76,9 @@ Usage:
   backup-manager init [--config PATH] [--secrets PATH] [--non-interactive] [flags]
   backup-manager config check [--config PATH] [--connect]
   backup-manager migrate [--config PATH] [--migrations-dir DIR]
-  backup-manager metadata-restore [--config PATH] [--file PATH] [flags]
+  backup-manager recover metadata [--file PATH | --s3-bucket BUCKET] [flags]
+  backup-manager recover data [--execution ID | --profile ID | --file PATH] [flags]
+  backup-manager metadata-restore [flags]   (deprecated: use recover metadata)
   backup-manager user <create|list> [flags]
   backup-manager key create --email EMAIL --name NAME [flags]
   backup-manager verify [--execution ID | --profile ID --latest N] [--scratch-dsn DSN]
@@ -221,36 +225,6 @@ func runKeygen() {
 	fmt.Println("---------------------------------------")
 	fmt.Println("Store the private key in your secrets file (AGE_PRIVATE_KEY).")
 	fmt.Println("CRITICAL: without it you cannot restore Age-encrypted backups.")
-}
-
-func runMetadataRestore(args []string) {
-	fs := flag.NewFlagSet("metadata-restore", flag.ExitOnError)
-	configPath := fs.String("config", "", "path to config.yaml")
-	file := fs.String("file", "", "path to a snapshot file (default: newest snapshot in storage.path/metadata)")
-	passphrase := fs.String("passphrase", "", "override the metadata backup passphrase")
-	identity := fs.String("identity", "", "override the Age private key")
-	replace := fs.Bool("replace", false, "restore over an existing database (pg_restore --clean --if-exists)")
-	dryRun := fs.Bool("dry-run", false, "only validate the snapshot, write nothing")
-	_ = fs.Parse(args)
-
-	cfg, err := config.LoadLenient(*configPath)
-	if err != nil {
-		fatal("Configuration error:\n%v", err)
-	}
-
-	log := logger.New(cfg.LogLevel)
-	opts := metarestore.Options{
-		File:       *file,
-		Passphrase: *passphrase,
-		Identity:   *identity,
-		Replace:    *replace,
-		DryRun:     *dryRun,
-	}
-	if err := metarestore.Run(log, cfg, opts); err != nil {
-		fatal("Metadata restore failed: %v", err)
-	}
-
-	fmt.Println("Metadata restore completed")
 }
 
 func envOr(key, fallback string) string {

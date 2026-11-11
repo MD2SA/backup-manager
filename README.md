@@ -15,12 +15,12 @@ A self-hosted service that automates PostgreSQL backups with scheduling, retenti
 - **GFS retention** (hourly, daily, weekly, monthly, yearly) with pinned backups.
 - **Restore workflows** with automatic decryption.
 - **Notifications** via Discord webhooks.
-- **Metadata disaster recovery**: encrypted snapshots of the manager's own state embedded in every backup, plus an optional local self-backup and a `metadata-restore` command.
+- **Metadata disaster recovery**: encrypted snapshots of the manager's own state embedded in every backup, plus an optional local self-backup and a `recover metadata` command with local/S3 discovery.
 - **Production hardening**: API key auth, per-IP rate limiting, CORS, trusted proxies, request IDs, encrypted provider credentials at rest.
 - **Declarative configuration**: one `config.yaml` for non-secret settings and one `secrets.env` for secrets, with strict validation.
 - **Keyset pagination**: every list endpoint supports `limit` and an opaque `cursor`, with `has_more`, `next_cursor` and a `Link` header.
 - **Operational visibility**: per-profile overdue detection, authenticated Prometheus metrics, build version endpoint and configurable audit-log retention.
-- **Verification CLI**: `backup-manager verify` downloads, decrypts, checks and optionally applies a backup to an empty scratch database.
+- **Verification and recovery CLI**: `backup-manager verify` runs restore drills, while `backup-manager recover metadata|data` rebuilds the manager state and restores data after host loss.
 
 ---
 
@@ -248,7 +248,7 @@ backup-manager key create --config /etc/backup-manager/config.yaml \
 Backup Manager is a **modular monolith**:
 
 ```text
-cmd/api                  CLI (serve, init, config check, migrate, keygen, metadata-restore)
+cmd/api                  CLI (serve, init, config check, migrate, keygen, verify, recover)
 internal/
 ├── api/                 REST API (handlers, DTOs, middleware, router)
 ├── app/                 Composition root and graceful shutdown
@@ -360,6 +360,8 @@ clients that should be disconnected. See the
 - [ ] Monitor `/readyz`, `/api/v1/metrics`, backup failures and overdue profiles.
 - [ ] Run `backup-manager verify` on recent backups and test a real restore
       into an empty scratch database before relying on the backups.
+- [ ] Keep an off-host recovery kit: config, secrets, encryption keys, S3
+      credentials and the image tag.
 
 ---
 
@@ -380,12 +382,43 @@ The snapshot passphrase is `METADATA_BACKUP_PASSPHRASE` in `secrets.env`.
 Restore it before starting the service:
 
 ```bash
-backup-manager metadata-restore --config /etc/backup-manager/config.yaml
-backup-manager metadata-restore --config ... --file snapshot.dump.age --dry-run
-backup-manager metadata-restore --config ... --replace
+# List local snapshots (embedded meta/<profile>/ and scheduled metadata/)
+backup-manager recover metadata --config /etc/backup-manager/config.yaml --list
+
+# Restore the newest local snapshot into the configured metadata database
+backup-manager recover metadata --config /etc/backup-manager/config.yaml
+
+# Validate a specific snapshot, or restore over a non-empty database
+backup-manager recover metadata --config ... --file snapshot.dump.age --dry-run
+backup-manager recover metadata --config ... --file snapshot.dump.age --replace
+
+# Recover directly from S3 when the host or metadata database is gone
+backup-manager recover metadata --config ... \
+  --s3-bucket my-backups --s3-prefix meta/ \
+  --s3-access-key "$AWS_ACCESS_KEY_ID" --s3-secret-key "$AWS_SECRET_ACCESS_KEY"
 ```
 
+Then restore data into an empty target database:
+
+```bash
+# Latest successful backup of a profile
+backup-manager recover data --config ... --profile <profile-id> --confirm
+
+# Specific execution, or a local artifact
+backup-manager recover data --config ... --execution <execution-id> --confirm
+backup-manager recover data --config ... --file backup.sql.gz --confirm
+
+# Verify without touching the target
+backup-manager recover data --config ... --execution <id> --verify-only
+```
+
+`recover data` accepts `--target-dsn` for a scratch or replacement database and
+`--terminate-connections` when clients must be disconnected. Keep a **recovery
+kit** off-host: `config.yaml`, `secrets.env`, the config encryption key, the Age
+private key or metadata passphrase, S3 credentials and the container image tag.
+
 See the [configuration guide](docs/guides/CONFIGURATION.md#metadata-disaster-recovery)
+and the [operations runbook](docs/guides/OPERATIONS.md#recovery-after-host-loss)
 for details.
 
 ---

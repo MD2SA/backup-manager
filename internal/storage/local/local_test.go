@@ -105,3 +105,23 @@ func TestList_Sorted(t *testing.T) {
 		t.Errorf("expected lexical sort, got %v", keys)
 	}
 }
+
+func TestListRecursive(t *testing.T) {
+	dir := t.TempDir()
+	ls, err := New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mustWrite(t, filepath.Join(dir, "meta", "profile-a", "metadata-20260101-000000.dump.age"), "a")
+	mustWrite(t, filepath.Join(dir, "meta", "profile-b", "metadata-20260102-000000.dump.age"), "b")
+	mustWrite(t, filepath.Join(dir, "metadata", "metadata-20260103-000000.dump"), "c")
+
+	keys, err := ls.ListRecursive(context.Background(), "meta/")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(keys) != 2 {
+		t.Fatalf("expected 2 recursive keys, got %d: %v", len(keys), keys)
+	}
+}

@@ -74,3 +74,35 @@ func (s *LocalStorage) List(ctx context.Context, prefix string) ([]string, error
 	sort.Strings(keys)
 	return keys, nil
 }
+
+// ListRecursive returns every object under prefix, including nested profile
+// directories. S3 treats a prefix as a key namespace; this method gives local
+// storage the same semantics for operations such as metadata recovery.
+func (s *LocalStorage) ListRecursive(ctx context.Context, prefix string) ([]string, error) {
+	root := filepath.Join(s.BasePath, prefix)
+
+	var keys []string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		rel, relErr := filepath.Rel(s.BasePath, path)
+		if relErr != nil {
+			return relErr
+		}
+		keys = append(keys, rel)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Strings(keys)
+	return keys, nil
+}
