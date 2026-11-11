@@ -85,10 +85,10 @@ IMAGE_TAG=backup-manager:local docker compose run --rm backup-manager config che
 
 ```bash
 docker pull ghcr.io/md2sa/backup-manager:1.0.0
+docker pull md2sa/backup-manager:1.0.0
 ```
 
-Stable releases may also be mirrored to Docker Hub. Use an exact version in
-production.
+Use an exact version in production, never `latest` or `main`.
 
 ## Recovery first
 

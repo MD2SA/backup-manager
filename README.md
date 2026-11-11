@@ -6,6 +6,7 @@
 [![Go 1.26](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/)
 [![PostgreSQL 13–18](https://img.shields.io/badge/PostgreSQL-13%E2%80%9318-336791?logo=postgresql&logoColor=white)](#compatibility)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Docker Pulls](https://img.shields.io/docker/pulls/md2sa/backup-manager?logo=docker)](https://hub.docker.com/r/md2sa/backup-manager)
 
 Self-hosted PostgreSQL backup service with scheduled dumps, verified restores,
 encryption, local/S3 storage, GFS retention and disaster recovery for its own
@@ -108,14 +109,12 @@ make run
 
 ## Container images
 
-CI publishes the service image to GHCR:
+| Registry | Pull |
+|---|---|
+| GHCR | `docker pull ghcr.io/md2sa/backup-manager:1.0.0` |
+| Docker Hub | `docker pull md2sa/backup-manager:1.0.0` |
 
-```bash
-docker pull ghcr.io/md2sa/backup-manager:1.0.0
-```
-
-Stable releases may also be mirrored to Docker Hub when the release secrets are
-configured. Use an exact version tag in production, never `latest` or `main`.
+Use an exact version tag in production, never `latest` or `main`.
 See [Releasing](docs/guides/RELEASING.md).
 
 ---
