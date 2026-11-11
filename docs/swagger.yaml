@@ -1,5 +1,16 @@
 basePath: /api/v1
 definitions:
+  github_com_MD2SA_backup-manager_internal_api_dto.APIKeyPage:
+    properties:
+      has_more:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse'
+        type: array
+      next_cursor:
+        type: string
+    type: object
   github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse:
     properties:
       created_at:
@@ -40,6 +51,17 @@ definitions:
       resource_type:
         type: string
       user_id:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.AuditPage:
+    properties:
+      has_more:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.AuditEntryResponse'
+        type: array
+      next_cursor:
         type: string
     type: object
   github_com_MD2SA_backup-manager_internal_api_dto.CreateAPIKeyRequest:
@@ -83,6 +105,17 @@ definitions:
     required:
     - email
     - name
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.ExecutionPage:
+    properties:
+      has_more:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionResponse'
+        type: array
+      next_cursor:
+        type: string
     type: object
   github_com_MD2SA_backup-manager_internal_api_dto.ExecutionResponse:
     properties:
@@ -128,6 +161,17 @@ definitions:
       user:
         $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserResponse'
     type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderPage:
+    properties:
+      has_more:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderResponse'
+        type: array
+      next_cursor:
+        type: string
+    type: object
   github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderRequest:
     properties:
       config:
@@ -162,6 +206,17 @@ definitions:
     properties:
       pinned:
         type: boolean
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.ProfilePage:
+    properties:
+      has_more:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse'
+        type: array
+      next_cursor:
+        type: string
     type: object
   github_com_MD2SA_backup-manager_internal_api_dto.ProfileRequest:
     properties:
@@ -235,6 +290,17 @@ definitions:
       updated_at:
         type: string
     type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.RestorePage:
+    properties:
+      has_more:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse'
+        type: array
+      next_cursor:
+        type: string
+    type: object
   github_com_MD2SA_backup-manager_internal_api_dto.RestoreRequest:
     properties:
       confirm:
@@ -281,6 +347,17 @@ definitions:
       storage_path:
         type: string
       target_db:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyPage:
+    properties:
+      has_more:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyResponse'
+        type: array
+      next_cursor:
         type: string
     type: object
   github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyRequest:
@@ -332,6 +409,17 @@ definitions:
       yearly_month:
         type: integer
     type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderPage:
+    properties:
+      has_more:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderResponse'
+        type: array
+      next_cursor:
+        type: string
+    type: object
   github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderRequest:
     properties:
       config:
@@ -374,6 +462,17 @@ definitions:
     required:
     - email
     - name
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.UserPage:
+    properties:
+      has_more:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserResponse'
+        type: array
+      next_cursor:
+        type: string
     type: object
   github_com_MD2SA_backup-manager_internal_api_dto.UserResponse:
     properties:
@@ -432,38 +531,43 @@ paths:
   /audit:
     get:
       parameters:
-      - description: Limit (default 100, max 500)
+      - description: Page size (default 50, max 200)
         in: query
         name: limit
         type: integer
-      - description: Offset
+      - description: Opaque next cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.AuditEntryResponse'
-            type: array
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.AuditPage'
       summary: List audit entries
       tags:
       - audit
   /auth/keys:
     get:
       description: List key metadata (never the key itself).
+      parameters:
+      - description: Page size (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque next cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse'
-            type: array
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyPage'
         "401":
           description: Unauthorized
           schema:
@@ -551,15 +655,26 @@ paths:
       description: |-
         Get a history of all backup executions in the system across all profiles.
         Results are sorted by creation date (newest first).
+      parameters:
+      - description: Page size (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque next cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionResponse'
-            type: array
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -690,15 +805,21 @@ paths:
         name: id
         required: true
         type: string
+      - description: Page size (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque next cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse'
-            type: array
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestorePage'
         "400":
           description: Bad Request
           schema:
@@ -753,15 +874,26 @@ paths:
         Get a list of all configured notification providers.
         The 'config' field varies by 'type':
         - 'discord': Requires {"webhook_url": "https://discord.com/api/webhooks/..."} to send alerts to a Discord channel.
+      parameters:
+      - description: Page size (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque next cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderResponse'
-            type: array
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -862,15 +994,26 @@ paths:
       description: |-
         Get a list of all configured backup profiles.
         Profiles link databases to storage destinations via schedules.
+      parameters:
+      - description: Page size (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque next cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse'
-            type: array
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfilePage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1068,15 +1211,21 @@ paths:
         name: id
         required: true
         type: string
+      - description: Page size (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque next cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionResponse'
-            type: array
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionPage'
         "400":
           description: Bad Request
           schema:
@@ -1112,15 +1261,26 @@ paths:
   /restores:
     get:
       description: Get the global restore history, newest first.
+      parameters:
+      - description: Page size (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque next cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse'
-            type: array
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestorePage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1168,15 +1328,26 @@ paths:
         - keep_daily: Last N days.
         - keep_weekly: Last N weeks.
         - yearly_month: The month (1-12) chosen for yearly preservation.
+      parameters:
+      - description: Page size (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque next cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyResponse'
-            type: array
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1279,15 +1450,26 @@ paths:
         The 'config' field varies by 'type':
         - 'local': Use {"path": "/tmp/backups"} to define the base directory on the server.
         - 's3': Use {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."} for AWS S3 compatible storage.
+      parameters:
+      - description: Page size (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque next cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderResponse'
-            type: array
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1387,15 +1569,22 @@ paths:
       - storage-providers
   /users:
     get:
+      parameters:
+      - description: Page size (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque next cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserResponse'
-            type: array
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserPage'
       summary: List users
       tags:
       - users
@@ -1483,13 +1672,19 @@ paths:
         name: id
         required: true
         type: string
+      - description: Page size (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque next cursor
+        in: query
+        name: cursor
+        type: string
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse'
-            type: array
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyPage'
       summary: List a user's API keys
       tags:
       - users

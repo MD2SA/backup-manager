@@ -27,14 +27,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "Limit (default 100, max 500)",
+                        "description": "Page size (default 50, max 200)",
                         "name": "limit",
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque next cursor",
+                        "name": "cursor",
                         "in": "query"
                     }
                 ],
@@ -42,10 +42,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.AuditEntryResponse"
-                            }
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.AuditPage"
                         }
                     }
                 }
@@ -61,14 +58,25 @@ const docTemplate = `{
                     "auth"
                 ],
                 "summary": "List the current user's API keys",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque next cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse"
-                            }
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyPage"
                         }
                     },
                     "401": {
@@ -203,14 +211,31 @@ const docTemplate = `{
                     "executions"
                 ],
                 "summary": "List all backup executions",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque next cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionResponse"
-                            }
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
                         }
                     },
                     "500": {
@@ -397,16 +422,25 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque next cursor",
+                        "name": "cursor",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse"
-                            }
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestorePage"
                         }
                     },
                     "400": {
@@ -486,14 +520,31 @@ const docTemplate = `{
                     "notification-providers"
                 ],
                 "summary": "List all notification providers",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque next cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderResponse"
-                            }
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
                         }
                     },
                     "500": {
@@ -639,14 +690,31 @@ const docTemplate = `{
                     "profiles"
                 ],
                 "summary": "List all backup profiles",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque next cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse"
-                            }
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfilePage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
                         }
                     },
                     "500": {
@@ -926,16 +994,25 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque next cursor",
+                        "name": "cursor",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionResponse"
-                            }
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionPage"
                         }
                     },
                     "400": {
@@ -992,14 +1069,31 @@ const docTemplate = `{
                     "restores"
                 ],
                 "summary": "List all restore jobs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque next cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse"
-                            }
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestorePage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
                         }
                     },
                     "500": {
@@ -1068,14 +1162,31 @@ const docTemplate = `{
                     "retention-policies"
                 ],
                 "summary": "List all retention policies",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque next cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyResponse"
-                            }
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
                         }
                     },
                     "500": {
@@ -1221,14 +1332,31 @@ const docTemplate = `{
                     "storage-providers"
                 ],
                 "summary": "List all storage providers",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque next cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderResponse"
-                            }
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
                         }
                     },
                     "500": {
@@ -1373,14 +1501,25 @@ const docTemplate = `{
                     "users"
                 ],
                 "summary": "List users",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque next cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserResponse"
-                            }
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserPage"
                         }
                     }
                 }
@@ -1516,16 +1655,25 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque next cursor",
+                        "name": "cursor",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse"
-                            }
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyPage"
                         }
                     }
                 }
@@ -1598,6 +1746,23 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "github_com_MD2SA_backup-manager_internal_api_dto.APIKeyPage": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse"
+                    }
+                },
+                "next_cursor": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_MD2SA_backup-manager_internal_api_dto.APIKeyResponse": {
             "type": "object",
             "properties": {
@@ -1662,6 +1827,23 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_MD2SA_backup-manager_internal_api_dto.AuditPage": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.AuditEntryResponse"
+                    }
+                },
+                "next_cursor": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_MD2SA_backup-manager_internal_api_dto.CreateAPIKeyRequest": {
             "type": "object",
             "required": [
@@ -1721,6 +1903,23 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_api_dto.ExecutionPage": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ExecutionResponse"
+                    }
+                },
+                "next_cursor": {
                     "type": "string"
                 }
             }
@@ -1792,6 +1991,23 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderPage": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderResponse"
+                    }
+                },
+                "next_cursor": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_MD2SA_backup-manager_internal_api_dto.NotificationProviderRequest": {
             "type": "object",
             "required": [
@@ -1842,6 +2058,23 @@ const docTemplate = `{
             "properties": {
                 "pinned": {
                     "type": "boolean"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_api_dto.ProfilePage": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse"
+                    }
+                },
+                "next_cursor": {
+                    "type": "string"
                 }
             }
         },
@@ -1950,6 +2183,23 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_MD2SA_backup-manager_internal_api_dto.RestorePage": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse"
+                    }
+                },
+                "next_cursor": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_MD2SA_backup-manager_internal_api_dto.RestoreRequest": {
             "type": "object",
             "properties": {
@@ -2019,6 +2269,23 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "target_db": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyPage": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyResponse"
+                    }
+                },
+                "next_cursor": {
                     "type": "string"
                 }
             }
@@ -2094,6 +2361,23 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderPage": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderResponse"
+                    }
+                },
+                "next_cursor": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_MD2SA_backup-manager_internal_api_dto.StorageProviderRequest": {
             "type": "object",
             "required": [
@@ -2154,6 +2438,23 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_api_dto.UserPage": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.UserResponse"
+                    }
+                },
+                "next_cursor": {
                     "type": "string"
                 }
             }

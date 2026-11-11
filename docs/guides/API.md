@@ -122,7 +122,7 @@ curl -H "X-API-Key: your-api-key" http://localhost:8080/api/v1/profiles
 *   `GET /users/{id}/keys`: list a user's keys.
 *   `POST /users/{id}/keys`: create a key for a user; returns the plaintext once.
 *   `POST /users/{id}/keys/{keyID}/revoke`: revoke a user's key.
-*   `GET /audit`: global audit log (limit/offset). Mutating requests are recorded
+*   `GET /audit`: global audit log (limit/cursor). Mutating requests are recorded
     automatically with user, key, IP, request ID and status.
 
 The last active user cannot be deactivated. Use the CLI for lockout recovery:
@@ -131,6 +131,41 @@ The last active user cannot be deactivated. Use the CLI for lockout recovery:
 backup-manager user create --config ... --email admin2@example.com --name "Admin 2"
 backup-manager key create --config ... --email admin2@example.com --name recovery
 ```
+
+### Pagination
+
+All list endpoints use **keyset (cursor) pagination**:
+
+```http
+GET /api/v1/executions?limit=50&cursor=eyJ...
+```
+
+*   `limit`: page size, default **50**, maximum **200**.
+*   `cursor`: opaque value from the previous response. Do not parse it.
+*   The first page omits `cursor`.
+
+Response:
+
+```json
+{
+  "items": [ ... ],
+  "next_cursor": "eyJ...",
+  "has_more": true
+}
+```
+
+When `has_more` is false, `next_cursor` is absent and there are no more pages.
+A `Link: <...?cursor=...>; rel="next"` header is also returned when a next page
+exists.
+
+Ordering:
+
+*   `/executions`, `/executions/{id}/restores`, `/restores`, `/audit`: newest first.
+*   `/users`, API keys: oldest first.
+*   `/profiles`, storage/notification providers, retention policies: by name.
+
+Cursors are tied to the endpoint and sort order; using a cursor from another
+list returns `400`.
 
 ### Idempotency
 

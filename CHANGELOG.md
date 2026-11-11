@@ -83,6 +83,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reports the earliest next run across all enabled profiles.
 - **Storage isolation:** new backup paths include a short profile ID, avoiding
   collisions between profiles with similar names.
+- **Keyset pagination:** all list endpoints now accept `limit` (default 50,
+  max 200) and an opaque `cursor`, returning `{items, next_cursor, has_more}`
+  and a `Link` header. The old bare-array list responses are replaced.
+- **Pagination indexes:** added `(created_at, id)` / `(name, id)` indexes for
+  executions, restores, audit, users, profiles, providers, policies and API keys.
 
 ### Security
 - **Secrets isolation:** secrets are not loaded into the process environment,

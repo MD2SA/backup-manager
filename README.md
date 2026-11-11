@@ -18,6 +18,7 @@ A self-hosted service that automates PostgreSQL backups with scheduling, retenti
 - **Metadata disaster recovery**: encrypted snapshots of the manager's own state embedded in every backup, plus an optional local self-backup and a `metadata-restore` command.
 - **Production hardening**: API key auth, per-IP rate limiting, CORS, trusted proxies, request IDs, encrypted provider credentials at rest.
 - **Declarative configuration**: one `config.yaml` for non-secret settings and one `secrets.env` for secrets, with strict validation.
+- **Keyset pagination**: every list endpoint supports `limit` and an opaque `cursor`, with `has_more`, `next_cursor` and a `Link` header.
 
 ---
 
