@@ -19,6 +19,7 @@ A self-hosted service that automates PostgreSQL backups with scheduling, retenti
 - **Production hardening**: API key auth, per-IP rate limiting, CORS, trusted proxies, request IDs, encrypted provider credentials at rest.
 - **Declarative configuration**: one `config.yaml` for non-secret settings and one `secrets.env` for secrets, with strict validation.
 - **Keyset pagination**: every list endpoint supports `limit` and an opaque `cursor`, with `has_more`, `next_cursor` and a `Link` header.
+- **Operational visibility**: per-profile overdue detection, authenticated Prometheus metrics, build version endpoint and configurable audit-log retention.
 
 ---
 

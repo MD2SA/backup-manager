@@ -61,3 +61,11 @@ metadata_backup:
   schedule: "0 3 * * *"
   retention: 14
   embed: true
+
+health:
+  overdue_factor: 2.0
+  overdue_grace: "15m"
+
+audit:
+  retention_days: 90
+  cleanup_schedule: "0 4 * * *"

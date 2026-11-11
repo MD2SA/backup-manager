@@ -1743,6 +1743,26 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/version": {
+            "get": {
+                "description": "Public build version, commit, date and Go runtime.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Get build information",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.VersionResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -2482,6 +2502,23 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_MD2SA_backup-manager_internal_api_dto.VersionResponse": {
+            "type": "object",
+            "properties": {
+                "commit": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "go": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_MD2SA_backup-manager_internal_monitor.HealthStatus": {
             "type": "string",
             "enum": [
@@ -2513,11 +2550,43 @@ const docTemplate = `{
                 "overdue_profiles": {
                     "type": "integer"
                 },
+                "scheduled_profiles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_monitor.ScheduledProfileHealth"
+                    }
+                },
                 "status": {
                     "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_monitor.HealthStatus"
                 },
                 "total_storage_used": {
                     "type": "integer"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_monitor.ScheduledProfileHealth": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "last_status": {
+                    "type": "string"
+                },
+                "last_success": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "next_scheduled": {
+                    "type": "string"
+                },
+                "overdue": {
+                    "type": "boolean"
+                },
+                "schedule": {
+                    "type": "string"
                 }
             }
         },

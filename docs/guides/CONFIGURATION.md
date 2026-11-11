@@ -144,6 +144,14 @@ metadata_backup:
   schedule: "0 3 * * *"
   retention: 14
   embed: true
+
+health:
+  overdue_factor: 2.0
+  overdue_grace: "15m"
+
+audit:
+  retention_days: 90
+  cleanup_schedule: "0 4 * * *"
 ```
 
 ### Top-level fields
@@ -216,6 +224,23 @@ precedence when encrypting.
 | `schedule` | empty (disabled) | 5-field cron for the local metadata self-backup. |
 | `retention` | `14` | Snapshots to keep per local directory / per profile per provider. |
 | `embed` | `true` | Upload an encrypted metadata snapshot with every backup execution. |
+
+### `health`
+
+| Field | Default | Description |
+|---|---|---|
+| `overdue_factor` | `2.0` | A profile is overdue when the last successful backup is older than `maxGap × factor + grace`. |
+| `overdue_grace` | `15m` | Extra tolerance before marking a profile overdue. |
+
+`maxGap` is sampled from the profile's cron expression (hourly ≈ 1h, daily ≈
+24h, weekly ≈ 7d, monthly ≈ 31d, yearly ≈ 365d).
+
+### `audit`
+
+| Field | Default | Description |
+|---|---|---|
+| `retention_days` | `90` | Audit entries older than this are deleted. `0` disables cleanup. |
+| `cleanup_schedule` | `0 4 * * *` | Cron expression for the audit cleanup job. |
 
 ---
 

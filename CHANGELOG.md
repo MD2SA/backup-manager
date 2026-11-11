@@ -88,6 +88,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a `Link` header. The old bare-array list responses are replaced.
 - **Pagination indexes:** added `(created_at, id)` / `(name, id)` indexes for
   executions, restores, audit, users, profiles, providers, policies and API keys.
+- **Overdue profiles:** `health.overdue_factor`/`overdue_grace`, real
+  `overdue_profiles` counts and per-profile status in `/health/summary`.
+- **Prometheus metrics:** authenticated `/api/v1/metrics` with backup, restore,
+  queue, scheduler, health, auth and HTTP series.
+- **Audit retention:** configurable `audit.retention_days` and cron cleanup.
+- **Build version:** `/version` plus Docker/CI build metadata.
+- **Operations runbook:** `docs/guides/OPERATIONS.md` with alerts, key rotation,
+  upgrades and incident checklist.
 
 ### Security
 - **Secrets isolation:** secrets are not loaded into the process environment,

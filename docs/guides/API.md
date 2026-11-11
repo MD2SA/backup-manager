@@ -14,7 +14,9 @@ The project includes built-in Swagger documentation. To view it:
 *   `GET /healthz`: Public liveness check (returns "OK", no API key). Used by the container healthcheck.
 *   `GET /readyz`: Public readiness check; pings the metadata database and returns 503 when unavailable.
 *   `GET /api/v1/health`: Authenticated health check (returns "OK").
-*   `GET /api/v1/health/summary`: Summary of system health and backup status.
+*   `GET /api/v1/health/summary`: Summary of system health, active/overdue profiles and next scheduled run.
+*   `GET /version`: Public build version, commit, date and Go runtime.
+*   `GET /api/v1/metrics`: Prometheus metrics (authenticated; scrape with `X-API-Key`).
 
 ### Profiles
 *   `GET /profiles`: List all backup profiles.
@@ -131,6 +133,32 @@ The last active user cannot be deactivated. Use the CLI for lockout recovery:
 backup-manager user create --config ... --email admin2@example.com --name "Admin 2"
 backup-manager key create --config ... --email admin2@example.com --name recovery
 ```
+
+### Health summary
+
+`GET /api/v1/health/summary` includes `active_profiles`, `overdue_profiles`,
+`next_scheduled` (earliest across enabled profiles) and a `scheduled_profiles`
+array with per-profile status, last success and next run.
+
+A profile is overdue when its last successful backup is older than
+`maxGap × health.overdue_factor + health.overdue_grace`. See the configuration
+guide.
+
+### Metrics
+
+`GET /api/v1/metrics` exposes Prometheus metrics and requires `X-API-Key`.
+Useful series include:
+
+* `backup_manager_backups_total{profile_id,profile_name,status}`
+* `backup_manager_backup_duration_seconds`
+* `backup_manager_last_success_timestamp_seconds`
+* `backup_manager_restores_total{status}`
+* `backup_manager_queue_depth`
+* `backup_manager_scheduler_jobs`
+* `backup_manager_active_profiles`
+* `backup_manager_overdue_profiles`
+* `backup_manager_auth_failures_total`
+* `backup_manager_http_requests_total{method,route,status}`
 
 ### Pagination
 
