@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MD2SA/backup-manager/internal/pgcompat"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -149,74 +151,129 @@ func activeConnectionCount(ctx context.Context, conn *pgx.Conn) (int64, error) {
 
 // ApplyArtifact applies a prepared artifact to the target database.
 //
-// Plain SQL artifacts are streamed to psql; PostgreSQL custom-format archives
-// are streamed to pg_restore. Both run with ON_ERROR_STOP/--exit-on-error and,
-// by default, a single transaction so a failure rolls the whole restore back.
+// Plain SQL artifacts are streamed to psql. Custom-format archives are applied
+// with pg_restore; if a newer archive contains settings an older server does
+// not understand, a filtered SQL fallback is used. Restores run with
+// ON_ERROR_STOP/--exit-on-error and, by default, a single transaction.
 func ApplyArtifact(ctx context.Context, artifact *Artifact, target RestoreTarget, singleTransaction bool) (string, error) {
+	if artifact.CustomFormat {
+		return applyCustomArtifact(ctx, artifact, target, singleTransaction)
+	}
+
 	reader, err := artifact.Open()
 	if err != nil {
 		return "", fmt.Errorf("open artifact: %w", err)
 	}
 	defer func() { _ = reader.Close() }()
 
-	var cmd *exec.Cmd
-	var binary string
+	output, err := runPSQL(ctx, pgcompat.NewSQLFilter(reader), target, singleTransaction)
+	if err != nil {
+		return output, fmt.Errorf("psql restore failed: %w\n%s", err, output)
+	}
+	return output, nil
+}
 
-	if artifact.CustomFormat {
-		binary = "pg_restore"
-		args := []string{
-			"--exit-on-error",
-			"--no-owner",
-			"--no-acl",
-			"--clean",
-			"--if-exists",
-			"-w",
-		}
-		if singleTransaction {
-			args = append(args, "--single-transaction")
-		}
-		args = append(args,
-			"-h", target.Host,
-			"-p", target.Port,
-			"-U", target.User,
-			"-d", target.DBName,
-		)
-		cmd = exec.CommandContext(ctx, binary, args...)
-	} else {
-		binary = "psql"
-		args := []string{
-			"-X",
-			"-w",
-			"-v", "ON_ERROR_STOP=1",
-		}
-		if singleTransaction {
-			args = append(args, "--single-transaction")
-		}
-		args = append(args,
-			"-h", target.Host,
-			"-p", target.Port,
-			"-U", target.User,
-			"-d", target.DBName,
-		)
-		cmd = exec.CommandContext(ctx, binary, args...)
+func applyCustomArtifact(ctx context.Context, artifact *Artifact, target RestoreTarget, singleTransaction bool) (string, error) {
+	args := []string{
+		"--exit-on-error",
+		"--no-owner",
+		"--no-acl",
+		"--clean",
+		"--if-exists",
+		"-w",
+	}
+	if singleTransaction {
+		args = append(args, "--single-transaction")
+	}
+	args = append(args,
+		"-h", target.Host,
+		"-p", target.Port,
+		"-U", target.User,
+		"-d", target.DBName,
+		artifact.Path,
+	)
+
+	output, err := runRestoreCommand(ctx, target, "pg_restore", args, nil)
+	if err == nil {
+		return output, nil
+	}
+	if !pgcompat.IsTransactionTimeoutError(output) {
+		return output, fmt.Errorf("pg_restore failed: %w\n%s", err, output)
 	}
 
+	// A newer pg_restore archive can contain SET transaction_timeout, which
+	// older servers reject. Convert the archive to SQL, filter the preamble and
+	// apply it with psql instead.
+	sqlFile, createErr := os.CreateTemp("", "backup-manager-restore-*.sql")
+	if createErr != nil {
+		return output, fmt.Errorf("pg_restore compatibility fallback: %w", createErr)
+	}
+	sqlPath := sqlFile.Name()
+	_ = sqlFile.Close()
+	defer func() { _ = os.Remove(sqlPath) }()
+
+	convertArgs := []string{
+		"--exit-on-error",
+		"--no-owner",
+		"--no-acl",
+		"--clean",
+		"--if-exists",
+		"-w",
+		"-f", sqlPath,
+		artifact.Path,
+	}
+	convertOutput, convertErr := runRestoreCommand(ctx, target, "pg_restore", convertArgs, nil)
+	if convertErr != nil {
+		return convertOutput, fmt.Errorf("pg_restore SQL conversion failed: %w\n%s", convertErr, convertOutput)
+	}
+
+	filtered, openErr := os.Open(sqlPath)
+	if openErr != nil {
+		return output, fmt.Errorf("open converted SQL: %w", openErr)
+	}
+	defer func() { _ = filtered.Close() }()
+
+	fallbackOutput, fallbackErr := runPSQL(ctx, pgcompat.NewSQLFilter(filtered), target, singleTransaction)
+	if fallbackErr != nil {
+		return fallbackOutput, fmt.Errorf("psql compatibility fallback failed: %w\n%s", fallbackErr, fallbackOutput)
+	}
+	return fallbackOutput, nil
+}
+
+func runPSQL(ctx context.Context, reader io.Reader, target RestoreTarget, singleTransaction bool) (string, error) {
+	args := []string{
+		"-X",
+		"-w",
+		"-v", "ON_ERROR_STOP=1",
+	}
+	if singleTransaction {
+		args = append(args, "--single-transaction")
+	}
+	args = append(args,
+		"-h", target.Host,
+		"-p", target.Port,
+		"-U", target.User,
+		"-d", target.DBName,
+	)
+	return runRestoreCommand(ctx, target, "psql", args, reader)
+}
+
+func runRestoreCommand(ctx context.Context, target RestoreTarget, binary string, args []string, stdin io.Reader) (string, error) {
+	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.Env = append(os.Environ(),
 		"PGPASSWORD="+target.Password,
 		"PGSSLMODE="+target.SSLMode,
 		"PGAPPNAME=backup-manager-restore",
 		"PGCONNECT_TIMEOUT=10",
 	)
-	cmd.Stdin = reader
+	cmd.Stdin = stdin
 
 	output := &limitedBuffer{max: 128 * 1024}
 	cmd.Stdout = output
 	cmd.Stderr = output
 
-	if err := cmd.Run(); err != nil {
-		return output.String(), fmt.Errorf("%s restore failed: %w\n%s", binary, err, output.String())
-	}
-	return output.String(), nil
+	err := cmd.Run()
+	return output.String(), err
 }
 
 // limitedBuffer captures a bounded amount of command output so a noisy psql

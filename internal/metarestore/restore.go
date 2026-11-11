@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/MD2SA/backup-manager/internal/config"
+	"github.com/MD2SA/backup-manager/internal/pgcompat"
 	"github.com/MD2SA/backup-manager/internal/pkg/crypto"
 )
 
@@ -229,8 +230,56 @@ const userObjectsQuery = "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON
 // restore restores a plaintext pg_dump archive into the metadata database.
 func restore(cfg config.DatabaseConfig, plainFile string, replace bool) error {
 	cmd := restoreCommand(cfg, plainFile, replace)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	if !pgcompat.IsTransactionTimeoutError(string(out)) {
 		return fmt.Errorf("pg_restore failed: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	if fallbackErr := restoreViaSQL(cfg, plainFile, replace); fallbackErr != nil {
+		return fmt.Errorf("pg_restore failed: %v: %s; compatibility fallback: %w", err, strings.TrimSpace(string(out)), fallbackErr)
+	}
+	return nil
+}
+
+// restoreViaSQL converts a custom-format archive to SQL, filters client/server
+// compatibility settings and applies it with psql. It is used when a newer
+// pg_restore archive contains settings an older server does not understand.
+func restoreViaSQL(cfg config.DatabaseConfig, plainFile string, replace bool) error {
+	sqlFile, err := os.CreateTemp(filepath.Dir(plainFile), "metadata-restore-*.sql")
+	if err != nil {
+		return fmt.Errorf("create compatibility SQL file: %w", err)
+	}
+	sqlPath := sqlFile.Name()
+	_ = sqlFile.Close()
+	defer func() { _ = os.Remove(sqlPath) }()
+
+	convertArgs := []string{"--no-owner", "--no-acl", "--exit-on-error", "-f", sqlPath}
+	if replace {
+		convertArgs = append(convertArgs, "--clean", "--if-exists")
+	}
+	convertArgs = append(convertArgs, plainFile)
+	convert := exec.Command("pg_restore", convertArgs...)
+	convert.Env = connEnv(cfg)
+	if out, err := convert.CombinedOutput(); err != nil {
+		return fmt.Errorf("convert archive to SQL: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+
+	filtered, err := os.Open(sqlPath)
+	if err != nil {
+		return fmt.Errorf("open compatibility SQL: %w", err)
+	}
+	defer func() { _ = filtered.Close() }()
+
+	apply := exec.Command("psql",
+		"-X", "-w", "-v", "ON_ERROR_STOP=1", "--single-transaction",
+		"-h", cfg.Host, "-p", cfg.Port, "-U", cfg.User, "-d", cfg.DBName,
+	)
+	apply.Env = connEnv(cfg)
+	apply.Stdin = pgcompat.NewSQLFilter(filtered)
+	if out, err := apply.CombinedOutput(); err != nil {
+		return fmt.Errorf("psql compatibility fallback failed: %v: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
