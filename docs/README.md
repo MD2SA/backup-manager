@@ -10,6 +10,7 @@ Canonical documentation lives in this directory and is published at
 | [API](guides/API.md) | endpoints, authentication, pagination and examples |
 | [Architecture](guides/ARCHITECTURE.md) | modules, backup lifecycle, design decisions |
 | [Testing](guides/TESTING.md) | unit, integration, S3 and container recovery drill |
+| [Releasing](guides/RELEASING.md) | versioning, tags, GHCR publishing, verification and rollback |
 | [Observability](../deploy/observability/README.md) | Prometheus rules and the Grafana dashboard |
 
 Swagger UI is served by the running service at `/swagger/index.html`.

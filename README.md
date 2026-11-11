@@ -67,7 +67,7 @@ docker run --rm -it -u "$(id -u):$(id -g)" \
   -v "$PWD:/work" -w /work \
   backup-manager:local init --docker
 
-IMAGE_TAG=local docker compose up -d
+IMAGE_TAG=backup-manager:local docker compose up -d
 ```
 
 Check it:
@@ -75,7 +75,7 @@ Check it:
 ```bash
 curl http://localhost:8080/healthz
 curl http://localhost:8080/readyz
-IMAGE_TAG=local docker compose run --rm backup-manager config check --connect
+IMAGE_TAG=backup-manager:local docker compose run --rm backup-manager config check --connect
 ```
 
 `init --docker` writes `config.yaml` and `secrets.env` (mode `0600`) and uses
@@ -228,6 +228,7 @@ Operational procedures: [Operations runbook](docs/guides/OPERATIONS.md).
 | [API](docs/guides/API.md) | endpoints, auth, pagination and examples |
 | [Architecture](docs/guides/ARCHITECTURE.md) | modules, backup lifecycle, design decisions |
 | [Testing](docs/guides/TESTING.md) | unit, integration, S3 and container recovery drill |
+| [Releasing](docs/guides/RELEASING.md) | versioning, tags, GHCR publishing, verification and rollback |
 | [Observability](deploy/observability/README.md) | Prometheus rules and Grafana dashboard |
 | [Changelog](CHANGELOG.md) | release history |
 | [Contributing](CONTRIBUTING.md) | development, tests and pull requests |
