@@ -76,7 +76,7 @@ func (h *ProfileHandler) List(w http.ResponseWriter, r *http.Request) {
 	next := ""
 	if hasMore && len(profiles) > 0 {
 		last := profiles[len(profiles)-1]
-		next = pagination.NameCursor("profiles", last.Profile.Name, last.Profile.ID)
+		next = pagination.NameCursor("profiles", last.Name, last.ID)
 	}
 	pagination.SetNextLink(w, r, next)
 	apiutil.Success(w, http.StatusOK, dto.ProfilePage{Items: res, NextCursor: next, HasMore: hasMore})

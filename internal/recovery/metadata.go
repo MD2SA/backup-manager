@@ -131,7 +131,7 @@ func runMetadata(ctx context.Context, cfg config.Config, opts MetadataOptions, d
 		return result, fmt.Errorf("no metadata snapshots found under %s", root)
 	}
 
-	snapshot := result.Latest
+	var snapshot string
 	if s3Source {
 		downloaded, cleanup, err := downloadSnapshot(ctx, provider, result.Latest, cfg.TempDir)
 		if err != nil {

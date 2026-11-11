@@ -115,13 +115,13 @@ func (f *fakeObjectStore) list(w http.ResponseWriter, prefix string) {
 	b.WriteString(`<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">`)
 	b.WriteString("<Name>" + fakeBucket + "</Name>")
 	b.WriteString("<Prefix>" + html.EscapeString(prefix) + "</Prefix>")
-	b.WriteString(fmt.Sprintf("<KeyCount>%d</KeyCount>", len(items)))
+	fmt.Fprintf(&b, "<KeyCount>%d</KeyCount>", len(items))
 	b.WriteString("<MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated>")
 	for _, item := range items {
 		b.WriteString("<Contents><Key>" + html.EscapeString(item.key) + "</Key>")
 		b.WriteString("<LastModified>2026-01-01T00:00:00.000Z</LastModified>")
 		b.WriteString(`<ETag>"etag"</ETag>`)
-		b.WriteString(fmt.Sprintf("<Size>%d</Size><StorageClass>STANDARD</StorageClass></Contents>", item.size))
+		fmt.Fprintf(&b, "<Size>%d</Size><StorageClass>STANDARD</StorageClass></Contents>", item.size)
 	}
 	b.WriteString("</ListBucketResult>")
 	w.Header().Set("Content-Type", "application/xml")
