@@ -84,6 +84,10 @@ type Config struct {
 	MetadataBackupRetention  int
 	MetadataBackupEmbed      bool
 	AllowUnencryptedBackups  bool
+	OverdueFactor            float64
+	OverdueGrace             time.Duration
+	AuditRetentionDays       int
+	AuditCleanupSchedule     string
 	MetadataDB               DatabaseConfig
 	TargetDB                 DatabaseConfig
 }
@@ -100,6 +104,8 @@ type fileConfig struct {
 	TargetDatabase   databaseFileConfig       `yaml:"target_database"`
 	Encryption       encryptionFileConfig     `yaml:"encryption"`
 	MetadataBackup   metadataBackupFileConfig `yaml:"metadata_backup"`
+	Health           healthFileConfig         `yaml:"health"`
+	Audit            auditFileConfig          `yaml:"audit"`
 }
 
 type serverFileConfig struct {
@@ -138,6 +144,16 @@ type metadataBackupFileConfig struct {
 	Schedule  string `yaml:"schedule"`
 	Retention int    `yaml:"retention"`
 	Embed     bool   `yaml:"embed"`
+}
+
+type healthFileConfig struct {
+	OverdueFactor float64 `yaml:"overdue_factor"`
+	OverdueGrace  string  `yaml:"overdue_grace"`
+}
+
+type auditFileConfig struct {
+	RetentionDays   int    `yaml:"retention_days"`
+	CleanupSchedule string `yaml:"cleanup_schedule"`
 }
 
 // secretRefs maps logical secrets to keys inside the secrets file. Keeping the
@@ -196,6 +212,14 @@ func defaultFileConfig() fileConfig {
 		MetadataBackup: metadataBackupFileConfig{
 			Retention: 14,
 			Embed:     true,
+		},
+		Health: healthFileConfig{
+			OverdueFactor: 2.0,
+			OverdueGrace:  "15m",
+		},
+		Audit: auditFileConfig{
+			RetentionDays:   90,
+			CleanupSchedule: "0 4 * * *",
 		},
 	}
 }
@@ -278,6 +302,10 @@ func loadFrom(path, secretsPathOverride string, requireAdminKey bool) (Config, e
 	if err != nil {
 		return Config{}, fmt.Errorf("server.rate_limit.window: %w", err)
 	}
+	overdueGrace, err := time.ParseDuration(file.Health.OverdueGrace)
+	if err != nil {
+		return Config{}, fmt.Errorf("health.overdue_grace: %w", err)
+	}
 
 	cfg := Config{
 		ConfigPath:               path,
@@ -301,6 +329,10 @@ func loadFrom(path, secretsPathOverride string, requireAdminKey bool) (Config, e
 		MetadataBackupRetention:  file.MetadataBackup.Retention,
 		MetadataBackupEmbed:      file.MetadataBackup.Embed,
 		AllowUnencryptedBackups:  file.Encryption.AllowUnencryptedBackups,
+		OverdueFactor:            file.Health.OverdueFactor,
+		OverdueGrace:             overdueGrace,
+		AuditRetentionDays:       file.Audit.RetentionDays,
+		AuditCleanupSchedule:     file.Audit.CleanupSchedule,
 		MetadataDB: DatabaseConfig{
 			Host:     file.MetadataDatabase.Host,
 			Port:     file.MetadataDatabase.Port,
@@ -428,6 +460,22 @@ func (c *Config) validate(requireAdminKey bool) error {
 
 	if c.MetadataBackupRetention < 0 {
 		add("metadata_backup.retention must be zero or greater")
+	}
+	if c.OverdueFactor < 1 {
+		add("health.overdue_factor must be at least 1")
+	}
+	if c.OverdueGrace < 0 {
+		add("health.overdue_grace must be zero or greater")
+	}
+	if c.AuditRetentionDays < 0 {
+		add("audit.retention_days must be zero or greater")
+	}
+	if c.AuditRetentionDays > 0 {
+		if c.AuditCleanupSchedule == "" {
+			add("audit.cleanup_schedule is required when audit.retention_days > 0")
+		} else if _, err := cron.ParseStandard(c.AuditCleanupSchedule); err != nil {
+			add("audit.cleanup_schedule is not a valid 5-field cron expression: %v", err)
+		}
 	}
 	if c.MetadataBackupSchedule != "" {
 		if _, err := cron.ParseStandard(c.MetadataBackupSchedule); err != nil {

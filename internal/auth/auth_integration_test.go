@@ -113,6 +113,25 @@ func TestAuthIntegration_Postgres(t *testing.T) {
 	if len(entries) != 1 || entries[0].Action != "POST /api/v1/users" {
 		t.Fatalf("unexpected audit entries: %+v", entries)
 	}
+
+	old := time.Now().AddDate(0, 0, -100)
+	if _, err := pool.Exec(ctx, `INSERT INTO audit_log (action, created_at) VALUES ('old-action', $1)`, old); err != nil {
+		t.Fatalf("insert old audit: %v", err)
+	}
+	deleted, err := service.CleanupAudit(ctx, time.Now().AddDate(0, 0, -90))
+	if err != nil {
+		t.Fatalf("cleanup audit: %v", err)
+	}
+	if deleted != 1 {
+		t.Fatalf("deleted audit entries = %d, want 1", deleted)
+	}
+	entries, err = service.ListAuditEntries(ctx, 10, 0)
+	if err != nil {
+		t.Fatalf("list audit after cleanup: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Action != "POST /api/v1/users" {
+		t.Fatalf("cleanup removed the wrong audit rows: %+v", entries)
+	}
 }
 
 func databaseConfig(t *testing.T, dsn string) config.DatabaseConfig {

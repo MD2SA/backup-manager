@@ -3,9 +3,11 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository/db"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // AuditEvent describes a security-relevant action.
@@ -54,4 +56,8 @@ func (s *Service) ListAuditEntries(ctx context.Context, limit, offset int32) ([]
 
 func (s *Service) ListAuditEntriesPage(ctx context.Context, arg db.ListAuditEntriesPageParams) ([]db.AuditLog, error) {
 	return s.repo.ListAuditEntriesPage(ctx, arg)
+}
+
+func (s *Service) CleanupAudit(ctx context.Context, cutoff time.Time) (int64, error) {
+	return s.repo.DeleteOldAuditEntries(ctx, pgtype.Timestamptz{Time: cutoff, Valid: true})
 }

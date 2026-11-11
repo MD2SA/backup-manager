@@ -81,6 +81,7 @@ type Profile struct {
 	CreatedAt         pgtype.Timestamptz
 	UpdatedAt         pgtype.Timestamptz
 	EncryptionEnabled bool
+	ScheduledSince    pgtype.Timestamptz
 }
 
 type ProfileNotificationProvider struct {

@@ -131,6 +131,10 @@ func Init(opts InitOptions) (InitResult, error) {
 		MetadataBackupRetention:  opts.MetadataBackupRetention,
 		MetadataBackupEmbed:      opts.MetadataBackupEmbed,
 		AllowUnencryptedBackups:  opts.AllowUnencryptedBackups,
+		OverdueFactor:            2.0,
+		OverdueGrace:             15 * time.Minute,
+		AuditRetentionDays:       90,
+		AuditCleanupSchedule:     "0 4 * * *",
 		MetadataDB: DatabaseConfig{
 			Host:     opts.MetadataHost,
 			Port:     opts.MetadataPort,
@@ -443,7 +447,15 @@ func renderConfig(opts InitOptions, secretsFile string) string {
 	b.WriteString("metadata_backup:\n")
 	fmt.Fprintf(&b, "  schedule: %s\n", yamlScalar(opts.MetadataBackupSchedule))
 	fmt.Fprintf(&b, "  retention: %d\n", opts.MetadataBackupRetention)
-	fmt.Fprintf(&b, "  embed: %t\n", opts.MetadataBackupEmbed)
+	fmt.Fprintf(&b, "  embed: %t\n\n", opts.MetadataBackupEmbed)
+
+	b.WriteString("health:\n")
+	b.WriteString("  overdue_factor: 2.0\n")
+	b.WriteString("  overdue_grace: \"15m\"\n\n")
+
+	b.WriteString("audit:\n")
+	b.WriteString("  retention_days: 90\n")
+	b.WriteString("  cleanup_schedule: \"0 4 * * *\"\n")
 
 	return b.String()
 }

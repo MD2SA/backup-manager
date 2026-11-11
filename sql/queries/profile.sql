@@ -16,9 +16,11 @@ INSERT INTO profiles (
     retention_policy_id,
     compression_type,
     compression_level,
-    encryption_enabled
+    encryption_enabled,
+    scheduled_since
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7,$8
+    $1,$2,$3,$4,$5,$6,$7,$8,
+    CASE WHEN $3 THEN now() ELSE NULL END
 )
 RETURNING *;
 
@@ -33,6 +35,11 @@ SET
     compression_type = $7,
     compression_level = $8,
     encryption_enabled = $9,
+    scheduled_since = CASE
+        WHEN $4 AND (NOT enabled OR schedule <> $5) THEN now()
+        WHEN $4 THEN scheduled_since
+        ELSE NULL
+    END,
     updated_at = now()
 WHERE id = $1
 RETURNING *;
@@ -43,7 +50,10 @@ WHERE id = $1;
 
 -- name: SetProfileEnabled :one
 UPDATE profiles
-SET enabled = $2, updated_at = now()
+SET
+    enabled = $2,
+    scheduled_since = CASE WHEN $2 THEN now() ELSE NULL END,
+    updated_at = now()
 WHERE id = $1
 RETURNING *;
 

@@ -12,6 +12,7 @@ import (
 	"github.com/MD2SA/backup-manager/internal/api/handlers"
 	apimiddleware "github.com/MD2SA/backup-manager/internal/api/middleware"
 	"github.com/MD2SA/backup-manager/internal/auth"
+	"github.com/MD2SA/backup-manager/internal/metrics"
 	"github.com/MD2SA/backup-manager/internal/monitor"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository"
@@ -30,6 +31,7 @@ func New(
 	repo repository.Repository,
 	monitorService *monitor.Service,
 	authService *auth.Service,
+	metricsService *metrics.Metrics,
 	rateLimitRequests int,
 	rateLimitWindow time.Duration,
 	corsOrigins []string,
@@ -52,6 +54,7 @@ func New(
 	// an API key. Keep /api/v1/health for compatibility with existing clients.
 	r.Get("/healthz", handlers.Health)
 	r.Get("/readyz", handlers.Ready(ready))
+	r.Get("/version", handlers.Version)
 
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
@@ -64,7 +67,7 @@ func New(
 	}
 	executionHandler := &handlers.ExecutionHandler{Repo: repo}
 	providerHandler := &handlers.ProviderHandler{Repo: repo}
-	monitorHandler := &handlers.MonitorHandler{Service: monitorService}
+	monitorHandler := &handlers.MonitorHandler{Service: monitorService, Metrics: metricsService}
 	restoreHandler := &handlers.RestoreHandler{Repo: repo, Enqueue: onRestore}
 	retentionHandler := &handlers.RetentionHandler{Repo: repo}
 	authHandler := &handlers.AuthHandler{Service: authService}
@@ -75,7 +78,8 @@ func New(
 		r.Use(httprate.LimitBy(rateLimitRequests, rateLimitWindow, func(r *http.Request) (string, error) {
 			return httprate.CanonicalizeIP(apimiddleware.GetClientIP(r.Context())), nil
 		}))
-		r.Use(apimiddleware.Authenticate(authService))
+		r.Use(apimiddleware.Metrics(metricsService))
+		r.Use(apimiddleware.Authenticate(authService, metricsService))
 		r.Use(apimiddleware.Audit(authService, logger))
 		r.Use(httprate.LimitBy(rateLimitRequests, rateLimitWindow, func(r *http.Request) (string, error) {
 			principal, ok := auth.PrincipalFromContext(r.Context())
@@ -87,6 +91,10 @@ func New(
 			}
 			return principal.Email, nil
 		}))
+
+		if metricsService != nil {
+			r.Get("/metrics", metricsService.Handler().ServeHTTP)
+		}
 
 		r.Get("/health", handlers.Health)
 		r.Get("/health/summary", monitorHandler.HealthSummary)

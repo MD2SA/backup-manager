@@ -66,6 +66,19 @@ func (q *Queries) CreateAuditEntry(ctx context.Context, arg CreateAuditEntryPara
 	return i, err
 }
 
+const deleteOldAuditEntries = `-- name: DeleteOldAuditEntries :execrows
+DELETE FROM audit_log
+WHERE created_at < $1
+`
+
+func (q *Queries) DeleteOldAuditEntries(ctx context.Context, createdAt pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOldAuditEntries, createdAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listAuditEntries = `-- name: ListAuditEntries :many
 SELECT id, user_id, api_key_id, action, resource_type, resource_id, request_id, ip, metadata, created_at
 FROM audit_log

@@ -2,6 +2,10 @@
 
 FROM golang:1.26.5-alpine AS builder
 
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
+
 WORKDIR /app
 
 RUN apk add --no-cache git
@@ -20,7 +24,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build \
     -trimpath \
-    -ldflags="-s -w" \
+    -ldflags="-s -w \
+      -X github.com/MD2SA/backup-manager/internal/version.Version=${VERSION} \
+      -X github.com/MD2SA/backup-manager/internal/version.Commit=${COMMIT} \
+      -X github.com/MD2SA/backup-manager/internal/version.Date=${BUILD_DATE}" \
     -o /bin/backup-manager ./cmd/api
 
 FROM alpine:3.21

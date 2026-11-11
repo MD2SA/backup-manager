@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const minimalConfig = `version: 1
@@ -68,6 +69,42 @@ func TestLoad_DefaultsAndSecrets(t *testing.T) {
 	}
 	if len(cfg.CORSOrigins) != 1 || cfg.CORSOrigins[0] != "http://localhost:3000" {
 		t.Errorf("default CORS = %v", cfg.CORSOrigins)
+	}
+	if cfg.OverdueFactor != 2.0 {
+		t.Errorf("default overdue factor = %v", cfg.OverdueFactor)
+	}
+	if cfg.OverdueGrace != 15*time.Minute {
+		t.Errorf("default overdue grace = %v", cfg.OverdueGrace)
+	}
+	if cfg.AuditRetentionDays != 90 {
+		t.Errorf("default audit retention = %d", cfg.AuditRetentionDays)
+	}
+	if cfg.AuditCleanupSchedule != "0 4 * * *" {
+		t.Errorf("default audit schedule = %q", cfg.AuditCleanupSchedule)
+	}
+}
+
+func TestLoad_RejectsInvalidHealthAndAuditConfig(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+	cfg := minimalConfig + `health:
+  overdue_factor: 0.5
+  overdue_grace: "-1m"
+audit:
+  retention_days: 30
+  cleanup_schedule: "not a cron"
+`
+	configPath, _ := writeTestFiles(t, dir, cfg, "METADATA_DB_PASSWORD=secret\n")
+
+	_, err := Load(configPath)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	msg := err.Error()
+	for _, want := range []string{"health.overdue_factor", "health.overdue_grace", "audit.cleanup_schedule"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("expected error to mention %q, got %v", want, msg)
+		}
 	}
 }
 

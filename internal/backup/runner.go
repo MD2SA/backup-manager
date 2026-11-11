@@ -58,6 +58,13 @@ func (r *BackupRunner) Start(ctx context.Context) {
 	}()
 }
 
+// Depth returns queued plus running profiles.
+func (r *BackupRunner) Depth() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.queue) + len(r.pending)
+}
+
 // Wait blocks until the runner goroutine stops.
 func (r *BackupRunner) Wait() {
 	r.wg.Wait()

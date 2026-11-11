@@ -10,6 +10,7 @@ import (
 
 	"github.com/MD2SA/backup-manager/internal/backup"
 	"github.com/MD2SA/backup-manager/internal/config"
+	"github.com/MD2SA/backup-manager/internal/metrics"
 	"github.com/MD2SA/backup-manager/internal/monitor"
 	"github.com/MD2SA/backup-manager/internal/notification"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
@@ -30,6 +31,7 @@ type BackupService struct {
 	logger          *slog.Logger
 	gate            *backup.Gate
 	notifier        *Notifier
+	metrics         *metrics.Metrics
 }
 
 func NewBackupService(
@@ -41,6 +43,7 @@ func NewBackupService(
 	logger *slog.Logger,
 	gate *backup.Gate,
 	notifier *Notifier,
+	metricsService *metrics.Metrics,
 ) *BackupService {
 	return &BackupService{
 		repo:            repo,
@@ -51,6 +54,7 @@ func NewBackupService(
 		logger:          logger,
 		gate:            gate,
 		notifier:        notifier,
+		metrics:         metricsService,
 	}
 }
 
@@ -253,6 +257,21 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 	}
 
 	_, updateErr := s.repo.UpdateExecution(ctx, updateParams)
+
+	if s.metrics != nil {
+		profileIDText := pgutil.UUIDToString(profileID)
+		status := "success"
+		if err != nil {
+			status = "failed"
+		}
+		s.metrics.BackupsTotal.WithLabelValues(profileIDText, p.Name, status).Inc()
+		s.metrics.BackupDuration.WithLabelValues(profileIDText, p.Name).Observe(execCtx.EndTime.Sub(execCtx.StartTime).Seconds())
+		if err == nil {
+			s.metrics.BackupBytes.WithLabelValues(profileIDText, p.Name).Set(float64(execCtx.Size))
+			s.metrics.LastSuccess.WithLabelValues(profileIDText, p.Name).SetToCurrentTime()
+		}
+	}
+
 	return updateErr
 }
 

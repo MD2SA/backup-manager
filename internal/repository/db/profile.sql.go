@@ -72,11 +72,13 @@ INSERT INTO profiles (
     retention_policy_id,
     compression_type,
     compression_level,
-    encryption_enabled
+    encryption_enabled,
+    scheduled_since
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7,$8
+    $1,$2,$3,$4,$5,$6,$7,$8,
+    CASE WHEN $3 THEN now() ELSE NULL END
 )
-RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled
+RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled, scheduled_since
 `
 
 type CreateProfileParams struct {
@@ -114,6 +116,7 @@ func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (P
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.EncryptionEnabled,
+		&i.ScheduledSince,
 	)
 	return i, err
 }
@@ -129,7 +132,7 @@ func (q *Queries) DeleteProfile(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getProfile = `-- name: GetProfile :one
-SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled FROM profiles
+SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled, scheduled_since FROM profiles
 WHERE id = $1
 LIMIT 1
 `
@@ -149,6 +152,7 @@ func (q *Queries) GetProfile(ctx context.Context, id pgtype.UUID) (Profile, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.EncryptionEnabled,
+		&i.ScheduledSince,
 	)
 	return i, err
 }
@@ -204,7 +208,7 @@ func (q *Queries) GetProfileStorageProviderIDs(ctx context.Context, profileID pg
 }
 
 const listProfiles = `-- name: ListProfiles :many
-SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled FROM profiles
+SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled, scheduled_since FROM profiles
 ORDER BY name
 `
 
@@ -229,6 +233,7 @@ func (q *Queries) ListProfiles(ctx context.Context) ([]Profile, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.EncryptionEnabled,
+			&i.ScheduledSince,
 		); err != nil {
 			return nil, err
 		}
@@ -241,7 +246,7 @@ func (q *Queries) ListProfiles(ctx context.Context) ([]Profile, error) {
 }
 
 const listProfilesPage = `-- name: ListProfilesPage :many
-SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled
+SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled, scheduled_since
 FROM profiles
 WHERE ($1::text IS NULL OR (name, id) > ($1, $2::uuid))
 ORDER BY name ASC, id ASC
@@ -275,6 +280,7 @@ func (q *Queries) ListProfilesPage(ctx context.Context, arg ListProfilesPagePara
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.EncryptionEnabled,
+			&i.ScheduledSince,
 		); err != nil {
 			return nil, err
 		}
@@ -288,9 +294,12 @@ func (q *Queries) ListProfilesPage(ctx context.Context, arg ListProfilesPagePara
 
 const setProfileEnabled = `-- name: SetProfileEnabled :one
 UPDATE profiles
-SET enabled = $2, updated_at = now()
+SET
+    enabled = $2,
+    scheduled_since = CASE WHEN $2 THEN now() ELSE NULL END,
+    updated_at = now()
 WHERE id = $1
-RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled
+RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled, scheduled_since
 `
 
 type SetProfileEnabledParams struct {
@@ -313,6 +322,7 @@ func (q *Queries) SetProfileEnabled(ctx context.Context, arg SetProfileEnabledPa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.EncryptionEnabled,
+		&i.ScheduledSince,
 	)
 	return i, err
 }
@@ -328,9 +338,14 @@ SET
     compression_type = $7,
     compression_level = $8,
     encryption_enabled = $9,
+    scheduled_since = CASE
+        WHEN $4 AND (NOT enabled OR schedule <> $5) THEN now()
+        WHEN $4 THEN scheduled_since
+        ELSE NULL
+    END,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled
+RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled, scheduled_since
 `
 
 type UpdateProfileParams struct {
@@ -370,6 +385,7 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (P
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.EncryptionEnabled,
+		&i.ScheduledSince,
 	)
 	return i, err
 }

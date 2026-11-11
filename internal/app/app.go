@@ -13,6 +13,8 @@ import (
 	"github.com/MD2SA/backup-manager/internal/config"
 	"github.com/MD2SA/backup-manager/internal/database"
 	"github.com/MD2SA/backup-manager/internal/logger"
+	"github.com/MD2SA/backup-manager/internal/maintenance"
+	"github.com/MD2SA/backup-manager/internal/metrics"
 	"github.com/MD2SA/backup-manager/internal/monitor"
 	"github.com/MD2SA/backup-manager/internal/pkg/crypto"
 	"github.com/MD2SA/backup-manager/internal/repository"
@@ -40,6 +42,8 @@ type App struct {
 	RestoreRunner   *backup.RestoreRunner
 	ProviderService *service.ProviderService
 	MetadataBackup  *selfbackup.Service
+	Maintenance     *maintenance.Service
+	Metrics         *metrics.Metrics
 }
 
 func New(ctx context.Context, cfg config.Config) (*App, error) {
@@ -56,12 +60,14 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		return nil, fmt.Errorf("auth bootstrap: %w", err)
 	}
 	retentionEngine := retention.New(repo, log)
-	monitorService := monitor.New(repo)
+	monitorService := monitor.New(repo, cfg.OverdueFactor, cfg.OverdueGrace)
 	providerService := service.NewProviderService(repo, cfg)
 	notifier := service.NewNotifier(providerService, log)
 	gate := backup.NewGate()
-	backupService := service.NewBackupService(repo, providerService, retentionEngine, monitorService, cfg, log, gate, notifier)
-	restoreService := service.NewRestoreService(repo, providerService, cfg, log, gate, notifier)
+	metricsService := metrics.New()
+	maintenanceService := maintenance.New(log, authService, cfg.AuditRetentionDays, cfg.AuditCleanupSchedule, metricsService)
+	backupService := service.NewBackupService(repo, providerService, retentionEngine, monitorService, cfg, log, gate, notifier, metricsService)
+	restoreService := service.NewRestoreService(repo, providerService, cfg, log, gate, notifier, metricsService)
 
 	a := &App{
 		Config:          cfg,
@@ -74,6 +80,8 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		RestoreService:  restoreService,
 		AuthService:     authService,
 		ProviderService: providerService,
+		Maintenance:     maintenanceService,
+		Metrics:         metricsService,
 	}
 
 	a.logInfrastructureStatus()
@@ -100,7 +108,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		}
 	})
 
-	r := router.New(log, repo, monitorService, authService, a.Config.RateLimitRequests, a.Config.RateLimitWindow, a.Config.CORSOrigins, trustedProxies, func(ctx context.Context) error {
+	r := router.New(log, repo, monitorService, authService, metricsService, a.Config.RateLimitRequests, a.Config.RateLimitWindow, a.Config.CORSOrigins, trustedProxies, func(ctx context.Context) error {
 		return dbPool.Ping(ctx)
 	}, func(profileID pgtype.UUID) error {
 		return a.Runner.Enqueue(profileID)
@@ -124,9 +132,49 @@ func (a *App) Start(ctx context.Context) {
 	a.RestoreRunner.Start(ctx)
 	a.Scheduler.Start()
 	a.MetadataBackup.Start()
+	a.Maintenance.Start()
 
 	if err := a.syncScheduler(ctx); err != nil {
 		a.Logger.Error("Failed to synchronize scheduler", "error", err)
+	}
+
+	go a.refreshMetrics(ctx)
+}
+
+func (a *App) refreshMetrics(ctx context.Context) {
+	if a.Metrics == nil {
+		return
+	}
+	update := func() {
+		if a.Runner != nil {
+			a.Metrics.QueueDepth.Set(float64(a.Runner.Depth()))
+		}
+		if a.Scheduler != nil {
+			a.Metrics.SchedulerJobs.Set(float64(a.Scheduler.ActiveJobs()))
+		}
+		summary, err := a.Monitor.GetHealthSummary(ctx)
+		if err != nil {
+			return
+		}
+		a.Metrics.ActiveProfiles.Set(float64(summary.ActiveProfiles))
+		a.Metrics.OverdueProfiles.Set(float64(summary.OverdueProfiles))
+		for _, profile := range summary.ScheduledProfiles {
+			if profile.LastSuccess != nil {
+				a.Metrics.LastSuccess.WithLabelValues(profile.ID, profile.Name).Set(float64(profile.LastSuccess.Unix()))
+			}
+		}
+	}
+
+	update()
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			update()
+		}
 	}
 }
 
@@ -150,6 +198,9 @@ func (a *App) syncScheduler(ctx context.Context) error {
 	if err := a.Scheduler.Sync(jobs); err != nil {
 		return err
 	}
+	if a.Metrics != nil {
+		a.Metrics.SchedulerJobs.Set(float64(a.Scheduler.ActiveJobs()))
+	}
 	a.Logger.Info("Scheduler synchronized", "jobs", len(jobs))
 	return nil
 }
@@ -159,6 +210,9 @@ func (a *App) syncScheduler(ctx context.Context) error {
 func (a *App) Stop() {
 	if a.MetadataBackup != nil {
 		a.MetadataBackup.Stop()
+	}
+	if a.Maintenance != nil {
+		a.Maintenance.Stop()
 	}
 	if a.Scheduler != nil {
 		a.Scheduler.Stop()

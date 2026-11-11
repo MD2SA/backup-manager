@@ -61,7 +61,7 @@ func (f *fakeRestoreRepo) UpdateRestore(_ context.Context, arg db.UpdateRestoreP
 
 func restoreTestService(repo *fakeRestoreRepo, cfg config.Config) *RestoreService {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	service := NewRestoreService(repo, nil, cfg, logger, nil, nil)
+	service := NewRestoreService(repo, nil, cfg, logger, nil, nil, nil)
 	service.checkTarget = func(context.Context, backup.RestoreTarget) error { return nil }
 	return service
 }

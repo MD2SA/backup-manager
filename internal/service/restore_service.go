@@ -11,6 +11,7 @@ import (
 
 	"github.com/MD2SA/backup-manager/internal/backup"
 	"github.com/MD2SA/backup-manager/internal/config"
+	"github.com/MD2SA/backup-manager/internal/metrics"
 	"github.com/MD2SA/backup-manager/internal/notification"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository"
@@ -47,6 +48,7 @@ type RestoreService struct {
 	logger          *slog.Logger
 	gate            *backup.Gate
 	notifier        *Notifier
+	metrics         *metrics.Metrics
 	queue           func(pgtype.UUID) error
 	checkTarget     func(context.Context, backup.RestoreTarget) error
 }
@@ -58,6 +60,7 @@ func NewRestoreService(
 	logger *slog.Logger,
 	gate *backup.Gate,
 	notifier *Notifier,
+	metricsService *metrics.Metrics,
 ) *RestoreService {
 	return &RestoreService{
 		repo:            repo,
@@ -66,6 +69,7 @@ func NewRestoreService(
 		logger:          logger,
 		gate:            gate,
 		notifier:        notifier,
+		metrics:         metricsService,
 		checkTarget: func(ctx context.Context, target backup.RestoreTarget) error {
 			return target.CheckEmpty(ctx)
 		},
@@ -383,6 +387,10 @@ func (s *RestoreService) finishSuccess(
 		return err
 	}
 
+	if s.metrics != nil {
+		s.metrics.RestoresTotal.WithLabelValues("success").Inc()
+		s.metrics.RestoreDuration.Observe(finished.Sub(started).Seconds())
+	}
 	s.notifyAll(ctx, profile.NotificationProviderIDs, notification.EventSuccess,
 		fmt.Sprintf("Restore completed for execution: %s", pgutil.UUIDToString(restore.ExecutionID)),
 		map[string]interface{}{
@@ -402,6 +410,10 @@ func (s *RestoreService) finishFailed(
 	cause error,
 ) error {
 	finished := time.Now()
+	if s.metrics != nil {
+		s.metrics.RestoresTotal.WithLabelValues("failed").Inc()
+		s.metrics.RestoreDuration.Observe(finished.Sub(started).Seconds())
+	}
 	logs = append(logs, time.Now().Format(time.RFC3339)+": restore failed: "+cause.Error())
 
 	_, updateErr := s.update(ctx, db.UpdateRestoreParams{

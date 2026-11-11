@@ -8,6 +8,7 @@ import (
 	"github.com/MD2SA/backup-manager/internal/repository"
 	"github.com/MD2SA/backup-manager/internal/repository/db"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/robfig/cron/v3"
 )
 
 type fakeRepo struct {
@@ -25,10 +26,16 @@ func (f *fakeRepo) ListExecutionsByProfile(_ context.Context, id pgtype.UUID) ([
 }
 
 func profile(id byte, enabled bool, schedule string) repository.ProfileFull {
+	return profileWithSince(id, enabled, schedule, time.Time{})
+}
+
+func profileWithSince(id byte, enabled bool, schedule string, since time.Time) repository.ProfileFull {
 	return repository.ProfileFull{Profile: db.Profile{
-		ID:       pgtype.UUID{Bytes: [16]byte{id}, Valid: true},
-		Enabled:  enabled,
-		Schedule: schedule,
+		ID:             pgtype.UUID{Bytes: [16]byte{id}, Valid: true},
+		Enabled:        enabled,
+		Schedule:       schedule,
+		CreatedAt:      pgtype.Timestamptz{Time: time.Now().Add(-365 * 24 * time.Hour), Valid: true},
+		ScheduledSince: pgtype.Timestamptz{Time: since, Valid: !since.IsZero()},
 	}}
 }
 
@@ -42,6 +49,93 @@ func execution(id byte, status string, at time.Time, size int64) db.Execution {
 	}
 }
 
+func TestGetHealthSummary_OverdueRules(t *testing.T) {
+	now := time.Now()
+	old := now.Add(-5 * time.Hour)
+
+	t.Run("old profile without success is overdue", func(t *testing.T) {
+		repo := &fakeRepo{
+			profiles:   []repository.ProfileFull{profileWithSince(1, true, "0 * * * *", old)},
+			executions: make(map[pgtype.UUID][]db.Execution),
+		}
+		summary, err := New(repo, 2, 15*time.Minute).GetHealthSummary(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if summary.OverdueProfiles != 1 || summary.Status != StatusCritical {
+			t.Fatalf("overdue=%d status=%s", summary.OverdueProfiles, summary.Status)
+		}
+	})
+
+	t.Run("recently enabled profile is not overdue", func(t *testing.T) {
+		repo := &fakeRepo{
+			profiles:   []repository.ProfileFull{profileWithSince(1, true, "0 * * * *", now.Add(-10*time.Minute))},
+			executions: make(map[pgtype.UUID][]db.Execution),
+		}
+		summary, err := New(repo, 2, 15*time.Minute).GetHealthSummary(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if summary.OverdueProfiles != 0 {
+			t.Fatalf("overdue=%d, want 0", summary.OverdueProfiles)
+		}
+	})
+
+	t.Run("recent success is not overdue", func(t *testing.T) {
+		p := profileWithSince(1, true, "0 * * * *", old)
+		repo := &fakeRepo{
+			profiles: []repository.ProfileFull{p},
+			executions: map[pgtype.UUID][]db.Execution{
+				p.ID: {execution(2, "success", now.Add(-5*time.Minute), 10)},
+			},
+		}
+		summary, err := New(repo, 2, 15*time.Minute).GetHealthSummary(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if summary.OverdueProfiles != 0 {
+			t.Fatalf("overdue=%d, want 0", summary.OverdueProfiles)
+		}
+	})
+
+	t.Run("disabled profile is ignored", func(t *testing.T) {
+		repo := &fakeRepo{
+			profiles:   []repository.ProfileFull{profileWithSince(1, false, "0 * * * *", old)},
+			executions: make(map[pgtype.UUID][]db.Execution),
+		}
+		summary, err := New(repo, 2, 15*time.Minute).GetHealthSummary(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if summary.ActiveProfiles != 0 || summary.OverdueProfiles != 0 {
+			t.Fatalf("active=%d overdue=%d", summary.ActiveProfiles, summary.OverdueProfiles)
+		}
+	})
+}
+
+func TestMaxGap(t *testing.T) {
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	now := time.Now()
+	for _, tc := range []struct {
+		schedule string
+		min      time.Duration
+		max      time.Duration
+	}{
+		{"*/15 * * * *", 14 * time.Minute, 16 * time.Minute},
+		{"0 * * * *", 59 * time.Minute, 61 * time.Minute},
+		{"0 0 * * *", 23 * time.Hour, 25 * time.Hour},
+	} {
+		schedule, err := parser.Parse(tc.schedule)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gap, ok := maxGap(schedule, now)
+		if !ok || gap < tc.min || gap > tc.max {
+			t.Errorf("%s: gap=%v ok=%v, want between %v and %v", tc.schedule, gap, ok, tc.min, tc.max)
+		}
+	}
+}
+
 func TestGetHealthSummary_MultipleEnabledProfilesWithoutExecutions(t *testing.T) {
 	repo := &fakeRepo{
 		profiles: []repository.ProfileFull{
@@ -51,7 +145,7 @@ func TestGetHealthSummary_MultipleEnabledProfilesWithoutExecutions(t *testing.T)
 		},
 		executions: make(map[pgtype.UUID][]db.Execution),
 	}
-	summary, err := New(repo).GetHealthSummary(context.Background())
+	summary, err := New(repo, 2, 15*time.Minute).GetHealthSummary(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +169,7 @@ func TestGetHealthSummary_AggregatesLatestStatus(t *testing.T) {
 			p2.ID: []db.Execution{execution(11, "failed", newer, 200)},
 		},
 	}
-	summary, err := New(repo).GetHealthSummary(context.Background())
+	summary, err := New(repo, 2, 15*time.Minute).GetHealthSummary(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

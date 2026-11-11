@@ -16,9 +16,8 @@ import (
 	"github.com/MD2SA/backup-manager/internal/logger"
 	"github.com/MD2SA/backup-manager/internal/metarestore"
 	"github.com/MD2SA/backup-manager/internal/pkg/crypto"
+	"github.com/MD2SA/backup-manager/internal/version"
 )
-
-var version = "dev"
 
 const defaultMigrationsDir = "sql/migrations"
 
@@ -55,7 +54,7 @@ func main() {
 	case "key":
 		runKey(os.Args[2:])
 	case "version", "--version":
-		fmt.Println(version)
+		fmt.Println(version.Version)
 	case "help", "-h", "--help":
 		usage()
 	default:

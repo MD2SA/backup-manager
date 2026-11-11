@@ -28,7 +28,7 @@ func TestAuthenticate_ValidKey(t *testing.T) {
 	authenticator := &fakeAuthenticator{principal: principal}
 
 	var got auth.Principal
-	handler := Authenticate(authenticator)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Authenticate(authenticator, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got, _ = auth.PrincipalFromContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -51,7 +51,7 @@ func TestAuthenticate_ValidKey(t *testing.T) {
 
 func TestAuthenticate_InvalidKey(t *testing.T) {
 	authenticator := &fakeAuthenticator{err: auth.ErrUnauthorized}
-	handler := Authenticate(authenticator)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Authenticate(authenticator, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler must not be called")
 	}))
 
