@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/MD2SA/backup-manager/internal/api/dto"
@@ -10,6 +11,7 @@ import (
 	"github.com/MD2SA/backup-manager/internal/repository"
 	"github.com/MD2SA/backup-manager/internal/repository/db"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -49,6 +51,46 @@ func (h *ProfileHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apiutil.Success(w, http.StatusOK, res)
+}
+
+// Get profile
+// @Summary Get a backup profile
+// @Description Get a profile by ID, including its linked storage and notification providers.
+// @Tags profiles
+// @Produce json
+// @Param id path string true "Profile ID"
+// @Success 200 {object} dto.ProfileResponse
+// @Failure 400 {object} apiutil.ErrorResponse
+// @Failure 404 {object} apiutil.ErrorResponse
+// @Failure 500 {object} apiutil.ErrorResponse
+// @Router /profiles/{id} [get]
+func (h *ProfileHandler) Get(w http.ResponseWriter, r *http.Request) {
+	id, err := pgutil.ParseUUID(chi.URLParam(r, "id"))
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, "Invalid profile ID")
+		return
+	}
+
+	p, err := h.Repo.GetProfile(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			apiutil.Error(w, http.StatusNotFound, "Profile not found")
+			return
+		}
+		apiutil.InternalError(w, err)
+		return
+	}
+
+	storageIDs := make([]string, len(p.StorageProviderIDs))
+	for i, storageID := range p.StorageProviderIDs {
+		storageIDs[i] = pgutil.UUIDToString(storageID)
+	}
+	notificationIDs := make([]string, len(p.NotificationProviderIDs))
+	for i, notificationID := range p.NotificationProviderIDs {
+		notificationIDs[i] = pgutil.UUIDToString(notificationID)
+	}
+
+	apiutil.Success(w, http.StatusOK, dto.ToProfileResponse(p.Profile, storageIDs, notificationIDs))
 }
 
 // Create profile

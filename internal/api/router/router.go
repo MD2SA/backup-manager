@@ -30,6 +30,7 @@ func New(
 	rateLimitWindow time.Duration,
 	corsOrigins []string,
 	trustedProxies []netip.Prefix,
+	ready func(context.Context) error,
 	onTrigger func(pgtype.UUID) error,
 	onRestore func(context.Context, pgtype.UUID) error,
 	onActivate func(db.Profile),
@@ -42,6 +43,11 @@ func New(
 	r.Use(apimiddleware.Logger(logger))
 
 	r.Use(corsHandler(corsOrigins))
+
+	// Public liveness/readiness endpoints: container healthchecks must not need
+	// an API key. Keep /api/v1/health for compatibility with existing clients.
+	r.Get("/healthz", handlers.Health)
+	r.Get("/readyz", handlers.Ready(ready))
 
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
@@ -102,6 +108,7 @@ func New(
 			r.Get("/", profileHandler.List)
 			r.Post("/", profileHandler.Create)
 			r.Route("/{id}", func(r chi.Router) {
+				r.Get("/", profileHandler.Get)
 				r.Put("/", profileHandler.Update)
 				r.Delete("/", profileHandler.Delete)
 				r.Post("/run", apimiddleware.Idempotency(profileHandler.RunNow))

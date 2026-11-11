@@ -1,15 +1,36 @@
 package config
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
+	"fmt"
+	"net"
 	"net/netip"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
-	"github.com/spf13/viper"
+	"filippo.io/age"
+	"github.com/robfig/cron/v3"
+	"gopkg.in/yaml.v3"
 )
 
+const (
+	// CurrentVersion is the schema version accepted by this build.
+	CurrentVersion = 1
+
+	// DefaultConfigPath is used when neither --config nor APP_CONFIG_PATH is set.
+	DefaultConfigPath = "config.yaml"
+
+	// DefaultSecretsFile is used when the config does not set secrets_file.
+	DefaultSecretsFile = "secrets.env"
+)
+
+// DatabaseConfig describes a PostgreSQL connection.
 type DatabaseConfig struct {
 	Host     string
 	Port     string
@@ -19,7 +40,31 @@ type DatabaseConfig struct {
 	SSLMode  string
 }
 
+// DSN renders the connection string used by pgx, psql and pg_dump helpers.
+func (d DatabaseConfig) DSN() string {
+	u := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(d.User, d.Password),
+		Host:   net.JoinHostPort(d.Host, d.Port),
+		Path:   "/" + d.DBName,
+	}
+	q := u.Query()
+	q.Set("sslmode", d.SSLMode)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func (d DatabaseConfig) configured() bool {
+	return d.Host != "" || d.User != "" || d.DBName != "" || d.Password != ""
+}
+
+// Config is the resolved runtime configuration. It is loaded from a YAML file
+// plus a companion secrets file; no value is taken from the process environment
+// except the config/secrets paths.
 type Config struct {
+	ConfigPath  string
+	SecretsPath string
+
 	Port                     string
 	LogLevel                 string
 	Env                      string
@@ -38,144 +83,408 @@ type Config struct {
 	MetadataBackupPassphrase string
 	MetadataBackupRetention  int
 	MetadataBackupEmbed      bool
+	AllowUnencryptedBackups  bool
 	MetadataDB               DatabaseConfig
 	TargetDB                 DatabaseConfig
 }
 
-func Load() (Config, error) {
-	return load(true)
+// fileConfig mirrors the YAML document. Defaults are applied before decoding,
+// so omitted fields keep their documented default.
+type fileConfig struct {
+	Version          int                      `yaml:"version"`
+	Server           serverFileConfig         `yaml:"server"`
+	Storage          storageFileConfig        `yaml:"storage"`
+	SecretsFile      string                   `yaml:"secrets_file"`
+	Secrets          secretRefs               `yaml:"secrets"`
+	MetadataDatabase databaseFileConfig       `yaml:"metadata_database"`
+	TargetDatabase   databaseFileConfig       `yaml:"target_database"`
+	Encryption       encryptionFileConfig     `yaml:"encryption"`
+	MetadataBackup   metadataBackupFileConfig `yaml:"metadata_backup"`
 }
 
-// LoadLenient loads the configuration like Load but skips rules that only make
-// sense for the long-running API (e.g. the mandatory admin key in production).
-// It is used by maintenance commands such as the metadata restore CLI, which
-// may legitimately run without the API key configured.
-func LoadLenient() (Config, error) {
-	return load(false)
+type serverFileConfig struct {
+	Port           string              `yaml:"port"`
+	Env            string              `yaml:"env"`
+	LogLevel       string              `yaml:"log_level"`
+	CORSOrigins    []string            `yaml:"cors_origins"`
+	TrustedProxies []string            `yaml:"trusted_proxies"`
+	RateLimit      rateLimitFileConfig `yaml:"rate_limit"`
 }
 
-func load(requireAdminKey bool) (Config, error) {
-	// Load .env file if it exists (local development)
-	_ = godotenv.Load()
+type rateLimitFileConfig struct {
+	Requests int    `yaml:"requests"`
+	Window   string `yaml:"window"`
+}
 
-	viper.SetEnvPrefix("APP")
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+type storageFileConfig struct {
+	Path    string `yaml:"path"`
+	TempDir string `yaml:"temp_dir"`
+}
 
-	// Global settings
-	viper.SetDefault("port", "8080")
-	viper.SetDefault("log_level", "info")
-	viper.SetDefault("env", "development")
-	viper.SetDefault("storage_path", "/backups")
-	viper.SetDefault("rate_limit_requests", 100)
-	viper.SetDefault("rate_limit_window", "1m")
-	viper.SetDefault("cors_origins", "http://localhost:3000")
-	viper.SetDefault("metadata_backup_retention", 14)
-	viper.SetDefault("metadata_backup_embed", true)
+type databaseFileConfig struct {
+	Host    string `yaml:"host"`
+	Port    string `yaml:"port"`
+	User    string `yaml:"user"`
+	DBName  string `yaml:"dbname"`
+	SSLMode string `yaml:"sslmode"`
+}
 
-	// Metadata Database (Internal state)
-	metadataHost := viper.GetString("metadata_db.host")
-	metadataPort := viper.GetString("metadata_db.port")
-	metadataUser := viper.GetString("metadata_db.user")
-	metadataPass := viper.GetString("metadata_db.password")
-	metadataName := viper.GetString("metadata_db.dbname")
-	metadataSSL := viper.GetString("metadata_db.sslmode")
+type encryptionFileConfig struct {
+	AgePublicKey            string `yaml:"age_public_key"`
+	AllowUnencryptedBackups bool   `yaml:"allow_unencrypted_backups"`
+}
 
-	// Target Database (The one to be backed up)
-	targetHost := viper.GetString("target_db.host")
-	targetPort := viper.GetString("target_db.port")
-	targetUser := viper.GetString("target_db.user")
-	targetPass := viper.GetString("target_db.password")
-	targetName := viper.GetString("target_db.dbname")
-	targetSSL := viper.GetString("target_db.sslmode")
+type metadataBackupFileConfig struct {
+	Schedule  string `yaml:"schedule"`
+	Retention int    `yaml:"retention"`
+	Embed     bool   `yaml:"embed"`
+}
+
+// secretRefs maps logical secrets to keys inside the secrets file. Keeping the
+// mapping explicit lets operators reuse an existing secret store naming scheme.
+type secretRefs struct {
+	MetadataDBPassword       string `yaml:"metadata_db_password"`
+	TargetDBPassword         string `yaml:"target_db_password"`
+	AgePrivateKey            string `yaml:"age_private_key"`
+	EncryptionPassphrase     string `yaml:"encryption_passphrase"`
+	AdminKey                 string `yaml:"admin_key"`
+	ConfigEncryptKey         string `yaml:"config_encrypt_key"`
+	MetadataBackupPassphrase string `yaml:"metadata_backup_passphrase"`
+}
+
+func defaultSecretRefs() secretRefs {
+	return secretRefs{
+		MetadataDBPassword:       "METADATA_DB_PASSWORD",
+		TargetDBPassword:         "TARGET_DB_PASSWORD",
+		AgePrivateKey:            "AGE_PRIVATE_KEY",
+		EncryptionPassphrase:     "ENCRYPTION_PASSPHRASE",
+		AdminKey:                 "ADMIN_KEY",
+		ConfigEncryptKey:         "CONFIG_ENCRYPT_KEY",
+		MetadataBackupPassphrase: "METADATA_BACKUP_PASSPHRASE",
+	}
+}
+
+func defaultFileConfig() fileConfig {
+	return fileConfig{
+		Server: serverFileConfig{
+			Port:        "8080",
+			Env:         "development",
+			LogLevel:    "info",
+			CORSOrigins: []string{"http://localhost:3000"},
+			RateLimit: rateLimitFileConfig{
+				Requests: 100,
+				Window:   "1m",
+			},
+		},
+		Storage: storageFileConfig{
+			Path:    "/backups",
+			TempDir: "/tmp",
+		},
+		SecretsFile: DefaultSecretsFile,
+		Secrets:     defaultSecretRefs(),
+		MetadataDatabase: databaseFileConfig{
+			Port:    "5432",
+			SSLMode: "disable",
+		},
+		TargetDatabase: databaseFileConfig{
+			Port:    "5432",
+			SSLMode: "disable",
+		},
+		Encryption: encryptionFileConfig{
+			AllowUnencryptedBackups: false,
+		},
+		MetadataBackup: metadataBackupFileConfig{
+			Retention: 14,
+			Embed:     true,
+		},
+	}
+}
+
+// ResolvePath applies the CLI/env precedence for the config file location.
+func ResolvePath(explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	if p := os.Getenv("APP_CONFIG_PATH"); p != "" {
+		return p
+	}
+	return DefaultConfigPath
+}
+
+// Load reads, validates and resolves the configuration.
+func Load(path string) (Config, error) {
+	return load(path, true)
+}
+
+// LoadLenient behaves like Load but skips rules that only apply to the API
+// server (e.g. the mandatory admin key in production). It is used by
+// maintenance commands such as migrate and metadata-restore.
+func LoadLenient(path string) (Config, error) {
+	return load(path, false)
+}
+
+func load(path string, requireAdminKey bool) (Config, error) {
+	return loadFrom(path, "", requireAdminKey)
+}
+
+// loadFrom is load with an explicit secrets path override. Init uses it to
+// validate the files it just wrote even when APP_SECRETS_FILE is set in the
+// environment for the running service.
+func loadFrom(path, secretsPathOverride string, requireAdminKey bool) (Config, error) {
+	path = ResolvePath(path)
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return Config{}, fmt.Errorf("read config %s: %w", path, err)
+	}
+
+	file := defaultFileConfig()
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
+	dec.KnownFields(true)
+	if err := dec.Decode(&file); err != nil {
+		return Config{}, fmt.Errorf("parse config %s: %w", path, err)
+	}
+	if file.Version != CurrentVersion {
+		return Config{}, fmt.Errorf(
+			"unsupported config version %d in %s (this build supports version %d)",
+			file.Version, path, CurrentVersion,
+		)
+	}
+
+	secretsPath := secretsPathOverride
+	if secretsPath == "" {
+		secretsPath = os.Getenv("APP_SECRETS_FILE")
+	}
+	if secretsPath == "" {
+		secretsPath = file.SecretsFile
+	}
+	if secretsPath == "" {
+		secretsPath = DefaultSecretsFile
+	}
+	if !filepath.IsAbs(secretsPath) {
+		secretsPath = filepath.Join(filepath.Dir(path), secretsPath)
+	}
+	secretsPath = filepath.Clean(secretsPath)
+
+	secrets, err := loadSecrets(secretsPath)
+	if err != nil {
+		return Config{}, err
+	}
+
+	refs := file.Secrets
+	applySecretDefaults(&refs)
+
+	window, err := time.ParseDuration(file.Server.RateLimit.Window)
+	if err != nil {
+		return Config{}, fmt.Errorf("server.rate_limit.window: %w", err)
+	}
 
 	cfg := Config{
-		Port:                     viper.GetString("port"),
-		LogLevel:                 viper.GetString("log_level"),
-		Env:                      viper.GetString("env"),
-		TempDir:                  viper.GetString("temp_dir"),
-		StoragePath:              viper.GetString("storage_path"),
-		AgePublicKey:             viper.GetString("age_public_key"),
-		AgePrivateKey:            viper.GetString("age_private_key"),
-		EncryptionPassphrase:     viper.GetString("encryption_passphrase"),
-		AdminKey:                 viper.GetString("admin_key"),
-		ConfigEncryptionKey:      viper.GetString("config_encrypt_key"),
-		RateLimitRequests:        viper.GetInt("rate_limit_requests"),
-		RateLimitWindow:          viper.GetDuration("rate_limit_window"),
-		CORSOrigins:              parseList(viper.GetString("cors_origins")),
-		TrustedProxies:           parseList(viper.GetString("trusted_proxies")),
-		MetadataBackupSchedule:   viper.GetString("metadata_backup_schedule"),
-		MetadataBackupPassphrase: viper.GetString("metadata_backup_passphrase"),
-		MetadataBackupRetention:  viper.GetInt("metadata_backup_retention"),
-		MetadataBackupEmbed:      viper.GetBool("metadata_backup_embed"),
+		ConfigPath:               path,
+		SecretsPath:              secretsPath,
+		Port:                     file.Server.Port,
+		LogLevel:                 file.Server.LogLevel,
+		Env:                      file.Server.Env,
+		TempDir:                  file.Storage.TempDir,
+		StoragePath:              file.Storage.Path,
+		AgePublicKey:             file.Encryption.AgePublicKey,
+		AgePrivateKey:            secrets[refs.AgePrivateKey],
+		EncryptionPassphrase:     secrets[refs.EncryptionPassphrase],
+		AdminKey:                 secrets[refs.AdminKey],
+		ConfigEncryptionKey:      secrets[refs.ConfigEncryptKey],
+		RateLimitRequests:        file.Server.RateLimit.Requests,
+		RateLimitWindow:          window,
+		CORSOrigins:              file.Server.CORSOrigins,
+		TrustedProxies:           file.Server.TrustedProxies,
+		MetadataBackupSchedule:   file.MetadataBackup.Schedule,
+		MetadataBackupPassphrase: secrets[refs.MetadataBackupPassphrase],
+		MetadataBackupRetention:  file.MetadataBackup.Retention,
+		MetadataBackupEmbed:      file.MetadataBackup.Embed,
+		AllowUnencryptedBackups:  file.Encryption.AllowUnencryptedBackups,
 		MetadataDB: DatabaseConfig{
-			Host:     metadataHost,
-			Port:     metadataPort,
-			User:     metadataUser,
-			Password: metadataPass,
-			DBName:   metadataName,
-			SSLMode:  metadataSSL,
+			Host:     file.MetadataDatabase.Host,
+			Port:     file.MetadataDatabase.Port,
+			User:     file.MetadataDatabase.User,
+			Password: secrets[refs.MetadataDBPassword],
+			DBName:   file.MetadataDatabase.DBName,
+			SSLMode:  file.MetadataDatabase.SSLMode,
 		},
 		TargetDB: DatabaseConfig{
-			Host:     targetHost,
-			Port:     targetPort,
-			User:     targetUser,
-			Password: targetPass,
-			DBName:   targetName,
-			SSLMode:  targetSSL,
+			Host:     file.TargetDatabase.Host,
+			Port:     file.TargetDatabase.Port,
+			User:     file.TargetDatabase.User,
+			Password: secrets[refs.TargetDBPassword],
+			DBName:   file.TargetDatabase.DBName,
+			SSLMode:  file.TargetDatabase.SSLMode,
 		},
 	}
 
-	if err := cfg.validate(requireAdminKey); err != nil {
+	if err := errors.Join(
+		cfg.validate(requireAdminKey),
+		cfg.validateSecrets(secretsPath, secrets, refs, requireAdminKey),
+	); err != nil {
 		return Config{}, err
 	}
 
 	return cfg, nil
 }
 
+func applySecretDefaults(refs *secretRefs) {
+	defaults := defaultSecretRefs()
+	if refs.MetadataDBPassword == "" {
+		refs.MetadataDBPassword = defaults.MetadataDBPassword
+	}
+	if refs.TargetDBPassword == "" {
+		refs.TargetDBPassword = defaults.TargetDBPassword
+	}
+	if refs.AgePrivateKey == "" {
+		refs.AgePrivateKey = defaults.AgePrivateKey
+	}
+	if refs.EncryptionPassphrase == "" {
+		refs.EncryptionPassphrase = defaults.EncryptionPassphrase
+	}
+	if refs.AdminKey == "" {
+		refs.AdminKey = defaults.AdminKey
+	}
+	if refs.ConfigEncryptKey == "" {
+		refs.ConfigEncryptKey = defaults.ConfigEncryptKey
+	}
+	if refs.MetadataBackupPassphrase == "" {
+		refs.MetadataBackupPassphrase = defaults.MetadataBackupPassphrase
+	}
+}
+
+// validateSecrets reports missing secret values using both the logical name and
+// the file where they were expected, which is far more actionable than an empty
+// password error later.
+func (c *Config) validateSecrets(path string, secrets map[string]string, refs secretRefs, requireAdminKey bool) error {
+	var errs []error
+
+	require := func(ref, what string) {
+		if secrets[ref] == "" {
+			errs = append(errs, fmt.Errorf("%s: secret %q is missing or empty in %s", what, ref, path))
+		}
+	}
+
+	require(refs.MetadataDBPassword, "metadata_database")
+	if c.TargetDB.configured() {
+		require(refs.TargetDBPassword, "target_database")
+	}
+	if requireAdminKey && c.IsProduction() {
+		require(refs.AdminKey, "secrets.admin_key")
+		require(refs.ConfigEncryptKey, "secrets.config_encrypt_key")
+	}
+
+	return errors.Join(errs...)
+}
+
+// Validate checks the configuration as used by the API server.
 func (c *Config) Validate() error {
 	return c.validate(true)
 }
 
 func (c *Config) validate(requireAdminKey bool) error {
-	// Global validation
-	if c.TempDir == "" {
-		return errors.New("temporary directory is required (APP_TEMP_DIR)")
+	var errs []error
+	add := func(format string, args ...any) {
+		errs = append(errs, fmt.Errorf(format, args...))
 	}
 
-	// In production the API must never run without an admin key (Insecure Mode).
-	if requireAdminKey && c.IsProduction() && c.AdminKey == "" {
-		return errors.New("APP_ADMIN_KEY is required when APP_ENV=production")
+	if c.Port == "" {
+		add("server.port is required")
+	} else if p, err := strconv.Atoi(c.Port); err != nil || p < 1 || p > 65535 {
+		add("server.port must be a number between 1 and 65535")
+	}
+
+	switch c.LogLevel {
+	case "debug", "info", "warn", "error":
+	default:
+		add("server.log_level must be one of debug, info, warn, error")
+	}
+
+	if c.Env == "" {
+		add("server.env is required (development, staging or production)")
+	}
+
+	if c.RateLimitRequests <= 0 {
+		add("server.rate_limit.requests must be greater than zero")
+	}
+	if c.RateLimitWindow <= 0 {
+		add("server.rate_limit.window must be a positive duration (e.g. 1m)")
+	}
+
+	if c.StoragePath == "" {
+		add("storage.path is required")
+	}
+	if c.TempDir == "" {
+		add("storage.temp_dir is required")
+	}
+
+	validateDatabase("metadata_database", c.MetadataDB, add)
+	if c.TargetDB.configured() {
+		validateDatabase("target_database", c.TargetDB, add)
+	}
+
+	if c.MetadataBackupRetention < 0 {
+		add("metadata_backup.retention must be zero or greater")
+	}
+	if c.MetadataBackupSchedule != "" {
+		if _, err := cron.ParseStandard(c.MetadataBackupSchedule); err != nil {
+			add("metadata_backup.schedule is not a valid 5-field cron expression: %v", err)
+		}
 	}
 
 	if _, err := normalizeTrustedProxies(c.TrustedProxies); err != nil {
-		return err
+		add("%v", err)
 	}
 
-	// Validate Metadata DB (Mandatory for service startup)
-	if c.MetadataDB.Host == "" {
-		return errors.New("metadata database host is required (APP_METADATA_DB_HOST)")
+	if c.AgePublicKey != "" {
+		if _, err := age.ParseX25519Recipient(c.AgePublicKey); err != nil {
+			add("encryption.age_public_key is not a valid Age X25519 recipient: %v", err)
+		}
 	}
-	if c.MetadataDB.Port == "" {
-		return errors.New("metadata database port is required (APP_METADATA_DB_PORT)")
-	}
-	if c.MetadataDB.User == "" {
-		return errors.New("metadata database user is required (APP_METADATA_DB_USER)")
-	}
-	if c.MetadataDB.Password == "" {
-		return errors.New("metadata database password is required (APP_METADATA_DB_PASSWORD)")
-	}
-	if c.MetadataDB.DBName == "" {
-		return errors.New("metadata database name is required (APP_METADATA_DB_DBNAME)")
-	}
-	if c.MetadataDB.SSLMode == "" {
-		return errors.New("metadata database SSL mode is required (APP_METADATA_DB_SSLMODE)")
+	if c.AgePrivateKey != "" {
+		identity, err := age.ParseX25519Identity(c.AgePrivateKey)
+		if err != nil {
+			add("encryption age private key is not a valid Age X25519 identity: %v", err)
+		} else if c.AgePublicKey != "" && identity.Recipient().String() != c.AgePublicKey {
+			add("encryption.age_public_key does not match the configured age private key")
+		}
 	}
 
-	// Note: Target DB validation is deferred to runtime (ValidateTargetDB)
-	// to allow the service to start even if infrastructure is not yet fully configured.
+	if requireAdminKey && c.IsProduction() {
+		if c.AdminKey == "" {
+			add("the admin key secret is required when server.env=production (secrets.admin_key)")
+		}
+		if c.ConfigEncryptionKey == "" {
+			add("the provider config encryption key is required when server.env=production (secrets.config_encrypt_key)")
+		}
+		if !c.AllowUnencryptedBackups && c.AgePublicKey == "" && c.EncryptionPassphrase == "" {
+			add("production requires backup encryption (set encryption.age_public_key or the encryption passphrase); set encryption.allow_unencrypted_backups=true to override")
+		}
+	}
 
-	return nil
+	return errors.Join(errs...)
+}
+
+func validateDatabase(field string, db DatabaseConfig, add func(string, ...any)) {
+	if db.Host == "" {
+		add("%s.host is required", field)
+	}
+	if db.Port == "" {
+		add("%s.port is required", field)
+	}
+	if db.User == "" {
+		add("%s.user is required", field)
+	}
+	if db.Password == "" {
+		add("%s password is required", field)
+	}
+	if db.DBName == "" {
+		add("%s.dbname is required", field)
+	}
+	if db.SSLMode == "" {
+		add("%s.sslmode is required", field)
+	}
 }
 
 // IsProduction reports whether the service runs in production mode.
@@ -187,21 +496,6 @@ func (c *Config) IsProduction() bool {
 // netip.Prefix values, converting bare IPs into host prefixes.
 func (c *Config) TrustedProxyPrefixes() ([]netip.Prefix, error) {
 	return normalizeTrustedProxies(c.TrustedProxies)
-}
-
-// parseList splits a comma-separated env value into a slice of trimmed items.
-func parseList(value string) []string {
-	if strings.TrimSpace(value) == "" {
-		return nil
-	}
-	parts := strings.Split(value, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if trimmed := strings.TrimSpace(p); trimmed != "" {
-			out = append(out, trimmed)
-		}
-	}
-	return out
 }
 
 // normalizeTrustedProxies parses and normalizes proxy prefixes, upgrading
@@ -222,14 +516,14 @@ func parsePrefix(raw string) (netip.Prefix, error) {
 	if strings.Contains(raw, "/") {
 		p, err := netip.ParsePrefix(raw)
 		if err != nil {
-			return netip.Prefix{}, errors.New("invalid proxy in APP_TRUSTED_PROXIES: " + raw)
+			return netip.Prefix{}, errors.New("invalid proxy in server.trusted_proxies: " + raw)
 		}
 		return p, nil
 	}
 
 	addr, err := netip.ParseAddr(raw)
 	if err != nil {
-		return netip.Prefix{}, errors.New("invalid proxy in APP_TRUSTED_PROXIES: " + raw)
+		return netip.Prefix{}, errors.New("invalid proxy in server.trusted_proxies: " + raw)
 	}
 	return netip.PrefixFrom(addr.Unmap(), addr.BitLen()), nil
 }
@@ -246,23 +540,88 @@ func (c *Config) IsTargetDBConfigured() bool {
 // ValidateTargetDB ensures the target database configuration is complete.
 // This should be called before any backup or restore operation.
 func (c *Config) ValidateTargetDB() error {
+	var errs []error
 	if c.TargetDB.Host == "" {
-		return errors.New("target database host is missing (APP_TARGET_DB_HOST)")
+		errs = append(errs, errors.New("target database host is missing (target_database.host)"))
 	}
 	if c.TargetDB.Port == "" {
-		return errors.New("target database port is missing (APP_TARGET_DB_PORT)")
+		errs = append(errs, errors.New("target database port is missing (target_database.port)"))
 	}
 	if c.TargetDB.User == "" {
-		return errors.New("target database user is missing (APP_TARGET_DB_USER)")
+		errs = append(errs, errors.New("target database user is missing (target_database.user)"))
 	}
 	if c.TargetDB.Password == "" {
-		return errors.New("target database password is missing (APP_TARGET_DB_PASSWORD)")
+		errs = append(errs, errors.New("target database password is missing (target_database secret)"))
 	}
 	if c.TargetDB.DBName == "" {
-		return errors.New("target database name is missing (APP_TARGET_DB_DBNAME)")
+		errs = append(errs, errors.New("target database name is missing (target_database.dbname)"))
 	}
 	if c.TargetDB.SSLMode == "" {
-		return errors.New("target database SSL mode is missing (APP_TARGET_DB_SSLMODE)")
+		errs = append(errs, errors.New("target database SSL mode is missing (target_database.sslmode)"))
 	}
-	return nil
+	return errors.Join(errs...)
+}
+
+// loadSecrets parses a KEY=VALUE file. Blank lines and lines starting with '#'
+// are ignored. Values may be single- or double-quoted; inline '#' is kept as
+// part of the value so generated passwords containing it survive.
+func loadSecrets(path string) (map[string]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("read secrets %s: %w", path, err)
+	}
+	defer func() { _ = f.Close() }()
+
+	out := make(map[string]string)
+	scanner := bufio.NewScanner(f)
+	lineNo := 0
+	for scanner.Scan() {
+		lineNo++
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			return nil, fmt.Errorf("%s:%d: expected KEY=VALUE", path, lineNo)
+		}
+		key = strings.TrimSpace(key)
+		if key == "" {
+			return nil, fmt.Errorf("%s:%d: empty secret name", path, lineNo)
+		}
+		if _, exists := out[key]; exists {
+			return nil, fmt.Errorf("%s:%d: duplicate secret %q", path, lineNo, key)
+		}
+
+		out[key] = parseSecretValue(strings.TrimSpace(value))
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read secrets %s: %w", path, err)
+	}
+	return out, nil
+}
+
+func parseSecretValue(value string) string {
+	if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
+		if unquoted, err := strconv.Unquote(value); err == nil {
+			return unquoted
+		}
+	}
+	if len(value) >= 2 && value[0] == '\'' && value[len(value)-1] == '\'' {
+		return value[1 : len(value)-1]
+	}
+	return value
+}
+
+// EncodeSecretValue renders a value for the secrets file, quoting it only when
+// needed to preserve whitespace or leading '#'. Newlines are rejected by Init.
+func EncodeSecretValue(value string) string {
+	if value == "" {
+		return ""
+	}
+	if strings.ContainsAny(value, " \t\"'") || strings.HasPrefix(value, "#") {
+		return strconv.Quote(value)
+	}
+	return value
 }

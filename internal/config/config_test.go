@@ -1,158 +1,153 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestLoad_MetadataBackupEmbedDefault(t *testing.T) {
-	// viper.SetEnvPrefix is "APP" and AutomaticEnv; a bare Config struct cannot
-	// reflect those defaults. We exercise Load() with a minimal valid env.
-	base := map[string]string{
-		"APP_TEMP_DIR":             "/tmp",
-		"APP_METADATA_DB_HOST":     "localhost",
-		"APP_METADATA_DB_PORT":     "5432",
-		"APP_METADATA_DB_USER":     "u",
-		"APP_METADATA_DB_PASSWORD": "p",
-		"APP_METADATA_DB_DBNAME":   "db",
-		"APP_METADATA_DB_SSLMODE":  "disable",
+const minimalConfig = `version: 1
+server:
+  port: "9090"
+  env: development
+  log_level: debug
+storage:
+  path: /tmp/backups
+  temp_dir: /tmp
+metadata_database:
+  host: localhost
+  port: "5432"
+  user: u
+  dbname: db
+  sslmode: disable
+`
+
+func writeTestFiles(t *testing.T, dir, cfg, secrets string) (string, string) {
+	t.Helper()
+	configPath := filepath.Join(dir, "config.yaml")
+	secretsPath := filepath.Join(dir, "secrets.env")
+	if err := os.WriteFile(configPath, []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
 	}
-
-	setEnv := func(t *testing.T) {
-		t.Helper()
-		for k, v := range base {
-			t.Setenv(k, v)
-		}
+	if err := os.WriteFile(secretsPath, []byte(secrets), 0o600); err != nil {
+		t.Fatal(err)
 	}
-
-	t.Run("unset uses default true", func(t *testing.T) {
-		setEnv(t)
-		cfg, err := Load()
-		if err != nil {
-			t.Fatalf("Load() error: %v", err)
-		}
-		if !cfg.MetadataBackupEmbed {
-			t.Errorf("expected MetadataBackupEmbed=true by default, got false")
-		}
-	})
-
-	t.Run("explicitly disabled via env", func(t *testing.T) {
-		setEnv(t)
-		t.Setenv("APP_METADATA_BACKUP_EMBED", "false")
-		cfg, err := Load()
-		if err != nil {
-			t.Fatalf("Load() error: %v", err)
-		}
-		if cfg.MetadataBackupEmbed {
-			t.Errorf("expected MetadataBackupEmbed=false when env is false, got true")
-		}
-	})
+	return configPath, secretsPath
 }
 
-func TestConfig_Validate(t *testing.T) {
-	tests := []struct {
-		name    string
-		config  Config
-		wantErr bool
-	}{
-		{
-			name: "Valid metadata DB, missing target DB should pass startup validation",
-			config: Config{
-				TempDir: "/tmp",
-				MetadataDB: DatabaseConfig{
-					Host:     "localhost",
-					Port:     "5432",
-					User:     "user",
-					Password: "pass",
-					DBName:   "db",
-					SSLMode:  "disable",
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "Missing metadata DB should fail startup validation",
-			config: Config{
-				TempDir: "/tmp",
-			},
-			wantErr: true,
-		},
-	}
+func TestLoad_DefaultsAndSecrets(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+	configPath, _ := writeTestFiles(t, dir, minimalConfig, "METADATA_DB_PASSWORD=secret\n")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.config.Validate(); (err != nil) != tt.wantErr {
-				t.Errorf("Config.Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestConfig_AdminKeyRequiredInProduction(t *testing.T) {
-	valid := Config{
-		TempDir: "/tmp",
-		Env:     "production",
-		MetadataDB: DatabaseConfig{
-			Host: "localhost", Port: "5432", User: "u", Password: "p", DBName: "db", SSLMode: "disable",
-		},
-	}
-
-	if err := valid.Validate(); err == nil {
-		t.Fatal("expected production config without AdminKey to fail validation")
-	}
-
-	valid.AdminKey = "secret"
-	if err := valid.Validate(); err != nil {
-		t.Fatalf("production config with AdminKey should pass: %v", err)
-	}
-}
-
-func TestLoadLenient_NoAdminKeyRequiredInProduction(t *testing.T) {
-	t.Setenv("APP_ENV", "production")
-	t.Setenv("APP_TEMP_DIR", "/tmp")
-	t.Setenv("APP_METADATA_DB_HOST", "localhost")
-	t.Setenv("APP_METADATA_DB_PORT", "5432")
-	t.Setenv("APP_METADATA_DB_USER", "u")
-	t.Setenv("APP_METADATA_DB_PASSWORD", "p")
-	t.Setenv("APP_METADATA_DB_DBNAME", "db")
-	t.Setenv("APP_METADATA_DB_SSLMODE", "disable")
-
-	cfg, err := LoadLenient()
+	cfg, err := Load(configPath)
 	if err != nil {
-		t.Fatalf("LoadLenient() in production without AdminKey should pass: %v", err)
+		t.Fatalf("Load() error: %v", err)
 	}
-	if cfg.Env != "production" {
-		t.Fatalf("expected env=production, got %q", cfg.Env)
+	if cfg.Port != "9090" {
+		t.Errorf("port = %q", cfg.Port)
 	}
-
-	// Load() must still fail in the same environment.
-	if _, err := Load(); err == nil {
-		t.Fatal("expected Load() to fail in production without AdminKey")
+	if cfg.LogLevel != "debug" {
+		t.Errorf("log level = %q", cfg.LogLevel)
+	}
+	if cfg.MetadataDB.Password != "secret" {
+		t.Errorf("metadata password not resolved from secrets file")
+	}
+	if cfg.RateLimitRequests != 100 {
+		t.Errorf("default rate limit requests = %d", cfg.RateLimitRequests)
+	}
+	if cfg.RateLimitWindow.String() != "1m0s" {
+		t.Errorf("default rate limit window = %s", cfg.RateLimitWindow)
+	}
+	if cfg.MetadataBackupRetention != 14 {
+		t.Errorf("default metadata retention = %d", cfg.MetadataBackupRetention)
+	}
+	if !cfg.MetadataBackupEmbed {
+		t.Error("metadata embed should default to true")
+	}
+	if len(cfg.CORSOrigins) != 1 || cfg.CORSOrigins[0] != "http://localhost:3000" {
+		t.Errorf("default CORS = %v", cfg.CORSOrigins)
 	}
 }
 
-func TestParseList(t *testing.T) {
-	tests := []struct {
-		name  string
-		value string
-		want  []string
-	}{
-		{name: "empty", value: "", want: nil},
-		{name: "single", value: "http://localhost:3000", want: []string{"http://localhost:3000"}},
-		{name: "multiple with spaces", value: "http://a.com, http://b.com ,", want: []string{"http://a.com", "http://b.com"}},
-	}
+func TestLoad_RejectsUnknownFields(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+	bad := strings.Replace(minimalConfig, "metadata_database:", "metdata_database:", 1)
+	configPath, _ := writeTestFiles(t, dir, bad, "METADATA_DB_PASSWORD=secret\n")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := parseList(tt.value)
-			if len(got) != len(tt.want) {
-				t.Fatalf("parseList(%q) = %v, want %v", tt.value, got, tt.want)
-			}
-			for i := range got {
-				if got[i] != tt.want[i] {
-					t.Errorf("parseList(%q)[%d] = %q, want %q", tt.value, i, got[i], tt.want[i])
-				}
-			}
-		})
+	_, err := Load(configPath)
+	if err == nil || !strings.Contains(err.Error(), "metdata_database") {
+		t.Fatalf("expected unknown-field error mentioning the typo, got %v", err)
+	}
+}
+
+func TestLoad_RequiresVersion(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+	configPath, _ := writeTestFiles(t, dir, strings.Replace(minimalConfig, "version: 1\n", "", 1), "METADATA_DB_PASSWORD=secret\n")
+
+	_, err := Load(configPath)
+	if err == nil || !strings.Contains(err.Error(), "unsupported config version") {
+		t.Fatalf("expected version error, got %v", err)
+	}
+}
+
+func TestLoad_MissingSecretNamesTheKey(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+	configPath, _ := writeTestFiles(t, dir, minimalConfig, "")
+
+	_, err := Load(configPath)
+	if err == nil || !strings.Contains(err.Error(), "METADATA_DB_PASSWORD") {
+		t.Fatalf("expected missing METADATA_DB_PASSWORD error, got %v", err)
+	}
+}
+
+func TestLoad_PartialTargetDatabaseFails(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+	cfg := minimalConfig + `target_database:
+  host: target
+`
+	configPath, _ := writeTestFiles(t, dir, cfg, "METADATA_DB_PASSWORD=secret\n")
+
+	_, err := Load(configPath)
+	if err == nil || !strings.Contains(err.Error(), "target_database") {
+		t.Fatalf("expected target database validation error, got %v", err)
+	}
+}
+
+func TestLoad_ProductionRequiresAdminAndEncryption(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+	cfg := strings.Replace(minimalConfig, "env: development", "env: production", 1)
+	configPath, _ := writeTestFiles(t, dir, cfg, "METADATA_DB_PASSWORD=secret\n")
+
+	_, err := Load(configPath)
+	if err == nil {
+		t.Fatal("expected production validation to fail without admin key, config key and encryption")
+	}
+	msg := err.Error()
+	for _, want := range []string{"ADMIN_KEY", "CONFIG_ENCRYPT_KEY", "production requires backup encryption"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("expected error to mention %q, got %v", want, msg)
+		}
+	}
+}
+
+func TestLoad_ProductionWithExplicitOptOut(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+	cfg := strings.Replace(minimalConfig, "env: development", "env: production", 1) + `encryption:
+  allow_unencrypted_backups: true
+`
+	secrets := "METADATA_DB_PASSWORD=secret\nADMIN_KEY=admin\nCONFIG_ENCRYPT_KEY=configkey\n"
+	configPath, _ := writeTestFiles(t, dir, cfg, secrets)
+
+	if _, err := Load(configPath); err != nil {
+		t.Fatalf("expected explicit opt-out to pass, got %v", err)
 	}
 }
 
@@ -174,41 +169,101 @@ func TestNormalizeTrustedProxies(t *testing.T) {
 }
 
 func TestConfig_ValidateTargetDB(t *testing.T) {
-	tests := []struct {
-		name    string
-		config  Config
-		wantErr bool
-	}{
-		{
-			name: "Complete target DB should pass",
-			config: Config{
-				TargetDB: DatabaseConfig{
-					Host:     "1.2.3.4",
-					Port:     "5435",
-					User:     "user",
-					Password: "pass",
-					DBName:   "db",
-					SSLMode:  "disable",
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "Incomplete target DB should fail",
-			config: Config{
-				TargetDB: DatabaseConfig{
-					Host: "localhost",
-				},
-			},
-			wantErr: true,
+	complete := Config{
+		TargetDB: DatabaseConfig{
+			Host:     "1.2.3.4",
+			Port:     "5435",
+			User:     "user",
+			Password: "pass",
+			DBName:   "db",
+			SSLMode:  "disable",
 		},
 	}
+	if err := complete.ValidateTargetDB(); err != nil {
+		t.Errorf("complete target DB should pass: %v", err)
+	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.config.ValidateTargetDB(); (err != nil) != tt.wantErr {
-				t.Errorf("Config.ValidateTargetDB() error = %v, wantErr %v", err, tt.wantErr)
+	incomplete := Config{TargetDB: DatabaseConfig{Host: "localhost"}}
+	if err := incomplete.ValidateTargetDB(); err == nil {
+		t.Error("incomplete target DB should fail")
+	}
+}
+
+func TestInit_GeneratesLoadableConfig(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+
+	result, err := Init(InitOptions{
+		ConfigPath:              filepath.Join(dir, "config.yaml"),
+		Env:                     "development",
+		StoragePath:             filepath.Join(dir, "backups"),
+		TempDir:                 dir,
+		MetadataHost:            "localhost",
+		MetadataPort:            "5432",
+		MetadataUser:            "u",
+		MetadataDBName:          "metadata",
+		MetadataSSLMode:         "disable",
+		MetadataPassword:        "metadata-secret",
+		TargetHost:              "target",
+		TargetPort:              "5432",
+		TargetUser:              "tu",
+		TargetDBName:            "targetdb",
+		TargetSSLMode:           "require",
+		TargetPassword:          "target-secret",
+		EncryptionMode:          "keypair",
+		MetadataBackupEmbed:     true,
+		MetadataBackupRetention: 14,
+	})
+	if err != nil {
+		t.Fatalf("Init() error: %v", err)
+	}
+
+	cfg, err := Load(result.ConfigPath)
+	if err != nil {
+		t.Fatalf("generated config does not load: %v", err)
+	}
+	if cfg.MetadataDB.Password != "metadata-secret" {
+		t.Errorf("metadata password mismatch")
+	}
+	if cfg.TargetDB.Password != "target-secret" {
+		t.Errorf("target password mismatch")
+	}
+	if cfg.AdminKey == "" || cfg.ConfigEncryptionKey == "" {
+		t.Error("admin/config keys should be generated")
+	}
+	if cfg.AgePrivateKey == "" || cfg.AgePublicKey == "" {
+		t.Error("Age keypair should be generated")
+	}
+	if cfg.MetadataBackupPassphrase == "" {
+		t.Error("metadata backup passphrase should be generated when embedding is enabled")
+	}
+
+	info, err := os.Stat(result.SecretsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Errorf("secrets mode = %04o, want 0600", info.Mode().Perm())
+	}
+
+	if _, err := Init(InitOptions{ConfigPath: result.ConfigPath, MetadataPassword: "x", EncryptionMode: "none"}); err == nil {
+		t.Error("expected Init to refuse overwriting an existing config")
+	}
+}
+
+func TestEncodeSecretValue_Roundtrip(t *testing.T) {
+	values := []string{"simple", "with space", "#leading", `quote"inside`, ""}
+	for _, value := range values {
+		encoded := EncodeSecretValue(value)
+		if value == "" {
+			if encoded != "" {
+				t.Errorf("empty value should encode to empty, got %q", encoded)
 			}
-		})
+			continue
+		}
+		decoded := parseSecretValue(encoded)
+		if decoded != value {
+			t.Errorf("roundtrip %q -> %q -> %q", value, encoded, decoded)
+		}
 	}
 }

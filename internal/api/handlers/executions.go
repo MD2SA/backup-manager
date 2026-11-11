@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/MD2SA/backup-manager/internal/api/dto"
@@ -10,6 +11,7 @@ import (
 	"github.com/MD2SA/backup-manager/internal/repository"
 	"github.com/MD2SA/backup-manager/internal/repository/db"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 )
 
 type ExecutionHandler struct {
@@ -98,6 +100,10 @@ func (h *ExecutionHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	execution, err := h.Repo.GetExecution(r.Context(), id)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			apiutil.Error(w, http.StatusNotFound, "Execution not found")
+			return
+		}
 		apiutil.InternalError(w, err)
 		return
 	}

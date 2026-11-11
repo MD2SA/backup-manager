@@ -38,11 +38,7 @@ type App struct {
 	MetadataBackup  *selfbackup.Service
 }
 
-func New(ctx context.Context) (*App, error) {
-	cfg, err := config.Load()
-	if err != nil {
-		return nil, fmt.Errorf("configuration error: %w", err)
-	}
+func New(ctx context.Context, cfg config.Config) (*App, error) {
 	log := logger.New(cfg.LogLevel)
 
 	dbPool, err := database.New(ctx, cfg.MetadataDB)
@@ -86,7 +82,9 @@ func New(ctx context.Context) (*App, error) {
 		_ = a.Runner.Enqueue(profileID)
 	})
 
-	r := router.New(log, repo, monitorService, a.Config.AdminKey, a.Config.RateLimitRequests, a.Config.RateLimitWindow, a.Config.CORSOrigins, trustedProxies, func(profileID pgtype.UUID) error {
+	r := router.New(log, repo, monitorService, a.Config.AdminKey, a.Config.RateLimitRequests, a.Config.RateLimitWindow, a.Config.CORSOrigins, trustedProxies, func(ctx context.Context) error {
+		return dbPool.Ping(ctx)
+	}, func(profileID pgtype.UUID) error {
 		return a.Runner.Enqueue(profileID)
 	}, a.BackupService.ExecuteRestore, func(p db.Profile) {
 		if err := a.Scheduler.SetActiveJob(p.ID, p.Schedule); err != nil {
@@ -120,6 +118,17 @@ func (a *App) Start(ctx context.Context) {
 			}
 			break // Only one should be enabled
 		}
+	}
+}
+
+// Stop halts background schedulers. It must be called before closing the
+// database pool during graceful shutdown.
+func (a *App) Stop() {
+	if a.MetadataBackup != nil {
+		a.MetadataBackup.Stop()
+	}
+	if a.Scheduler != nil {
+		a.Scheduler.Stop()
 	}
 }
 
