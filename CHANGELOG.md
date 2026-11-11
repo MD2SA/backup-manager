@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/etc/backup-manager/config.yaml` and `secrets.env` next to it.
 
 ### Added
+- **Release pipeline hardening:** explicit `latest` tagging, SBOM and
+  provenance attestations, multi-architecture images for `linux/amd64` and
+  `linux/arm64`, and a release guide covering tags, GHCR, verification and
+  rollback.
 - **Documentation site and repository polish:** MkDocs Material site with
   GitHub Pages deployment, a rewritten landing README, a docs index,
   contributing and security policies, pull-request template and issue forms.

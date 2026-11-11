@@ -47,6 +47,7 @@ nav:
   - API: guides/API.md
   - Architecture: guides/ARCHITECTURE.md
   - Testing: guides/TESTING.md
+  - Releasing: guides/RELEASING.md
   - Changelog: https://github.com/MD2SA/backup-manager/blob/main/CHANGELOG.md
   - Security: https://github.com/MD2SA/backup-manager/blob/main/SECURITY.md
   - Contributing: https://github.com/MD2SA/backup-manager/blob/main/CONTRIBUTING.md
