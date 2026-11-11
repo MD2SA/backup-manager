@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/MD2SA/backup-manager/internal/pkg/crypto"
-	"github.com/MD2SA/backup-manager/internal/repository"
-	"github.com/MD2SA/backup-manager/internal/retention"
 	"github.com/MD2SA/backup-manager/internal/storage"
 	"github.com/MD2SA/backup-manager/internal/verification"
 )
@@ -84,43 +82,6 @@ func (s *VerificationStage) Execute(ctx *ExecutionContext) error {
 	})
 }
 
-// RetentionStage applies the retention policy
-type RetentionStage struct {
-	Engine   *retention.Engine
-	Repo     repository.Repository
-	Provider storage.StorageProvider
-}
-
-func (s *RetentionStage) Name() string { return "Retention" }
-
-func (s *RetentionStage) Execute(ctx *ExecutionContext) error {
-	profile, err := s.Repo.GetProfile(ctx.Context, ctx.ProfileID)
-	if err != nil {
-		return err
-	}
-
-	if !profile.RetentionPolicyID.Valid {
-		ctx.Log("No retention policy configured for this profile")
-		return nil
-	}
-
-	rp, err := s.Repo.GetRetentionPolicy(ctx.Context, profile.RetentionPolicyID)
-	if err != nil {
-		return err
-	}
-
-	policy := retention.Policy{
-		KeepHourly:  int(rp.KeepHourly),
-		KeepDaily:   int(rp.KeepDaily),
-		KeepWeekly:  int(rp.KeepWeekly),
-		KeepMonthly: int(rp.KeepMonthly),
-		KeepYearly:  int(rp.KeepYearly),
-		YearlyMonth: int(rp.YearlyMonth),
-	}
-
-	return s.Engine.Apply(ctx.Context, ctx.ProfileID, policy, s.Provider)
-}
-
 // StorageStage uploads the backup to a storage provider
 type StorageStage struct {
 	Provider storage.StorageProvider
@@ -154,6 +115,7 @@ type PostgresDumpStage struct {
 	Password         string
 	Host             string
 	Port             string
+	SSLMode          string
 	CompressionType  string
 	CompressionLevel int
 }
@@ -164,6 +126,8 @@ func (s *PostgresDumpStage) Execute(ctx *ExecutionContext) error {
 	ctx.LocalPath = filepath.Join(ctx.TempDir, fmt.Sprintf("backup-%s-%d.sql", ctx.ProfileID, time.Now().Unix()))
 
 	args := []string{
+		"--no-owner",
+		"--no-acl",
 		"-h", s.Host,
 		"-p", s.Port,
 		"-U", s.User,
@@ -178,7 +142,12 @@ func (s *PostgresDumpStage) Execute(ctx *ExecutionContext) error {
 	return Retry(ctx.Context, 3, 5*time.Second, func() error {
 		cmd := exec.CommandContext(ctx.Context, "pg_dump", args...)
 
-		cmd.Env = append(os.Environ(), fmt.Sprintf("PGPASSWORD=%s", s.Password))
+		cmd.Env = append(os.Environ(),
+			fmt.Sprintf("PGPASSWORD=%s", s.Password),
+			fmt.Sprintf("PGSSLMODE=%s", s.SSLMode),
+			"PGAPPNAME=backup-manager-backup",
+			"PGCONNECT_TIMEOUT=10",
+		)
 
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("pg_dump failed: %w. Output: %s", err, string(out))

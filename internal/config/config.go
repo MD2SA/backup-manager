@@ -422,6 +422,9 @@ func (c *Config) validate(requireAdminKey bool) error {
 	validateDatabase("metadata_database", c.MetadataDB, add)
 	if c.TargetDB.configured() {
 		validateDatabase("target_database", c.TargetDB, add)
+		if sameDatabase(c.MetadataDB, c.TargetDB) {
+			add("target_database must not point to the same database as metadata_database")
+		}
 	}
 
 	if c.MetadataBackupRetention < 0 {
@@ -485,6 +488,12 @@ func validateDatabase(field string, db DatabaseConfig, add func(string, ...any))
 	if db.SSLMode == "" {
 		add("%s.sslmode is required", field)
 	}
+}
+
+func sameDatabase(a, b DatabaseConfig) bool {
+	return strings.EqualFold(a.Host, b.Host) &&
+		a.Port == b.Port &&
+		a.DBName == b.DBName
 }
 
 // IsProduction reports whether the service runs in production mode.

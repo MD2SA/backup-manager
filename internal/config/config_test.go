@@ -151,6 +151,25 @@ func TestLoad_ProductionWithExplicitOptOut(t *testing.T) {
 	}
 }
 
+func TestLoad_RejectsTargetSameAsMetadata(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+	cfg := minimalConfig + `target_database:
+  host: localhost
+  port: "5432"
+  user: u
+  dbname: db
+  sslmode: disable
+`
+	secrets := "METADATA_DB_PASSWORD=secret\nTARGET_DB_PASSWORD=secret\n"
+	configPath, _ := writeTestFiles(t, dir, cfg, secrets)
+
+	_, err := Load(configPath)
+	if err == nil || !strings.Contains(err.Error(), "target_database must not point") {
+		t.Fatalf("expected same-database protection, got %v", err)
+	}
+}
+
 func TestNormalizeTrustedProxies(t *testing.T) {
 	prefixes, err := normalizeTrustedProxies([]string{"127.0.0.1", "10.0.0.0/8", "2001:db8::/32"})
 	if err != nil {

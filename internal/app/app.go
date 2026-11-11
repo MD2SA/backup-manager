@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/MD2SA/backup-manager/internal/api/router"
 	"github.com/MD2SA/backup-manager/internal/backup"
@@ -34,6 +35,8 @@ type App struct {
 	Retention       *retention.Engine
 	Monitor         *monitor.Service
 	BackupService   *service.BackupService
+	RestoreService  *service.RestoreService
+	RestoreRunner   *backup.RestoreRunner
 	ProviderService *service.ProviderService
 	MetadataBackup  *selfbackup.Service
 }
@@ -47,10 +50,13 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	}
 
 	repo := repository.NewPostgres(dbPool, configKeyForRepo(cfg))
-	retentionEngine := retention.New(repo)
+	retentionEngine := retention.New(repo, log)
 	monitorService := monitor.New(repo)
 	providerService := service.NewProviderService(repo, cfg)
-	backupService := service.NewBackupService(repo, providerService, retentionEngine, monitorService, cfg, log)
+	notifier := service.NewNotifier(providerService, log)
+	gate := backup.NewGate()
+	backupService := service.NewBackupService(repo, providerService, retentionEngine, monitorService, cfg, log, gate, notifier)
+	restoreService := service.NewRestoreService(repo, providerService, cfg, log, gate, notifier)
 
 	a := &App{
 		Config:          cfg,
@@ -60,13 +66,17 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		Retention:       retentionEngine,
 		Monitor:         monitorService,
 		BackupService:   backupService,
+		RestoreService:  restoreService,
 		ProviderService: providerService,
 	}
 
 	a.logInfrastructureStatus()
 
-	// Initialize Backup Runner (Serial execution)
+	// Initialize runners. Backups and restores share a target database gate so
+	// a dump and a restore never overlap.
 	a.Runner = backup.NewBackupRunner(log, a.BackupService.ExecuteBackup)
+	a.RestoreRunner = backup.NewRestoreRunner(log, a.RestoreService.Execute)
+	a.RestoreService.SetQueue(a.RestoreRunner.Enqueue)
 
 	if a.Config.AdminKey == "" {
 		log.Warn("SECURITY WARNING: No APP_ADMIN_KEY set. The API is open to anyone with network access.")
@@ -86,7 +96,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		return dbPool.Ping(ctx)
 	}, func(profileID pgtype.UUID) error {
 		return a.Runner.Enqueue(profileID)
-	}, a.BackupService.ExecuteRestore, func(p db.Profile) {
+	}, a.RestoreService.Enqueue, func(p db.Profile) {
 		if err := a.Scheduler.SetActiveJob(p.ID, p.Schedule); err != nil {
 			log.Error("Failed to schedule activated profile", "profile_id", p.ID, "error", err)
 		}
@@ -100,7 +110,14 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 }
 
 func (a *App) Start(ctx context.Context) {
+	if reconciled, err := a.Repo.ReconcileInterruptedRestores(ctx); err != nil {
+		a.Logger.Error("Failed to reconcile interrupted restores", "error", err)
+	} else if reconciled > 0 {
+		a.Logger.Warn("Marked interrupted restores as failed", "count", reconciled)
+	}
+
 	a.Runner.Start(ctx)
+	a.RestoreRunner.Start(ctx)
 	a.Scheduler.Start()
 	a.MetadataBackup.Start()
 
@@ -129,6 +146,18 @@ func (a *App) Stop() {
 	}
 	if a.Scheduler != nil {
 		a.Scheduler.Stop()
+	}
+	if a.RestoreRunner != nil {
+		done := make(chan struct{})
+		go func() {
+			a.RestoreRunner.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(15 * time.Second):
+			a.Logger.Warn("Timed out waiting for the restore runner to stop")
+		}
 	}
 }
 

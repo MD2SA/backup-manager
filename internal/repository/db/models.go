@@ -27,6 +27,14 @@ type Execution struct {
 	IsEncrypted  bool
 }
 
+type ExecutionStorage struct {
+	ExecutionID pgtype.UUID
+	ProviderID  pgtype.UUID
+	StoragePath string
+	Size        int64
+	UploadedAt  pgtype.Timestamptz
+}
+
 type NotificationProvider struct {
 	ID        pgtype.UUID
 	Name      string
@@ -58,6 +66,24 @@ type ProfileNotificationProvider struct {
 type ProfileStorageProvider struct {
 	ProfileID         pgtype.UUID
 	StorageProviderID pgtype.UUID
+}
+
+type Restore struct {
+	ID               pgtype.UUID
+	ExecutionID      pgtype.UUID
+	Status           string
+	RequestID        pgtype.Text
+	ProviderID       pgtype.UUID
+	StoragePath      pgtype.Text
+	TargetDb         pgtype.Text
+	Options          json.RawMessage
+	ChecksumVerified bool
+	StartedAt        pgtype.Timestamptz
+	FinishedAt       pgtype.Timestamptz
+	Duration         pgtype.Interval
+	ErrorMessage     pgtype.Text
+	Logs             json.RawMessage
+	CreatedAt        pgtype.Timestamptz
 }
 
 type RetentionPolicy struct {

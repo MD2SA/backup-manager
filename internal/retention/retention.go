@@ -3,8 +3,10 @@ package retention
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 
-	"github.com/MD2SA/backup-manager/internal/repository"
+	"github.com/MD2SA/backup-manager/internal/repository/db"
 	"github.com/MD2SA/backup-manager/internal/storage"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -18,27 +20,60 @@ type Policy struct {
 	YearlyMonth int
 }
 
+// Repository is the subset of the repository used by the retention engine.
+// Keeping it local makes the GFS logic easy to test without a database.
+type Repository interface {
+	ListExecutionsByProfileForRetention(ctx context.Context, profileID pgtype.UUID) ([]db.Execution, error)
+	ListExecutionStorage(ctx context.Context, executionID pgtype.UUID) ([]db.ExecutionStorage, error)
+	DeleteExecutionStorage(ctx context.Context, arg db.DeleteExecutionStorageParams) error
+	DeleteExecutionIfNoStorage(ctx context.Context, id pgtype.UUID) (int64, error)
+}
+
 type Engine struct {
-	repo repository.Repository
+	repo   Repository
+	logger *slog.Logger
 }
 
-func New(repo repository.Repository) *Engine {
-	return &Engine{repo: repo}
+func New(repo Repository, logger *slog.Logger) *Engine {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &Engine{repo: repo, logger: logger}
 }
 
-func (e *Engine) Apply(ctx context.Context, profileID pgtype.UUID, policy Policy, provider storage.StorageProvider) error {
-	executions, err := e.repo.ListExecutionsByProfile(ctx, profileID)
+// Apply removes executions that fall outside the policy. It is called once per
+// backup after all uploads have completed, so it can delete every stored copy
+// of an execution and only then remove the database record.
+func (e *Engine) Apply(
+	ctx context.Context,
+	profileID pgtype.UUID,
+	policy Policy,
+	providers map[pgtype.UUID]storage.StorageProvider,
+) error {
+	executions, err := e.repo.ListExecutionsByProfileForRetention(ctx, profileID)
 	if err != nil {
 		return err
 	}
-
 	if len(executions) == 0 {
 		return nil
 	}
 
+	// GFS only considers successful backups. A failed execution must not occupy
+	// the "latest" slot and cause older, usable backups to be deleted.
+	successful := make([]db.Execution, 0, len(executions))
+	for _, execution := range executions {
+		if execution.Status == "success" {
+			successful = append(successful, execution)
+		}
+	}
+	if len(successful) == 0 {
+		return nil
+	}
+	executions = successful
+
 	toKeep := make(map[pgtype.UUID]bool)
 
-	// Always keep the latest one
+	// Always keep the latest one.
 	toKeep[executions[0].ID] = true
 
 	hourly := make(map[string]pgtype.UUID)
@@ -48,12 +83,10 @@ func (e *Engine) Apply(ctx context.Context, profileID pgtype.UUID, policy Policy
 	yearly := make(map[string]pgtype.UUID)
 
 	for _, exec := range executions {
-		// Never purge pinned backups
 		if exec.IsPinned {
 			toKeep[exec.ID] = true
 			continue
 		}
-
 		if !exec.StartTime.Valid {
 			continue
 		}
@@ -91,16 +124,76 @@ func (e *Engine) Apply(ctx context.Context, profileID pgtype.UUID, policy Policy
 	}
 
 	for _, exec := range executions {
-		if !toKeep[exec.ID] {
-			if exec.StoragePath.Valid && provider != nil {
-				_ = provider.Delete(ctx, exec.StoragePath.String)
-			}
+		if toKeep[exec.ID] {
+			continue
+		}
+		if err := e.deleteExecution(ctx, exec, providers); err != nil {
+			e.logger.Warn("Retention could not delete execution", "execution_id", exec.ID, "error", err)
+		}
+	}
+	return nil
+}
 
-			if err := e.repo.DeleteExecution(ctx, exec.ID); err != nil {
-				return err
+func (e *Engine) deleteExecution(
+	ctx context.Context,
+	exec db.Execution,
+	providers map[pgtype.UUID]storage.StorageProvider,
+) error {
+	records, err := e.repo.ListExecutionStorage(ctx, exec.ID)
+	if err != nil {
+		return fmt.Errorf("list execution storage: %w", err)
+	}
+
+	if len(records) == 0 {
+		// Legacy execution: only executions.storage_path is known. Delete it
+		// from every configured provider; this is safe because the key is
+		// namespaced by profile and execution. If no path is recorded, the
+		// execution has no artifact and can be removed directly.
+		if !exec.StoragePath.Valid {
+			_, err := e.repo.DeleteExecutionIfNoStorage(ctx, exec.ID)
+			return err
+		}
+		if len(providers) == 0 {
+			return fmt.Errorf("no storage providers available to delete legacy artifact")
+		}
+		var deleteErrs []error
+		for providerID, provider := range providers {
+			if err := provider.Delete(ctx, exec.StoragePath.String); err != nil && !os.IsNotExist(err) {
+				deleteErrs = append(deleteErrs, fmt.Errorf("provider %s: %w", providerID, err))
 			}
+		}
+		if len(deleteErrs) > 0 {
+			return fmt.Errorf("delete legacy artifact: %v", deleteErrs)
+		}
+		_, err := e.repo.DeleteExecutionIfNoStorage(ctx, exec.ID)
+		return err
+	}
+
+	for _, record := range records {
+		provider, ok := providers[record.ProviderID]
+		if !ok {
+			// Provider was deleted or cannot be resolved; keep the record so a
+			// later run can retry.
+			e.logger.Warn("Retention skipped storage copy: provider unavailable",
+				"execution_id", exec.ID, "provider_id", record.ProviderID)
+			continue
+		}
+		if err := provider.Delete(ctx, record.StoragePath); err != nil && !os.IsNotExist(err) {
+			e.logger.Warn("Retention failed to delete storage object",
+				"execution_id", exec.ID, "provider_id", record.ProviderID, "path", record.StoragePath, "error", err)
+			continue
+		}
+		if err := e.repo.DeleteExecutionStorage(ctx, db.DeleteExecutionStorageParams{
+			ExecutionID: exec.ID,
+			ProviderID:  record.ProviderID,
+		}); err != nil {
+			return fmt.Errorf("delete execution storage record: %w", err)
 		}
 	}
 
-	return nil
+	// The execution row is only removed when no copies remain and no restore
+	// is active. If a provider was unavailable, this returns 0 and we retry
+	// on the next retention run.
+	_, err = e.repo.DeleteExecutionIfNoStorage(ctx, exec.ID)
+	return err
 }

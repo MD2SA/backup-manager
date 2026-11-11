@@ -21,6 +21,7 @@ type ExecutionResponse struct {
 	Logs         any       `json:"logs" swaggertype:"array,string"`
 	ErrorMessage string    `json:"error_message"`
 	IsPinned     bool      `json:"is_pinned"`
+	IsEncrypted  bool      `json:"is_encrypted"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -43,6 +44,7 @@ func ToExecutionResponse(e db.Execution) ExecutionResponse {
 		Logs:         logs,
 		ErrorMessage: e.ErrorMessage.String,
 		IsPinned:     e.IsPinned,
+		IsEncrypted:  e.IsEncrypted,
 		CreatedAt:    e.CreatedAt.Time,
 	}
 }

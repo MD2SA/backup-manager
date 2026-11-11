@@ -13,6 +13,7 @@ import (
 	"github.com/MD2SA/backup-manager/internal/monitor"
 	"github.com/MD2SA/backup-manager/internal/repository"
 	"github.com/MD2SA/backup-manager/internal/repository/db"
+	"github.com/MD2SA/backup-manager/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -32,7 +33,7 @@ func New(
 	trustedProxies []netip.Prefix,
 	ready func(context.Context) error,
 	onTrigger func(pgtype.UUID) error,
-	onRestore func(context.Context, pgtype.UUID) error,
+	onRestore func(context.Context, pgtype.UUID, service.RestoreOptions) (db.Restore, error),
 	onActivate func(db.Profile),
 ) *chi.Mux {
 	r := chi.NewRouter()
@@ -61,7 +62,7 @@ func New(
 	executionHandler := &handlers.ExecutionHandler{Repo: repo}
 	providerHandler := &handlers.ProviderHandler{Repo: repo}
 	monitorHandler := &handlers.MonitorHandler{Service: monitorService}
-	restoreHandler := &handlers.RestoreHandler{Repo: repo, Executor: onRestore}
+	restoreHandler := &handlers.RestoreHandler{Repo: repo, Enqueue: onRestore}
 	retentionHandler := &handlers.RetentionHandler{Repo: repo}
 
 	r.Route("/api/v1", func(r chi.Router) {
@@ -102,6 +103,12 @@ func New(
 			r.Get("/", executionHandler.GetAll)
 			r.Get("/{id}", executionHandler.Get)
 			r.Post("/{id}/pin", executionHandler.Pin)
+			r.Get("/{id}/restores", restoreHandler.ListByExecution)
+		})
+
+		r.Route("/restores", func(r chi.Router) {
+			r.Get("/", restoreHandler.List)
+			r.Get("/{id}", restoreHandler.Get)
 		})
 
 		r.Route("/profiles", func(r chi.Router) {

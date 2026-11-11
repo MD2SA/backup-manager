@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/MD2SA/backup-manager/internal/repository"
 	"github.com/MD2SA/backup-manager/internal/repository/db"
 	"github.com/MD2SA/backup-manager/internal/retention"
+	"github.com/MD2SA/backup-manager/internal/storage"
 	"github.com/MD2SA/backup-manager/internal/verification"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -26,6 +28,8 @@ type BackupService struct {
 	monitorService  *monitor.Service
 	config          config.Config
 	logger          *slog.Logger
+	gate            *backup.Gate
+	notifier        *Notifier
 }
 
 func NewBackupService(
@@ -35,6 +39,8 @@ func NewBackupService(
 	monitorService *monitor.Service,
 	cfg config.Config,
 	logger *slog.Logger,
+	gate *backup.Gate,
+	notifier *Notifier,
 ) *BackupService {
 	return &BackupService{
 		repo:            repo,
@@ -43,12 +49,21 @@ func NewBackupService(
 		monitorService:  monitorService,
 		config:          cfg,
 		logger:          logger,
+		gate:            gate,
+		notifier:        notifier,
 	}
 }
 
 func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID) error {
 	if err := s.ensureTargetDB("Backup"); err != nil {
 		return err
+	}
+
+	if s.gate != nil {
+		if err := s.gate.Acquire(ctx); err != nil {
+			return err
+		}
+		defer s.gate.Release()
 	}
 
 	p, err := s.repo.GetProfile(ctx, profileID)
@@ -76,9 +91,9 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 		ProfileID:   profileID,
 		ProfileName: pgutil.Slugify(p.Name),
 		TempDir:     s.config.TempDir,
+		StartTime:   time.Now(),
 	}
 
-	// Stages that run only once
 	initialStages := []backup.Stage{
 		&backup.PostgresDumpStage{
 			Host:             s.config.TargetDB.Host,
@@ -86,6 +101,7 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 			User:             s.config.TargetDB.User,
 			Password:         s.config.TargetDB.Password,
 			DBName:           s.config.TargetDB.DBName,
+			SSLMode:          s.config.TargetDB.SSLMode,
 			CompressionType:  p.CompressionType,
 			CompressionLevel: int(p.CompressionLevel),
 		},
@@ -98,59 +114,120 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 	}
 
 	if p.EncryptionEnabled {
-		initialStages = append(initialStages, &backup.AgeEncryptionStage{
-			PublicKey:  s.config.AgePublicKey,
-			Passphrase: s.config.EncryptionPassphrase,
-		})
+		if s.config.AgePublicKey == "" && s.config.EncryptionPassphrase == "" {
+			err = errors.New("profile encryption is enabled but no Age public key or encryption passphrase is configured")
+		} else {
+			initialStages = append(initialStages, &backup.AgeEncryptionStage{
+				PublicKey:  s.config.AgePublicKey,
+				Passphrase: s.config.EncryptionPassphrase,
+			})
+		}
 	}
 
-	pipeline := backup.NewPipeline(initialStages...)
-	err = pipeline.Run(execCtx)
+	dumpOK := false
+	if err == nil {
+		pipeline := backup.NewPipeline(initialStages...)
+		err = pipeline.Run(execCtx)
+		dumpOK = err == nil
+	}
+
+	providers := make(map[pgtype.UUID]storage.StorageProvider)
+	storedCopies := 0
 
 	if err == nil {
-		// Run storage and retention stages for each provider
-		for _, sID := range p.StorageProviderIDs {
-			storageProvider, sErr := s.providerService.ResolveStorageProvider(ctx, sID)
-			if sErr != nil {
-				execCtx.Log(fmt.Sprintf("Failed to resolve storage provider %s: %v", pgutil.UUIDToString(sID), sErr))
-				err = sErr
+		if len(p.StorageProviderIDs) == 0 {
+			err = errors.New("no storage providers linked to profile")
+		}
+
+		for _, providerID := range p.StorageProviderIDs {
+			storageProvider, resolveErr := s.providerService.ResolveStorageProvider(ctx, providerID)
+			if resolveErr != nil {
+				execCtx.Log(fmt.Sprintf("Failed to resolve storage provider %s: %v", pgutil.UUIDToString(providerID), resolveErr))
+				err = resolveErr
+				continue
+			}
+			providers[providerID] = storageProvider
+
+			upload := &backup.StorageStage{Provider: storageProvider}
+			execCtx.Log(fmt.Sprintf("Entering stage: %s for provider %s", upload.Name(), pgutil.UUIDToString(providerID)))
+			if uploadErr := upload.Execute(execCtx); uploadErr != nil {
+				execCtx.Log(fmt.Sprintf("Stage %s failed for provider %s: %v", upload.Name(), pgutil.UUIDToString(providerID), uploadErr))
+				err = uploadErr
 				continue
 			}
 
-			storageStages := []backup.Stage{
-				&backup.StorageStage{Provider: storageProvider},
-				&backup.RetentionStage{Engine: s.retentionEngine, Repo: s.repo, Provider: storageProvider},
+			if recordErr := s.repo.AddExecutionStorage(ctx, db.AddExecutionStorageParams{
+				ExecutionID: execID,
+				ProviderID:  providerID,
+				StoragePath: execCtx.BackupPath,
+				Size:        execCtx.Size,
+			}); recordErr != nil {
+				execCtx.Log(fmt.Sprintf("Failed to record storage copy for provider %s: %v", pgutil.UUIDToString(providerID), recordErr))
+				err = recordErr
+				continue
 			}
 
-			for _, stage := range storageStages {
-				execCtx.Log(fmt.Sprintf("Entering stage: %s for provider %s", stage.Name(), pgutil.UUIDToString(sID)))
-				if stageErr := stage.Execute(execCtx); stageErr != nil {
-					execCtx.Log(fmt.Sprintf("Stage %s failed for provider %s: %v", stage.Name(), pgutil.UUIDToString(sID), stageErr))
-					err = stageErr
-					break
-				}
-				execCtx.Log(fmt.Sprintf("Stage %s completed successfully for provider %s", stage.Name(), pgutil.UUIDToString(sID)))
-			}
+			storedCopies++
+			execCtx.Log(fmt.Sprintf("Stage %s completed successfully for provider %s", upload.Name(), pgutil.UUIDToString(providerID)))
 		}
+	}
 
-		// Embed a metadata snapshot into the profile's storage providers (DR).
-		// Failures here are logged and never fail the main backup execution.
-		if s.config.MetadataBackupEmbed {
-			s.embedMetadata(ctx, p)
+	// Embedded metadata snapshots are best-effort and never fail the backup.
+	if s.config.MetadataBackupEmbed && dumpOK {
+		s.embedMetadata(ctx, p)
+	}
+
+	// Apply retention once, after every provider has had a chance to receive
+	// the new backup. Retention failures are operational warnings, not backup
+	// failures: the new copy is already safely stored.
+	if err == nil && p.RetentionPolicyID.Valid && storedCopies > 0 {
+		// Mark this execution successful before retention so the engine sees
+		// the new backup as the latest one instead of a running row. The final
+		// update below overwrites the interim end time and logs.
+		interimEnd := time.Now()
+		interimLogs, _ := json.Marshal(execCtx.Logs)
+		if _, updateErr := s.repo.UpdateExecution(ctx, db.UpdateExecutionParams{
+			ID:          execID,
+			Status:      string(backup.StatusSuccess),
+			StartTime:   pgutil.ToTimestamptz(execCtx.StartTime),
+			EndTime:     pgutil.ToTimestamptz(interimEnd),
+			Duration:    pgutil.ToInterval(interimEnd.Sub(execCtx.StartTime)),
+			Size:        pgutil.ToInt8(execCtx.Size),
+			Checksum:    pgutil.ToText(execCtx.Checksum),
+			StoragePath: pgutil.ToText(execCtx.BackupPath),
+			Logs:        interimLogs,
+			IsEncrypted: execCtx.IsEncrypted,
+		}); updateErr != nil {
+			execCtx.Log(fmt.Sprintf("Could not mark execution successful before retention: %v", updateErr))
+		} else {
+			rp, retentionErr := s.repo.GetRetentionPolicy(ctx, p.RetentionPolicyID)
+			if retentionErr != nil {
+				execCtx.Log(fmt.Sprintf("Failed to load retention policy: %v", retentionErr))
+			} else {
+				policy := retention.Policy{
+					KeepHourly:  int(rp.KeepHourly),
+					KeepDaily:   int(rp.KeepDaily),
+					KeepWeekly:  int(rp.KeepWeekly),
+					KeepMonthly: int(rp.KeepMonthly),
+					KeepYearly:  int(rp.KeepYearly),
+					YearlyMonth: int(rp.YearlyMonth),
+				}
+				if applyErr := s.retentionEngine.Apply(ctx, profileID, policy, providers); applyErr != nil {
+					execCtx.Log(fmt.Sprintf("Retention failed: %v", applyErr))
+				}
+			}
 		}
 	}
 
 	execCtx.EndTime = time.Now()
 
-	// Always cleanup
 	cleanup := &backup.CleanupStage{}
-	if cErr := cleanup.Execute(execCtx); cErr != nil {
-		execCtx.Log(fmt.Sprintf("Cleanup failed: %v", cErr))
+	if cleanupErr := cleanup.Execute(execCtx); cleanupErr != nil {
+		execCtx.Log(fmt.Sprintf("Cleanup failed: %v", cleanupErr))
 	}
 
 	logsJSON, _ := json.Marshal(execCtx.Logs)
 
-	// Update execution status
 	updateParams := db.UpdateExecutionParams{
 		ID:          execID,
 		Status:      string(backup.StatusSuccess),
@@ -180,74 +257,9 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 }
 
 func (s *BackupService) notifyAll(ctx context.Context, providerIDs []pgtype.UUID, event notification.Event, message string, metadata map[string]interface{}) {
-	for _, id := range providerIDs {
-		s.notify(ctx, id, event, message, metadata)
+	if s.notifier != nil {
+		s.notifier.All(ctx, providerIDs, event, message, metadata)
 	}
-}
-
-func (s *BackupService) notify(ctx context.Context, providerID pgtype.UUID, event notification.Event, message string, metadata map[string]interface{}) {
-	if !providerID.Valid {
-		return
-	}
-
-	provider, err := s.providerService.ResolveNotificationProvider(ctx, providerID)
-	if err != nil || provider == nil {
-		s.logger.Error("Failed to resolve notification provider", "error", err)
-		return
-	}
-
-	if err := provider.Send(ctx, event, message, metadata); err != nil {
-		s.logger.Error("Failed to send notification", "error", err)
-	}
-}
-
-func (s *BackupService) ExecuteRestore(ctx context.Context, executionID pgtype.UUID) error {
-	if err := s.ensureTargetDB("Restore"); err != nil {
-		return err
-	}
-
-	execution, err := s.repo.GetExecution(ctx, executionID)
-	if err != nil {
-		return err
-	}
-
-	if !execution.StoragePath.Valid {
-		return fmt.Errorf("execution has no storage path")
-	}
-
-	profile, err := s.repo.GetProfile(ctx, execution.ProfileID)
-	if err != nil {
-		return err
-	}
-
-	// For restore, we currently just use the first storage provider linked to the profile?
-	// Actually, the execution record has the storage path. We need to know which provider it was on.
-	// But the current schema doesn't store provider_id in execution.
-	// This might be an issue for restore if different providers have different path formats.
-	// However, for now, we'll try to use the first one available or the one that works.
-
-	if len(profile.StorageProviderIDs) == 0 {
-		return fmt.Errorf("no storage providers linked to profile")
-	}
-
-	storageProvider, err := s.providerService.ResolveStorageProvider(ctx, profile.StorageProviderIDs[0])
-	if err != nil {
-		return fmt.Errorf("failed to resolve storage provider for restore: %w", err)
-	}
-
-	pipeline := &backup.RestorePipeline{
-		Storage:       storageProvider,
-		TempDir:       s.config.TempDir,
-		AgePrivateKey: s.config.AgePrivateKey,
-		AgePassphrase: s.config.EncryptionPassphrase,
-	}
-	pipeline.DBConfig.Host = s.config.TargetDB.Host
-	pipeline.DBConfig.Port = s.config.TargetDB.Port
-	pipeline.DBConfig.User = s.config.TargetDB.User
-	pipeline.DBConfig.Password = s.config.TargetDB.Password
-	pipeline.DBConfig.DBName = s.config.TargetDB.DBName
-
-	return pipeline.Run(ctx, execution.StoragePath.String, execution.IsEncrypted)
 }
 
 func (s *BackupService) ensureTargetDB(op string) error {
