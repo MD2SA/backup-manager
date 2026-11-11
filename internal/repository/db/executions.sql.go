@@ -204,6 +204,111 @@ func (q *Queries) ListExecutionsByProfile(ctx context.Context, profileID pgtype.
 	return items, nil
 }
 
+const listExecutionsByProfilePage = `-- name: ListExecutionsByProfilePage :many
+SELECT id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at, is_encrypted
+FROM executions
+WHERE profile_id = $1
+  AND ($2::timestamptz IS NULL OR (created_at, id) < ($2, $3::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $4
+`
+
+type ListExecutionsByProfilePageParams struct {
+	ProfileID  pgtype.UUID
+	CursorTime pgtype.Timestamptz
+	CursorID   pgtype.UUID
+	PageLimit  int32
+}
+
+func (q *Queries) ListExecutionsByProfilePage(ctx context.Context, arg ListExecutionsByProfilePageParams) ([]Execution, error) {
+	rows, err := q.db.Query(ctx, listExecutionsByProfilePage,
+		arg.ProfileID,
+		arg.CursorTime,
+		arg.CursorID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Execution
+	for rows.Next() {
+		var i Execution
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfileID,
+			&i.Status,
+			&i.StartTime,
+			&i.EndTime,
+			&i.Duration,
+			&i.Size,
+			&i.Checksum,
+			&i.StoragePath,
+			&i.Logs,
+			&i.ErrorMessage,
+			&i.IsPinned,
+			&i.CreatedAt,
+			&i.IsEncrypted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExecutionsPage = `-- name: ListExecutionsPage :many
+SELECT id, profile_id, status, start_time, end_time, duration, size, checksum, storage_path, logs, error_message, is_pinned, created_at, is_encrypted
+FROM executions
+WHERE ($1::timestamptz IS NULL OR (created_at, id) < ($1, $2::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $3
+`
+
+type ListExecutionsPageParams struct {
+	CursorTime pgtype.Timestamptz
+	CursorID   pgtype.UUID
+	PageLimit  int32
+}
+
+func (q *Queries) ListExecutionsPage(ctx context.Context, arg ListExecutionsPageParams) ([]Execution, error) {
+	rows, err := q.db.Query(ctx, listExecutionsPage, arg.CursorTime, arg.CursorID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Execution
+	for rows.Next() {
+		var i Execution
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfileID,
+			&i.Status,
+			&i.StartTime,
+			&i.EndTime,
+			&i.Duration,
+			&i.Size,
+			&i.Checksum,
+			&i.StoragePath,
+			&i.Logs,
+			&i.ErrorMessage,
+			&i.IsPinned,
+			&i.CreatedAt,
+			&i.IsEncrypted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setExecutionPinned = `-- name: SetExecutionPinned :exec
 UPDATE executions
 SET is_pinned = $2

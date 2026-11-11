@@ -211,6 +211,10 @@ func (s *Service) ListUsers(ctx context.Context) ([]db.User, error) {
 	return s.repo.ListUsers(ctx)
 }
 
+func (s *Service) ListUsersPage(ctx context.Context, arg db.ListUsersPageParams) ([]db.User, error) {
+	return s.repo.ListUsersPage(ctx, arg)
+}
+
 func (s *Service) UpdateUser(ctx context.Context, id pgtype.UUID, email, name string, active bool) (db.User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	name = strings.TrimSpace(name)
@@ -336,6 +340,10 @@ func (s *Service) CreateAPIKey(
 
 func (s *Service) ListAPIKeys(ctx context.Context, userID pgtype.UUID) ([]db.ApiKey, error) {
 	return s.repo.ListAPIKeysByUser(ctx, userID)
+}
+
+func (s *Service) ListAPIKeysPage(ctx context.Context, arg db.ListAPIKeysByUserPageParams) ([]db.ApiKey, error) {
+	return s.repo.ListAPIKeysByUserPage(ctx, arg)
 }
 
 func (s *Service) ListAllAPIKeys(ctx context.Context) ([]db.ApiKey, error) {

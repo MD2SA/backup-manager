@@ -10,6 +10,7 @@ import (
 	"github.com/MD2SA/backup-manager/internal/api/dto"
 	apimiddleware "github.com/MD2SA/backup-manager/internal/api/middleware"
 	"github.com/MD2SA/backup-manager/internal/auth"
+	"github.com/MD2SA/backup-manager/internal/pagination"
 	"github.com/MD2SA/backup-manager/internal/pkg/apiutil"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository"
@@ -127,7 +128,9 @@ func (h *RestoreHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Tags restores
 // @Produce json
 // @Param id path string true "Execution ID"
-// @Success 200 {array} dto.RestoreResponse
+// @Param limit query int false "Page size (default 50, max 200)"
+// @Param cursor query string false "Opaque next cursor"
+// @Success 200 {object} dto.RestorePage
 // @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 404 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
@@ -147,12 +150,43 @@ func (h *RestoreHandler) ListByExecution(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	restores, err := h.Repo.ListRestoresByExecution(r.Context(), executionID)
+	pageReq, err := pagination.ParseRequest(r)
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cursorTime, cursorID, hasCursor, err := pagination.ParseTimeCursor(pageReq.Cursor, "execution_restores")
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := db.ListRestoresByExecutionPageParams{
+		ExecutionID: executionID,
+		PageLimit:   pageReq.Limit + 1,
+	}
+	if hasCursor {
+		params.CursorTime = pgutil.ToTimestamptz(cursorTime)
+		params.CursorID = cursorID
+	}
+
+	restores, err := h.Repo.ListRestoresByExecutionPage(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)
 		return
 	}
-	apiutil.Success(w, http.StatusOK, toRestoreResponses(restores))
+	restores, hasMore := pagination.TrimPage(restores, pageReq.Limit)
+	next := ""
+	if hasMore && len(restores) > 0 {
+		last := restores[len(restores)-1]
+		next = pagination.TimeCursor("execution_restores", last.CreatedAt.Time, last.ID)
+	}
+	pagination.SetNextLink(w, r, next)
+	apiutil.Success(w, http.StatusOK, dto.RestorePage{
+		Items:      toRestoreResponses(restores),
+		NextCursor: next,
+		HasMore:    hasMore,
+	})
 }
 
 // List restores
@@ -160,16 +194,47 @@ func (h *RestoreHandler) ListByExecution(w http.ResponseWriter, r *http.Request)
 // @Description Get the global restore history, newest first.
 // @Tags restores
 // @Produce json
-// @Success 200 {array} dto.RestoreResponse
+// @Param limit query int false "Page size (default 50, max 200)"
+// @Param cursor query string false "Opaque next cursor"
+// @Success 200 {object} dto.RestorePage
+// @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /restores [get]
 func (h *RestoreHandler) List(w http.ResponseWriter, r *http.Request) {
-	restores, err := h.Repo.ListRestores(r.Context())
+	pageReq, err := pagination.ParseRequest(r)
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cursorTime, cursorID, hasCursor, err := pagination.ParseTimeCursor(pageReq.Cursor, "restores")
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := db.ListRestoresPageParams{PageLimit: pageReq.Limit + 1}
+	if hasCursor {
+		params.CursorTime = pgutil.ToTimestamptz(cursorTime)
+		params.CursorID = cursorID
+	}
+
+	restores, err := h.Repo.ListRestoresPage(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)
 		return
 	}
-	apiutil.Success(w, http.StatusOK, toRestoreResponses(restores))
+	restores, hasMore := pagination.TrimPage(restores, pageReq.Limit)
+	next := ""
+	if hasMore && len(restores) > 0 {
+		last := restores[len(restores)-1]
+		next = pagination.TimeCursor("restores", last.CreatedAt.Time, last.ID)
+	}
+	pagination.SetNextLink(w, r, next)
+	apiutil.Success(w, http.StatusOK, dto.RestorePage{
+		Items:      toRestoreResponses(restores),
+		NextCursor: next,
+		HasMore:    hasMore,
+	})
 }
 
 func toRestoreResponses(restores []db.Restore) []dto.RestoreResponse {

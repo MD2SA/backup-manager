@@ -32,3 +32,10 @@ RETURNING *;
 -- name: DeleteNotificationProvider :exec
 DELETE FROM notification_providers
 WHERE id = $1;
+
+-- name: ListNotificationProvidersPage :many
+SELECT *
+FROM notification_providers
+WHERE (sqlc.narg(cursor_name)::text IS NULL OR (name, id) > (sqlc.arg(cursor_name), sqlc.arg(cursor_id)::uuid))
+ORDER BY name ASC, id ASC
+LIMIT sqlc.arg(page_limit);

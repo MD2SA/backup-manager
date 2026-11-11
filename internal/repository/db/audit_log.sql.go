@@ -108,3 +108,48 @@ func (q *Queries) ListAuditEntries(ctx context.Context, arg ListAuditEntriesPara
 	}
 	return items, nil
 }
+
+const listAuditEntriesPage = `-- name: ListAuditEntriesPage :many
+SELECT id, user_id, api_key_id, action, resource_type, resource_id, request_id, ip, metadata, created_at
+FROM audit_log
+WHERE ($1::timestamptz IS NULL OR (created_at, id) < ($1, $2::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $3
+`
+
+type ListAuditEntriesPageParams struct {
+	CursorTime pgtype.Timestamptz
+	CursorID   pgtype.UUID
+	PageLimit  int32
+}
+
+func (q *Queries) ListAuditEntriesPage(ctx context.Context, arg ListAuditEntriesPageParams) ([]AuditLog, error) {
+	rows, err := q.db.Query(ctx, listAuditEntriesPage, arg.CursorTime, arg.CursorID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuditLog
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ApiKeyID,
+			&i.Action,
+			&i.ResourceType,
+			&i.ResourceID,
+			&i.RequestID,
+			&i.Ip,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

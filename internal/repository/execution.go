@@ -12,6 +12,8 @@ type ExecutionRepository interface {
 	UpdateExecution(ctx context.Context, arg db.UpdateExecutionParams) (db.Execution, error)
 	GetExecution(ctx context.Context, id pgtype.UUID) (db.Execution, error)
 	ListExecutionsByProfile(ctx context.Context, profileID pgtype.UUID) ([]db.Execution, error)
+	ListExecutionsPage(ctx context.Context, arg db.ListExecutionsPageParams) ([]db.Execution, error)
+	ListExecutionsByProfilePage(ctx context.Context, arg db.ListExecutionsByProfilePageParams) ([]db.Execution, error)
 	ListExecutionsByProfileForRetention(ctx context.Context, profileID pgtype.UUID) ([]db.Execution, error)
 	ListAllExecutions(ctx context.Context) ([]db.Execution, error)
 	DeleteExecution(ctx context.Context, id pgtype.UUID) error
@@ -33,6 +35,14 @@ func (r *Postgres) GetExecution(ctx context.Context, id pgtype.UUID) (db.Executi
 
 func (r *Postgres) ListExecutionsByProfile(ctx context.Context, profileID pgtype.UUID) ([]db.Execution, error) {
 	return r.queries.ListExecutionsByProfile(ctx, profileID)
+}
+
+func (r *Postgres) ListExecutionsPage(ctx context.Context, arg db.ListExecutionsPageParams) ([]db.Execution, error) {
+	return r.queries.ListExecutionsPage(ctx, arg)
+}
+
+func (r *Postgres) ListExecutionsByProfilePage(ctx context.Context, arg db.ListExecutionsByProfilePageParams) ([]db.Execution, error) {
+	return r.queries.ListExecutionsByProfilePage(ctx, arg)
 }
 
 func (r *Postgres) ListExecutionsByProfileForRetention(ctx context.Context, profileID pgtype.UUID) ([]db.Execution, error) {

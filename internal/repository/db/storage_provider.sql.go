@@ -107,6 +107,47 @@ func (q *Queries) ListStorageProviders(ctx context.Context) ([]StorageProvider, 
 	return items, nil
 }
 
+const listStorageProvidersPage = `-- name: ListStorageProvidersPage :many
+SELECT id, name, type, config, created_at, updated_at
+FROM storage_providers
+WHERE ($1::text IS NULL OR (name, id) > ($1, $2::uuid))
+ORDER BY name ASC, id ASC
+LIMIT $3
+`
+
+type ListStorageProvidersPageParams struct {
+	CursorName pgtype.Text
+	CursorID   pgtype.UUID
+	PageLimit  int32
+}
+
+func (q *Queries) ListStorageProvidersPage(ctx context.Context, arg ListStorageProvidersPageParams) ([]StorageProvider, error) {
+	rows, err := q.db.Query(ctx, listStorageProvidersPage, arg.CursorName, arg.CursorID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []StorageProvider
+	for rows.Next() {
+		var i StorageProvider
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Type,
+			&i.Config,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateStorageProvider = `-- name: UpdateStorageProvider :one
 UPDATE storage_providers
 SET

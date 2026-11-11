@@ -51,3 +51,7 @@ func (s *Service) ListAuditEntries(ctx context.Context, limit, offset int32) ([]
 	}
 	return s.repo.ListAuditEntries(ctx, db.ListAuditEntriesParams{Limit: limit, Offset: offset})
 }
+
+func (s *Service) ListAuditEntriesPage(ctx context.Context, arg db.ListAuditEntriesPageParams) ([]db.AuditLog, error) {
+	return s.repo.ListAuditEntriesPage(ctx, arg)
+}

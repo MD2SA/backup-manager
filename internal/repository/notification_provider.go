@@ -10,6 +10,7 @@ import (
 type NotificationProviderRepository interface {
 	GetNotificationProvider(ctx context.Context, id pgtype.UUID) (db.NotificationProvider, error)
 	ListNotificationProviders(ctx context.Context) ([]db.NotificationProvider, error)
+	ListNotificationProvidersPage(ctx context.Context, arg db.ListNotificationProvidersPageParams) ([]db.NotificationProvider, error)
 	CreateNotificationProvider(ctx context.Context, arg db.CreateNotificationProviderParams) (db.NotificationProvider, error)
 	UpdateNotificationProvider(ctx context.Context, arg db.UpdateNotificationProviderParams) (db.NotificationProvider, error)
 	DeleteNotificationProvider(ctx context.Context, id pgtype.UUID) error
@@ -41,6 +42,10 @@ func (r *Postgres) ListNotificationProviders(ctx context.Context) ([]db.Notifica
 		providers[i].Config = config
 	}
 	return providers, nil
+}
+
+func (r *Postgres) ListNotificationProvidersPage(ctx context.Context, arg db.ListNotificationProvidersPageParams) ([]db.NotificationProvider, error) {
+	return r.queries.ListNotificationProvidersPage(ctx, arg)
 }
 
 func (r *Postgres) CreateNotificationProvider(

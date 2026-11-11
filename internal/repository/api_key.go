@@ -12,6 +12,7 @@ type APIKeyRepository interface {
 	GetAPIKey(ctx context.Context, id pgtype.UUID) (db.ApiKey, error)
 	GetAPIKeyByHash(ctx context.Context, keyHash []byte) (db.ApiKey, error)
 	ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]db.ApiKey, error)
+	ListAPIKeysByUserPage(ctx context.Context, arg db.ListAPIKeysByUserPageParams) ([]db.ApiKey, error)
 	ListAPIKeys(ctx context.Context) ([]db.ApiKey, error)
 	RevokeAPIKey(ctx context.Context, id pgtype.UUID) (db.ApiKey, error)
 	RevokeAllUserAPIKeys(ctx context.Context, userID pgtype.UUID) error
@@ -32,6 +33,10 @@ func (r *Postgres) GetAPIKeyByHash(ctx context.Context, keyHash []byte) (db.ApiK
 
 func (r *Postgres) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]db.ApiKey, error) {
 	return r.queries.ListAPIKeysByUser(ctx, userID)
+}
+
+func (r *Postgres) ListAPIKeysByUserPage(ctx context.Context, arg db.ListAPIKeysByUserPageParams) ([]db.ApiKey, error) {
+	return r.queries.ListAPIKeysByUserPage(ctx, arg)
 }
 
 func (r *Postgres) ListAPIKeys(ctx context.Context) ([]db.ApiKey, error) {

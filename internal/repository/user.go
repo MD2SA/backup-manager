@@ -12,6 +12,7 @@ type UserRepository interface {
 	GetUser(ctx context.Context, id pgtype.UUID) (db.User, error)
 	GetUserByEmail(ctx context.Context, email string) (db.User, error)
 	ListUsers(ctx context.Context) ([]db.User, error)
+	ListUsersPage(ctx context.Context, arg db.ListUsersPageParams) ([]db.User, error)
 	UpdateUser(ctx context.Context, arg db.UpdateUserParams) (db.User, error)
 	DeactivateUser(ctx context.Context, id pgtype.UUID) (db.User, error)
 	CountUsers(ctx context.Context) (int64, error)
@@ -33,6 +34,10 @@ func (r *Postgres) GetUserByEmail(ctx context.Context, email string) (db.User, e
 
 func (r *Postgres) ListUsers(ctx context.Context) ([]db.User, error) {
 	return r.queries.ListUsers(ctx)
+}
+
+func (r *Postgres) ListUsersPage(ctx context.Context, arg db.ListUsersPageParams) ([]db.User, error) {
+	return r.queries.ListUsersPage(ctx, arg)
 }
 
 func (r *Postgres) UpdateUser(ctx context.Context, arg db.UpdateUserParams) (db.User, error) {

@@ -107,6 +107,47 @@ func (q *Queries) ListNotificationProviders(ctx context.Context) ([]Notification
 	return items, nil
 }
 
+const listNotificationProvidersPage = `-- name: ListNotificationProvidersPage :many
+SELECT id, name, type, config, created_at, updated_at
+FROM notification_providers
+WHERE ($1::text IS NULL OR (name, id) > ($1, $2::uuid))
+ORDER BY name ASC, id ASC
+LIMIT $3
+`
+
+type ListNotificationProvidersPageParams struct {
+	CursorName pgtype.Text
+	CursorID   pgtype.UUID
+	PageLimit  int32
+}
+
+func (q *Queries) ListNotificationProvidersPage(ctx context.Context, arg ListNotificationProvidersPageParams) ([]NotificationProvider, error) {
+	rows, err := q.db.Query(ctx, listNotificationProvidersPage, arg.CursorName, arg.CursorID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationProvider
+	for rows.Next() {
+		var i NotificationProvider
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Type,
+			&i.Config,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateNotificationProvider = `-- name: UpdateNotificationProvider :one
 UPDATE notification_providers
 SET

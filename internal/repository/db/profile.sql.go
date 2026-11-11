@@ -240,6 +240,52 @@ func (q *Queries) ListProfiles(ctx context.Context) ([]Profile, error) {
 	return items, nil
 }
 
+const listProfilesPage = `-- name: ListProfilesPage :many
+SELECT id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled
+FROM profiles
+WHERE ($1::text IS NULL OR (name, id) > ($1, $2::uuid))
+ORDER BY name ASC, id ASC
+LIMIT $3
+`
+
+type ListProfilesPageParams struct {
+	CursorName pgtype.Text
+	CursorID   pgtype.UUID
+	PageLimit  int32
+}
+
+func (q *Queries) ListProfilesPage(ctx context.Context, arg ListProfilesPageParams) ([]Profile, error) {
+	rows, err := q.db.Query(ctx, listProfilesPage, arg.CursorName, arg.CursorID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Profile
+	for rows.Next() {
+		var i Profile
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Enabled,
+			&i.Schedule,
+			&i.RetentionPolicyID,
+			&i.CompressionType,
+			&i.CompressionLevel,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EncryptionEnabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setProfileEnabled = `-- name: SetProfileEnabled :one
 UPDATE profiles
 SET enabled = $2, updated_at = now()

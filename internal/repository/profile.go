@@ -16,6 +16,7 @@ type ProfileFull struct {
 type ProfileRepository interface {
 	GetProfile(ctx context.Context, id pgtype.UUID) (ProfileFull, error)
 	ListProfiles(ctx context.Context) ([]ProfileFull, error)
+	ListProfilesPage(ctx context.Context, arg db.ListProfilesPageParams) ([]ProfileFull, error)
 	CreateProfile(ctx context.Context, params db.CreateProfileParams, storageIDs []pgtype.UUID, notificationIDs []pgtype.UUID) (ProfileFull, error)
 	UpdateProfile(ctx context.Context, params db.UpdateProfileParams, storageIDs []pgtype.UUID, notificationIDs []pgtype.UUID) (ProfileFull, error)
 	DeleteProfile(ctx context.Context, id pgtype.UUID) error
@@ -70,6 +71,31 @@ func (r *Postgres) ListProfiles(ctx context.Context) ([]ProfileFull, error) {
 		}
 	}
 
+	return res, nil
+}
+
+func (r *Postgres) ListProfilesPage(ctx context.Context, arg db.ListProfilesPageParams) ([]ProfileFull, error) {
+	profiles, err := r.queries.ListProfilesPage(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]ProfileFull, len(profiles))
+	for i, profile := range profiles {
+		storageIDs, err := r.queries.GetProfileStorageProviderIDs(ctx, profile.ID)
+		if err != nil {
+			return nil, err
+		}
+		notificationIDs, err := r.queries.GetProfileNotificationProviderIDs(ctx, profile.ID)
+		if err != nil {
+			return nil, err
+		}
+		res[i] = ProfileFull{
+			Profile:                 profile,
+			StorageProviderIDs:      storageIDs,
+			NotificationProviderIDs: notificationIDs,
+		}
+	}
 	return res, nil
 }
 

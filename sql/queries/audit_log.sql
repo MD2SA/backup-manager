@@ -18,3 +18,10 @@ SELECT *
 FROM audit_log
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2;
+
+-- name: ListAuditEntriesPage :many
+SELECT *
+FROM audit_log
+WHERE (sqlc.arg(cursor_time)::timestamptz IS NULL OR (created_at, id) < (sqlc.arg(cursor_time), sqlc.arg(cursor_id)::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(page_limit);

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/MD2SA/backup-manager/internal/api/dto"
+	"github.com/MD2SA/backup-manager/internal/pagination"
 	"github.com/MD2SA/backup-manager/internal/pkg/apiutil"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository"
@@ -28,15 +29,36 @@ type ProfileHandler struct {
 // @Description Profiles link databases to storage destinations via schedules.
 // @Tags profiles
 // @Produce json
-// @Success 200 {array} dto.ProfileResponse
+// @Param limit query int false "Page size (default 50, max 200)"
+// @Param cursor query string false "Opaque next cursor"
+// @Success 200 {object} dto.ProfilePage
+// @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /profiles [get]
 func (h *ProfileHandler) List(w http.ResponseWriter, r *http.Request) {
-	profiles, err := h.Repo.ListProfiles(r.Context())
+	pageReq, err := pagination.ParseRequest(r)
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cursorName, cursorID, hasCursor, err := pagination.ParseNameCursor(pageReq.Cursor, "profiles")
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := db.ListProfilesPageParams{PageLimit: pageReq.Limit + 1}
+	if hasCursor {
+		params.CursorName = pgutil.ToText(cursorName)
+		params.CursorID = cursorID
+	}
+
+	profiles, err := h.Repo.ListProfilesPage(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)
 		return
 	}
+	profiles, hasMore := pagination.TrimPage(profiles, pageReq.Limit)
 
 	res := make([]dto.ProfileResponse, len(profiles))
 	for i, p := range profiles {
@@ -51,7 +73,13 @@ func (h *ProfileHandler) List(w http.ResponseWriter, r *http.Request) {
 		res[i] = dto.ToProfileResponse(p.Profile, storageIDs, notificationIDs)
 	}
 
-	apiutil.Success(w, http.StatusOK, res)
+	next := ""
+	if hasMore && len(profiles) > 0 {
+		last := profiles[len(profiles)-1]
+		next = pagination.NameCursor("profiles", last.Profile.Name, last.Profile.ID)
+	}
+	pagination.SetNextLink(w, r, next)
+	apiutil.Success(w, http.StatusOK, dto.ProfilePage{Items: res, NextCursor: next, HasMore: hasMore})
 }
 
 // Get profile

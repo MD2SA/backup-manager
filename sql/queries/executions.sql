@@ -59,3 +59,18 @@ WHERE id = $1;
 UPDATE executions
 SET is_pinned = $2
 WHERE id = $1;
+
+-- name: ListExecutionsPage :many
+SELECT *
+FROM executions
+WHERE (sqlc.arg(cursor_time)::timestamptz IS NULL OR (created_at, id) < (sqlc.arg(cursor_time), sqlc.arg(cursor_id)::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(page_limit);
+
+-- name: ListExecutionsByProfilePage :many
+SELECT *
+FROM executions
+WHERE profile_id = sqlc.arg(profile_id)
+  AND (sqlc.arg(cursor_time)::timestamptz IS NULL OR (created_at, id) < (sqlc.arg(cursor_time), sqlc.arg(cursor_id)::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(page_limit);

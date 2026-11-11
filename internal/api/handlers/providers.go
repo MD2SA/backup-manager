@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/MD2SA/backup-manager/internal/api/dto"
+	"github.com/MD2SA/backup-manager/internal/pagination"
 	"github.com/MD2SA/backup-manager/internal/pkg/apiutil"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository"
@@ -24,22 +25,47 @@ type ProviderHandler struct {
 // @Description - 's3': Use {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."} for AWS S3 compatible storage.
 // @Tags storage-providers
 // @Produce json
-// @Success 200 {array} dto.StorageProviderResponse
+// @Param limit query int false "Page size (default 50, max 200)"
+// @Param cursor query string false "Opaque next cursor"
+// @Success 200 {object} dto.StorageProviderPage
+// @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /storage-providers [get]
 func (h *ProviderHandler) ListStorage(w http.ResponseWriter, r *http.Request) {
-	providers, err := h.Repo.ListStorageProviders(r.Context())
+	pageReq, err := pagination.ParseRequest(r)
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cursorName, cursorID, hasCursor, err := pagination.ParseNameCursor(pageReq.Cursor, "storage_providers")
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := db.ListStorageProvidersPageParams{PageLimit: pageReq.Limit + 1}
+	if hasCursor {
+		params.CursorName = pgutil.ToText(cursorName)
+		params.CursorID = cursorID
+	}
+	providers, err := h.Repo.ListStorageProvidersPage(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)
 		return
 	}
+	providers, hasMore := pagination.TrimPage(providers, pageReq.Limit)
 
 	res := make([]dto.StorageProviderResponse, len(providers))
 	for i, p := range providers {
 		res[i] = dto.ToStorageProviderResponse(p)
 	}
-
-	apiutil.Success(w, http.StatusOK, res)
+	next := ""
+	if hasMore && len(providers) > 0 {
+		last := providers[len(providers)-1]
+		next = pagination.NameCursor("storage_providers", last.Name, last.ID)
+	}
+	pagination.SetNextLink(w, r, next)
+	apiutil.Success(w, http.StatusOK, dto.StorageProviderPage{Items: res, NextCursor: next, HasMore: hasMore})
 }
 
 // Create storage provider
@@ -171,22 +197,47 @@ func (h *ProviderHandler) DeleteStorage(w http.ResponseWriter, r *http.Request) 
 // @Description - 'discord': Requires {"webhook_url": "https://discord.com/api/webhooks/..."} to send alerts to a Discord channel.
 // @Tags notification-providers
 // @Produce json
-// @Success 200 {array} dto.NotificationProviderResponse
+// @Param limit query int false "Page size (default 50, max 200)"
+// @Param cursor query string false "Opaque next cursor"
+// @Success 200 {object} dto.NotificationProviderPage
+// @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /notification-providers [get]
 func (h *ProviderHandler) ListNotification(w http.ResponseWriter, r *http.Request) {
-	providers, err := h.Repo.ListNotificationProviders(r.Context())
+	pageReq, err := pagination.ParseRequest(r)
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cursorName, cursorID, hasCursor, err := pagination.ParseNameCursor(pageReq.Cursor, "notification_providers")
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := db.ListNotificationProvidersPageParams{PageLimit: pageReq.Limit + 1}
+	if hasCursor {
+		params.CursorName = pgutil.ToText(cursorName)
+		params.CursorID = cursorID
+	}
+	providers, err := h.Repo.ListNotificationProvidersPage(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)
 		return
 	}
+	providers, hasMore := pagination.TrimPage(providers, pageReq.Limit)
 
 	res := make([]dto.NotificationProviderResponse, len(providers))
 	for i, p := range providers {
 		res[i] = dto.ToNotificationProviderResponse(p)
 	}
-
-	apiutil.Success(w, http.StatusOK, res)
+	next := ""
+	if hasMore && len(providers) > 0 {
+		last := providers[len(providers)-1]
+		next = pagination.NameCursor("notification_providers", last.Name, last.ID)
+	}
+	pagination.SetNextLink(w, r, next)
+	apiutil.Success(w, http.StatusOK, dto.NotificationProviderPage{Items: res, NextCursor: next, HasMore: hasMore})
 }
 
 // Create notification provider

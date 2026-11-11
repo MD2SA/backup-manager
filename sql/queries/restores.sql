@@ -61,3 +61,18 @@ SET
     finished_at = now(),
     error_message = COALESCE(error_message, 'interrupted by restart')
 WHERE status IN ('pending', 'running');
+
+-- name: ListRestoresPage :many
+SELECT *
+FROM restores
+WHERE (sqlc.arg(cursor_time)::timestamptz IS NULL OR (created_at, id) < (sqlc.arg(cursor_time), sqlc.arg(cursor_id)::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(page_limit);
+
+-- name: ListRestoresByExecutionPage :many
+SELECT *
+FROM restores
+WHERE execution_id = sqlc.arg(execution_id)
+  AND (sqlc.arg(cursor_time)::timestamptz IS NULL OR (created_at, id) < (sqlc.arg(cursor_time), sqlc.arg(cursor_id)::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(page_limit);

@@ -40,3 +40,10 @@ RETURNING *;
 -- name: DeleteRetentionPolicy :exec
 DELETE FROM retention_policies
 WHERE id = $1;
+
+-- name: ListRetentionPoliciesPage :many
+SELECT *
+FROM retention_policies
+WHERE (sqlc.narg(cursor_name)::text IS NULL OR (name, id) > (sqlc.arg(cursor_name), sqlc.arg(cursor_id)::uuid))
+ORDER BY name ASC, id ASC
+LIMIT sqlc.arg(page_limit);

@@ -134,6 +134,51 @@ func (q *Queries) ListRetentionPolicies(ctx context.Context) ([]RetentionPolicy,
 	return items, nil
 }
 
+const listRetentionPoliciesPage = `-- name: ListRetentionPoliciesPage :many
+SELECT id, name, keep_hourly, keep_daily, keep_weekly, keep_monthly, keep_yearly, yearly_month, created_at, updated_at
+FROM retention_policies
+WHERE ($1::text IS NULL OR (name, id) > ($1, $2::uuid))
+ORDER BY name ASC, id ASC
+LIMIT $3
+`
+
+type ListRetentionPoliciesPageParams struct {
+	CursorName pgtype.Text
+	CursorID   pgtype.UUID
+	PageLimit  int32
+}
+
+func (q *Queries) ListRetentionPoliciesPage(ctx context.Context, arg ListRetentionPoliciesPageParams) ([]RetentionPolicy, error) {
+	rows, err := q.db.Query(ctx, listRetentionPoliciesPage, arg.CursorName, arg.CursorID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RetentionPolicy
+	for rows.Next() {
+		var i RetentionPolicy
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.KeepHourly,
+			&i.KeepDaily,
+			&i.KeepWeekly,
+			&i.KeepMonthly,
+			&i.KeepYearly,
+			&i.YearlyMonth,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateRetentionPolicy = `-- name: UpdateRetentionPolicy :one
 UPDATE retention_policies
 SET

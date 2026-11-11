@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/MD2SA/backup-manager/internal/api/dto"
+	"github.com/MD2SA/backup-manager/internal/pagination"
 	"github.com/MD2SA/backup-manager/internal/pkg/apiutil"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository"
@@ -27,7 +28,9 @@ type ExecutionHandler struct {
 // @Tags executions
 // @Produce json
 // @Param id path string true "Profile ID"
-// @Success 200 {array} dto.ExecutionResponse
+// @Param limit query int false "Page size (default 50, max 200)"
+// @Param cursor query string false "Opaque next cursor"
+// @Success 200 {object} dto.ExecutionPage
 // @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /profiles/{id}/executions [get]
@@ -39,18 +42,45 @@ func (h *ExecutionHandler) ListByProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	executions, err := h.Repo.ListExecutionsByProfile(r.Context(), id)
+	pageReq, err := pagination.ParseRequest(r)
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cursorTime, cursorID, hasCursor, err := pagination.ParseTimeCursor(pageReq.Cursor, "profile_executions")
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := db.ListExecutionsByProfilePageParams{
+		ProfileID: id,
+		PageLimit: pageReq.Limit + 1,
+	}
+	if hasCursor {
+		params.CursorTime = pgutil.ToTimestamptz(cursorTime)
+		params.CursorID = cursorID
+	}
+
+	executions, err := h.Repo.ListExecutionsByProfilePage(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)
 		return
 	}
+	executions, hasMore := pagination.TrimPage(executions, pageReq.Limit)
 
 	res := make([]dto.ExecutionResponse, len(executions))
 	for i, e := range executions {
 		res[i] = dto.ToExecutionResponse(e)
 	}
 
-	apiutil.Success(w, http.StatusOK, res)
+	next := ""
+	if hasMore && len(executions) > 0 {
+		last := executions[len(executions)-1]
+		next = pagination.TimeCursor("profile_executions", last.CreatedAt.Time, last.ID)
+	}
+	pagination.SetNextLink(w, r, next)
+	apiutil.Success(w, http.StatusOK, dto.ExecutionPage{Items: res, NextCursor: next, HasMore: hasMore})
 }
 
 // List all executions
@@ -59,22 +89,49 @@ func (h *ExecutionHandler) ListByProfile(w http.ResponseWriter, r *http.Request)
 // @Description Results are sorted by creation date (newest first).
 // @Tags executions
 // @Produce json
-// @Success 200 {array} dto.ExecutionResponse
+// @Param limit query int false "Page size (default 50, max 200)"
+// @Param cursor query string false "Opaque next cursor"
+// @Success 200 {object} dto.ExecutionPage
+// @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /executions [get]
 func (h *ExecutionHandler) GetAll(w http.ResponseWriter, r *http.Request) {
-	executions, err := h.Repo.ListAllExecutions(r.Context())
+	pageReq, err := pagination.ParseRequest(r)
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cursorTime, cursorID, hasCursor, err := pagination.ParseTimeCursor(pageReq.Cursor, "executions")
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := db.ListExecutionsPageParams{PageLimit: pageReq.Limit + 1}
+	if hasCursor {
+		params.CursorTime = pgutil.ToTimestamptz(cursorTime)
+		params.CursorID = cursorID
+	}
+
+	executions, err := h.Repo.ListExecutionsPage(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)
 		return
 	}
+	executions, hasMore := pagination.TrimPage(executions, pageReq.Limit)
 
 	res := make([]dto.ExecutionResponse, len(executions))
 	for i, e := range executions {
 		res[i] = dto.ToExecutionResponse(e)
 	}
 
-	apiutil.Success(w, http.StatusOK, res)
+	next := ""
+	if hasMore && len(executions) > 0 {
+		last := executions[len(executions)-1]
+		next = pagination.TimeCursor("executions", last.CreatedAt.Time, last.ID)
+	}
+	pagination.SetNextLink(w, r, next)
+	apiutil.Success(w, http.StatusOK, dto.ExecutionPage{Items: res, NextCursor: next, HasMore: hasMore})
 }
 
 // Get execution

@@ -72,3 +72,10 @@ WHERE profile_id = $1;
 -- name: ClearProfileNotificationProviders :exec
 DELETE FROM profile_notification_providers
 WHERE profile_id = $1;
+
+-- name: ListProfilesPage :many
+SELECT *
+FROM profiles
+WHERE (sqlc.narg(cursor_name)::text IS NULL OR (name, id) > (sqlc.arg(cursor_name), sqlc.arg(cursor_id)::uuid))
+ORDER BY name ASC, id ASC
+LIMIT sqlc.arg(page_limit);

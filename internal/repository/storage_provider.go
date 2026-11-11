@@ -12,6 +12,7 @@ import (
 type StorageProviderRepository interface {
 	GetStorageProvider(ctx context.Context, id pgtype.UUID) (db.StorageProvider, error)
 	ListStorageProviders(ctx context.Context) ([]db.StorageProvider, error)
+	ListStorageProvidersPage(ctx context.Context, arg db.ListStorageProvidersPageParams) ([]db.StorageProvider, error)
 	CreateStorageProvider(ctx context.Context, arg db.CreateStorageProviderParams) (db.StorageProvider, error)
 	UpdateStorageProvider(ctx context.Context, arg db.UpdateStorageProviderParams) (db.StorageProvider, error)
 	DeleteStorageProvider(ctx context.Context, id pgtype.UUID) error
@@ -43,6 +44,10 @@ func (r *Postgres) ListStorageProviders(ctx context.Context) ([]db.StorageProvid
 		providers[i].Config = config
 	}
 	return providers, nil
+}
+
+func (r *Postgres) ListStorageProvidersPage(ctx context.Context, arg db.ListStorageProvidersPageParams) ([]db.StorageProvider, error) {
+	return r.queries.ListStorageProvidersPage(ctx, arg)
 }
 
 func (r *Postgres) CreateStorageProvider(ctx context.Context, arg db.CreateStorageProviderParams) (db.StorageProvider, error) {

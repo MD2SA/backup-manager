@@ -41,3 +41,10 @@ UPDATE users
 SET active = false, updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: ListUsersPage :many
+SELECT *
+FROM users
+WHERE (sqlc.arg(cursor_time)::timestamptz IS NULL OR (created_at, id) > (sqlc.arg(cursor_time), sqlc.arg(cursor_id)::uuid))
+ORDER BY created_at ASC, id ASC
+LIMIT sqlc.arg(page_limit);

@@ -231,6 +231,117 @@ func (q *Queries) ListRestoresByExecution(ctx context.Context, executionID pgtyp
 	return items, nil
 }
 
+const listRestoresByExecutionPage = `-- name: ListRestoresByExecutionPage :many
+SELECT id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at, requested_by_user_id, requested_by_key_id
+FROM restores
+WHERE execution_id = $1
+  AND ($2::timestamptz IS NULL OR (created_at, id) < ($2, $3::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $4
+`
+
+type ListRestoresByExecutionPageParams struct {
+	ExecutionID pgtype.UUID
+	CursorTime  pgtype.Timestamptz
+	CursorID    pgtype.UUID
+	PageLimit   int32
+}
+
+func (q *Queries) ListRestoresByExecutionPage(ctx context.Context, arg ListRestoresByExecutionPageParams) ([]Restore, error) {
+	rows, err := q.db.Query(ctx, listRestoresByExecutionPage,
+		arg.ExecutionID,
+		arg.CursorTime,
+		arg.CursorID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Restore
+	for rows.Next() {
+		var i Restore
+		if err := rows.Scan(
+			&i.ID,
+			&i.ExecutionID,
+			&i.Status,
+			&i.RequestID,
+			&i.ProviderID,
+			&i.StoragePath,
+			&i.TargetDb,
+			&i.Options,
+			&i.ChecksumVerified,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.Duration,
+			&i.ErrorMessage,
+			&i.Logs,
+			&i.CreatedAt,
+			&i.RequestedByUserID,
+			&i.RequestedByKeyID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRestoresPage = `-- name: ListRestoresPage :many
+SELECT id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at, requested_by_user_id, requested_by_key_id
+FROM restores
+WHERE ($1::timestamptz IS NULL OR (created_at, id) < ($1, $2::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $3
+`
+
+type ListRestoresPageParams struct {
+	CursorTime pgtype.Timestamptz
+	CursorID   pgtype.UUID
+	PageLimit  int32
+}
+
+func (q *Queries) ListRestoresPage(ctx context.Context, arg ListRestoresPageParams) ([]Restore, error) {
+	rows, err := q.db.Query(ctx, listRestoresPage, arg.CursorTime, arg.CursorID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Restore
+	for rows.Next() {
+		var i Restore
+		if err := rows.Scan(
+			&i.ID,
+			&i.ExecutionID,
+			&i.Status,
+			&i.RequestID,
+			&i.ProviderID,
+			&i.StoragePath,
+			&i.TargetDb,
+			&i.Options,
+			&i.ChecksumVerified,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.Duration,
+			&i.ErrorMessage,
+			&i.Logs,
+			&i.CreatedAt,
+			&i.RequestedByUserID,
+			&i.RequestedByKeyID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const reconcileInterruptedRestores = `-- name: ReconcileInterruptedRestores :execrows
 UPDATE restores
 SET

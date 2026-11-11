@@ -12,7 +12,9 @@ type RestoreRepository interface {
 	UpdateRestore(ctx context.Context, arg db.UpdateRestoreParams) (db.Restore, error)
 	GetRestore(ctx context.Context, id pgtype.UUID) (db.Restore, error)
 	ListRestores(ctx context.Context) ([]db.Restore, error)
+	ListRestoresPage(ctx context.Context, arg db.ListRestoresPageParams) ([]db.Restore, error)
 	ListRestoresByExecution(ctx context.Context, executionID pgtype.UUID) ([]db.Restore, error)
+	ListRestoresByExecutionPage(ctx context.Context, arg db.ListRestoresByExecutionPageParams) ([]db.Restore, error)
 	GetActiveRestoreByExecution(ctx context.Context, executionID pgtype.UUID) (db.Restore, error)
 	ReconcileInterruptedRestores(ctx context.Context) (int64, error)
 }
@@ -31,6 +33,14 @@ func (r *Postgres) GetRestore(ctx context.Context, id pgtype.UUID) (db.Restore, 
 
 func (r *Postgres) ListRestores(ctx context.Context) ([]db.Restore, error) {
 	return r.queries.ListRestores(ctx)
+}
+
+func (r *Postgres) ListRestoresPage(ctx context.Context, arg db.ListRestoresPageParams) ([]db.Restore, error) {
+	return r.queries.ListRestoresPage(ctx, arg)
+}
+
+func (r *Postgres) ListRestoresByExecutionPage(ctx context.Context, arg db.ListRestoresByExecutionPageParams) ([]db.Restore, error) {
+	return r.queries.ListRestoresByExecutionPage(ctx, arg)
 }
 
 func (r *Postgres) ListRestoresByExecution(ctx context.Context, executionID pgtype.UUID) ([]db.Restore, error) {

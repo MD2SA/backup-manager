@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/MD2SA/backup-manager/internal/api/dto"
+	"github.com/MD2SA/backup-manager/internal/pagination"
 	"github.com/MD2SA/backup-manager/internal/pkg/apiutil"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository"
@@ -26,22 +27,47 @@ type RetentionHandler struct {
 // @Description - yearly_month: The month (1-12) chosen for yearly preservation.
 // @Tags retention-policies
 // @Produce json
-// @Success 200 {array} dto.RetentionPolicyResponse
+// @Param limit query int false "Page size (default 50, max 200)"
+// @Param cursor query string false "Opaque next cursor"
+// @Success 200 {object} dto.RetentionPolicyPage
+// @Failure 400 {object} apiutil.ErrorResponse
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /retention-policies [get]
 func (h *RetentionHandler) List(w http.ResponseWriter, r *http.Request) {
-	policies, err := h.Repo.ListRetentionPolicies(r.Context())
+	pageReq, err := pagination.ParseRequest(r)
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cursorName, cursorID, hasCursor, err := pagination.ParseNameCursor(pageReq.Cursor, "retention_policies")
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := db.ListRetentionPoliciesPageParams{PageLimit: pageReq.Limit + 1}
+	if hasCursor {
+		params.CursorName = pgutil.ToText(cursorName)
+		params.CursorID = cursorID
+	}
+	policies, err := h.Repo.ListRetentionPoliciesPage(r.Context(), params)
 	if err != nil {
 		apiutil.InternalError(w, err)
 		return
 	}
+	policies, hasMore := pagination.TrimPage(policies, pageReq.Limit)
 
 	res := make([]dto.RetentionPolicyResponse, len(policies))
 	for i, p := range policies {
 		res[i] = dto.ToRetentionPolicyResponse(p)
 	}
-
-	apiutil.Success(w, http.StatusOK, res)
+	next := ""
+	if hasMore && len(policies) > 0 {
+		last := policies[len(policies)-1]
+		next = pagination.NameCursor("retention_policies", last.Name, last.ID)
+	}
+	pagination.SetNextLink(w, r, next)
+	apiutil.Success(w, http.StatusOK, dto.RetentionPolicyPage{Items: res, NextCursor: next, HasMore: hasMore})
 }
 
 // Create retention policy

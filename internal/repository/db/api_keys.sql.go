@@ -176,6 +176,57 @@ func (q *Queries) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]
 	return items, nil
 }
 
+const listAPIKeysByUserPage = `-- name: ListAPIKeysByUserPage :many
+SELECT id, user_id, name, key_prefix, key_hash, expires_at, revoked_at, last_used_at, created_at
+FROM api_keys
+WHERE user_id = $1
+  AND ($2::timestamptz IS NULL OR (created_at, id) > ($2, $3::uuid))
+ORDER BY created_at ASC, id ASC
+LIMIT $4
+`
+
+type ListAPIKeysByUserPageParams struct {
+	UserID     pgtype.UUID
+	CursorTime pgtype.Timestamptz
+	CursorID   pgtype.UUID
+	PageLimit  int32
+}
+
+func (q *Queries) ListAPIKeysByUserPage(ctx context.Context, arg ListAPIKeysByUserPageParams) ([]ApiKey, error) {
+	rows, err := q.db.Query(ctx, listAPIKeysByUserPage,
+		arg.UserID,
+		arg.CursorTime,
+		arg.CursorID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ApiKey
+	for rows.Next() {
+		var i ApiKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.KeyPrefix,
+			&i.KeyHash,
+			&i.ExpiresAt,
+			&i.RevokedAt,
+			&i.LastUsedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const revokeAPIKey = `-- name: RevokeAPIKey :one
 UPDATE api_keys
 SET revoked_at = now()

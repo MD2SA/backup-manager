@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/MD2SA/backup-manager/internal/api/dto"
 	"github.com/MD2SA/backup-manager/internal/auth"
+	"github.com/MD2SA/backup-manager/internal/pagination"
 	"github.com/MD2SA/backup-manager/internal/pkg/apiutil"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository/db"
@@ -61,7 +61,9 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 // @Description List key metadata (never the key itself).
 // @Tags auth
 // @Produce json
-// @Success 200 {array} dto.APIKeyResponse
+// @Param limit query int false "Page size (default 50, max 200)"
+// @Param cursor query string false "Opaque next cursor"
+// @Success 200 {object} dto.APIKeyPage
 // @Failure 401 {object} apiutil.ErrorResponse
 // @Router /auth/keys [get]
 func (h *AuthHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
@@ -71,12 +73,7 @@ func (h *AuthHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keys, err := h.Service.ListAPIKeys(r.Context(), principal.UserID)
-	if err != nil {
-		writeAuthError(w, err)
-		return
-	}
-	apiutil.Success(w, http.StatusOK, toAPIKeyResponses(keys))
+	listAPIKeysPage(w, r, h.Service, principal.UserID)
 }
 
 // Create own API key
@@ -155,19 +152,46 @@ type UserHandler struct {
 // @Summary List users
 // @Tags users
 // @Produce json
-// @Success 200 {array} dto.UserResponse
+// @Param limit query int false "Page size (default 50, max 200)"
+// @Param cursor query string false "Opaque next cursor"
+// @Success 200 {object} dto.UserPage
 // @Router /users [get]
 func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
-	users, err := h.Service.ListUsers(r.Context())
+	pageReq, err := pagination.ParseRequest(r)
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cursorTime, cursorID, hasCursor, err := pagination.ParseTimeCursor(pageReq.Cursor, "users")
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := db.ListUsersPageParams{PageLimit: pageReq.Limit + 1}
+	if hasCursor {
+		params.CursorTime = pgutil.ToTimestamptz(cursorTime)
+		params.CursorID = cursorID
+	}
+
+	users, err := h.Service.ListUsersPage(r.Context(), params)
 	if err != nil {
 		writeAuthError(w, err)
 		return
 	}
+	users, hasMore := pagination.TrimPage(users, pageReq.Limit)
+	next := ""
+	if hasMore && len(users) > 0 {
+		last := users[len(users)-1]
+		next = pagination.TimeCursor("users", last.CreatedAt.Time, last.ID)
+	}
+	pagination.SetNextLink(w, r, next)
+
 	res := make([]dto.UserResponse, len(users))
 	for i, user := range users {
 		res[i] = dto.ToUserResponse(user)
 	}
-	apiutil.Success(w, http.StatusOK, res)
+	apiutil.Success(w, http.StatusOK, dto.UserPage{Items: res, NextCursor: next, HasMore: hasMore})
 }
 
 // Create user
@@ -283,7 +307,9 @@ func (h *UserHandler) Deactivate(w http.ResponseWriter, r *http.Request) {
 // @Summary List a user's API keys
 // @Tags users
 // @Param id path string true "User ID"
-// @Success 200 {array} dto.APIKeyResponse
+// @Param limit query int false "Page size (default 50, max 200)"
+// @Param cursor query string false "Opaque next cursor"
+// @Success 200 {object} dto.APIKeyPage
 // @Router /users/{id}/keys [get]
 func (h *UserHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 	userID, err := pgutil.ParseUUID(chi.URLParam(r, "id"))
@@ -295,12 +321,7 @@ func (h *UserHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, err)
 		return
 	}
-	keys, err := h.Service.ListAPIKeys(r.Context(), userID)
-	if err != nil {
-		writeAuthError(w, err)
-		return
-	}
-	apiutil.Success(w, http.StatusOK, toAPIKeyResponses(keys))
+	listAPIKeysPage(w, r, h.Service, userID)
 }
 
 // Create user key
@@ -372,40 +393,86 @@ type AuditHandler struct {
 // @Summary List audit entries
 // @Tags audit
 // @Produce json
-// @Param limit query int false "Limit (default 100, max 500)"
-// @Param offset query int false "Offset"
-// @Success 200 {array} dto.AuditEntryResponse
+// @Param limit query int false "Page size (default 50, max 200)"
+// @Param cursor query string false "Opaque next cursor"
+// @Success 200 {object} dto.AuditPage
 // @Router /audit [get]
 func (h *AuditHandler) List(w http.ResponseWriter, r *http.Request) {
-	limit := int32(100)
-	offset := int32(0)
-	if value := r.URL.Query().Get("limit"); value != "" {
-		parsed, err := strconv.Atoi(value)
-		if err != nil || parsed <= 0 {
-			apiutil.Error(w, http.StatusBadRequest, "Invalid limit")
-			return
-		}
-		limit = int32(parsed)
+	pageReq, err := pagination.ParseRequest(r)
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
 	}
-	if value := r.URL.Query().Get("offset"); value != "" {
-		parsed, err := strconv.Atoi(value)
-		if err != nil || parsed < 0 {
-			apiutil.Error(w, http.StatusBadRequest, "Invalid offset")
-			return
-		}
-		offset = int32(parsed)
+	cursorTime, cursorID, hasCursor, err := pagination.ParseTimeCursor(pageReq.Cursor, "audit")
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
-	entries, err := h.Service.ListAuditEntries(r.Context(), limit, offset)
+	params := db.ListAuditEntriesPageParams{PageLimit: pageReq.Limit + 1}
+	if hasCursor {
+		params.CursorTime = pgutil.ToTimestamptz(cursorTime)
+		params.CursorID = cursorID
+	}
+
+	entries, err := h.Service.ListAuditEntriesPage(r.Context(), params)
 	if err != nil {
 		writeAuthError(w, err)
 		return
 	}
+	entries, hasMore := pagination.TrimPage(entries, pageReq.Limit)
+	next := ""
+	if hasMore && len(entries) > 0 {
+		last := entries[len(entries)-1]
+		next = pagination.TimeCursor("audit", last.CreatedAt.Time, last.ID)
+	}
+	pagination.SetNextLink(w, r, next)
+
 	res := make([]dto.AuditEntryResponse, len(entries))
 	for i, entry := range entries {
 		res[i] = dto.ToAuditEntryResponse(entry)
 	}
-	apiutil.Success(w, http.StatusOK, res)
+	apiutil.Success(w, http.StatusOK, dto.AuditPage{Items: res, NextCursor: next, HasMore: hasMore})
+}
+
+func listAPIKeysPage(w http.ResponseWriter, r *http.Request, service *auth.Service, userID pgtype.UUID) {
+	pageReq, err := pagination.ParseRequest(r)
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cursorTime, cursorID, hasCursor, err := pagination.ParseTimeCursor(pageReq.Cursor, "api_keys")
+	if err != nil {
+		apiutil.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := db.ListAPIKeysByUserPageParams{
+		UserID:    userID,
+		PageLimit: pageReq.Limit + 1,
+	}
+	if hasCursor {
+		params.CursorTime = pgutil.ToTimestamptz(cursorTime)
+		params.CursorID = cursorID
+	}
+
+	keys, err := service.ListAPIKeysPage(r.Context(), params)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	keys, hasMore := pagination.TrimPage(keys, pageReq.Limit)
+	next := ""
+	if hasMore && len(keys) > 0 {
+		last := keys[len(keys)-1]
+		next = pagination.TimeCursor("api_keys", last.CreatedAt.Time, last.ID)
+	}
+	pagination.SetNextLink(w, r, next)
+	apiutil.Success(w, http.StatusOK, dto.APIKeyPage{
+		Items:      toAPIKeyResponses(keys),
+		NextCursor: next,
+		HasMore:    hasMore,
+	})
 }
 
 func toAPIKeyResponses(keys []db.ApiKey) []dto.APIKeyResponse {

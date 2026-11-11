@@ -51,3 +51,11 @@ UPDATE api_keys
 SET last_used_at = now()
 WHERE id = $1
   AND (last_used_at IS NULL OR last_used_at < now() - interval '1 minute');
+
+-- name: ListAPIKeysByUserPage :many
+SELECT *
+FROM api_keys
+WHERE user_id = sqlc.arg(user_id)
+  AND (sqlc.arg(cursor_time)::timestamptz IS NULL OR (created_at, id) > (sqlc.arg(cursor_time), sqlc.arg(cursor_id)::uuid))
+ORDER BY created_at ASC, id ASC
+LIMIT sqlc.arg(page_limit);

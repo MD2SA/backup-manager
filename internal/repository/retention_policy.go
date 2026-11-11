@@ -10,6 +10,7 @@ import (
 type RetentionPolicyRepository interface {
 	GetRetentionPolicy(ctx context.Context, id pgtype.UUID) (db.RetentionPolicy, error)
 	ListRetentionPolicies(ctx context.Context) ([]db.RetentionPolicy, error)
+	ListRetentionPoliciesPage(ctx context.Context, arg db.ListRetentionPoliciesPageParams) ([]db.RetentionPolicy, error)
 	CreateRetentionPolicy(ctx context.Context, arg db.CreateRetentionPolicyParams) (db.RetentionPolicy, error)
 	UpdateRetentionPolicy(ctx context.Context, arg db.UpdateRetentionPolicyParams) (db.RetentionPolicy, error)
 	DeleteRetentionPolicy(ctx context.Context, id pgtype.UUID) error
@@ -21,6 +22,10 @@ func (r *Postgres) GetRetentionPolicy(ctx context.Context, id pgtype.UUID) (db.R
 
 func (r *Postgres) ListRetentionPolicies(ctx context.Context) ([]db.RetentionPolicy, error) {
 	return r.queries.ListRetentionPolicies(ctx)
+}
+
+func (r *Postgres) ListRetentionPoliciesPage(ctx context.Context, arg db.ListRetentionPoliciesPageParams) ([]db.RetentionPolicy, error) {
+	return r.queries.ListRetentionPoliciesPage(ctx, arg)
 }
 
 func (r *Postgres) CreateRetentionPolicy(ctx context.Context, arg db.CreateRetentionPolicyParams) (db.RetentionPolicy, error) {
