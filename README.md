@@ -14,7 +14,7 @@ A self-hosted service that automates PostgreSQL backups with scheduling, retenti
 - **Multiple storage destinations** per profile: local filesystem and S3-compatible object storage.
 - **GFS retention** (hourly, daily, weekly, monthly, yearly) with pinned backups.
 - **Restore workflows** with automatic decryption.
-- **Notifications** via Discord webhooks.
+- **Notifications** via Discord webhooks, including failed backups and overdue profiles.
 - **Metadata disaster recovery**: encrypted snapshots of the manager's own state embedded in every backup, plus an optional local self-backup and a `recover metadata` command with local/S3 discovery.
 - **Production hardening**: API key auth, per-IP rate limiting, CORS, trusted proxies, request IDs, encrypted provider credentials at rest.
 - **Declarative configuration**: one `config.yaml` for non-secret settings and one `secrets.env` for secrets, with strict validation.

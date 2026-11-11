@@ -149,6 +149,8 @@ func (c Config) RedactedSummary() string {
 	fmt.Fprintf(&b, "admin key:      %s\n", setStatus(c.AdminKey))
 	fmt.Fprintf(&b, "config key:     %s\n", setStatus(c.ConfigEncryptionKey))
 	fmt.Fprintf(&b, "metadata backup: schedule=%q retention=%d embed=%t\n", c.MetadataBackupSchedule, c.MetadataBackupRetention, c.MetadataBackupEmbed)
+	fmt.Fprintf(&b, "timeouts:       backup=%s restore=%s\n", c.BackupTimeout, c.RestoreTimeout)
+	fmt.Fprintf(&b, "overdue notify: interval=%s repeat=%s\n", c.OverdueNotifyInterval, c.OverdueNotifyRepeat)
 	return b.String()
 }
 

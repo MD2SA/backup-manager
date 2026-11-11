@@ -452,9 +452,15 @@ func renderConfig(opts InitOptions, secretsFile string) string {
 	fmt.Fprintf(&b, "  retention: %d\n", opts.MetadataBackupRetention)
 	fmt.Fprintf(&b, "  embed: %t\n\n", opts.MetadataBackupEmbed)
 
+	b.WriteString("operations:\n")
+	b.WriteString("  backup_timeout: \"6h\"\n")
+	b.WriteString("  restore_timeout: \"2h\"\n\n")
+
 	b.WriteString("health:\n")
 	b.WriteString("  overdue_factor: 2.0\n")
-	b.WriteString("  overdue_grace: \"15m\"\n\n")
+	b.WriteString("  overdue_grace: \"15m\"\n")
+	b.WriteString("  notify_interval: \"15m\"\n")
+	b.WriteString("  notify_repeat: \"24h\"\n\n")
 
 	b.WriteString("audit:\n")
 	b.WriteString("  retention_days: 90\n")

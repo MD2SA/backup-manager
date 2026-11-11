@@ -63,8 +63,11 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 		return err
 	}
 
+	operationCtx, cancelOperation := operationContext(ctx, s.config.BackupTimeout)
+	defer cancelOperation()
+
 	if s.gate != nil {
-		if err := s.gate.Acquire(ctx); err != nil {
+		if err := s.gate.Acquire(operationCtx); err != nil {
 			return err
 		}
 		defer s.gate.Release()
@@ -90,7 +93,7 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 	s.notifyAll(ctx, p.NotificationProviderIDs, notification.EventStarted, fmt.Sprintf("Backup started for profile: %s", p.Name), nil)
 
 	execCtx := &backup.ExecutionContext{
-		Context:     ctx,
+		Context:     operationCtx,
 		ExecutionID: execID,
 		ProfileID:   profileID,
 		ProfileName: pgutil.Slugify(p.Name),
@@ -175,6 +178,8 @@ func (s *BackupService) ExecuteBackup(ctx context.Context, profileID pgtype.UUID
 			execCtx.Log(fmt.Sprintf("Stage %s completed successfully for provider %s", upload.Name(), pgutil.UUIDToString(providerID)))
 		}
 	}
+
+	err = operationError("backup", s.config.BackupTimeout, operationCtx, err)
 
 	// Apply retention once, after every provider has had a chance to receive
 	// the new backup. Retention failures are operational warnings, not backup

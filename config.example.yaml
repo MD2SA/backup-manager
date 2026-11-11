@@ -65,9 +65,19 @@ metadata_backup:
   retention: 14
   embed: true
 
+operations:
+  # Hard limits for one backup/restore operation. Use "0" to disable.
+  # Long-running dumps on very large databases may need more than 6h.
+  backup_timeout: "6h"
+  restore_timeout: "2h"
+
 health:
   overdue_factor: 2.0
   overdue_grace: "15m"
+  # How often to check for overdue profiles and notify their Discord providers.
+  # Set notify_interval to "0" to disable built-in overdue notifications.
+  notify_interval: "15m"
+  notify_repeat: "24h"
 
 audit:
   retention_days: 90

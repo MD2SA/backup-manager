@@ -145,9 +145,15 @@ metadata_backup:
   retention: 14
   embed: true
 
+operations:
+  backup_timeout: "6h"
+  restore_timeout: "2h"
+
 health:
   overdue_factor: 2.0
   overdue_grace: "15m"
+  notify_interval: "15m"
+  notify_repeat: "24h"
 
 audit:
   retention_days: 90
@@ -237,15 +243,33 @@ precedence when encrypting.
 | `retention` | `14` | Snapshots to keep per local directory / per profile per provider. |
 | `embed` | `true` | Upload an encrypted metadata snapshot with every backup execution. |
 
+### `operations`
+
+| Field | Default | Description |
+|---|---|---|
+| `backup_timeout` | `6h` | Maximum duration of one backup. Use `0` to disable. |
+| `restore_timeout` | `2h` | Maximum duration of one restore. Use `0` to disable. |
+
+Timeouts cover the dump/download/decrypt/apply path but not the final status
+update, so a timed-out execution is still recorded as `failed`. Set a larger
+value for very large databases, or `0` if an operation must never be killed.
+
 ### `health`
 
 | Field | Default | Description |
 |---|---|---|
 | `overdue_factor` | `2.0` | A profile is overdue when the last successful backup is older than `maxGap × factor + grace`. |
 | `overdue_grace` | `15m` | Extra tolerance before marking a profile overdue. |
+| `notify_interval` | `15m` | How often to check for overdue profiles. `0` disables built-in overdue notifications. |
+| `notify_repeat` | `24h` | Minimum interval between repeated notifications for the same overdue episode. |
 
 `maxGap` is sampled from the profile's cron expression (hourly ≈ 1h, daily ≈
 24h, weekly ≈ 7d, monthly ≈ 31d, yearly ≈ 365d).
+
+When a profile becomes overdue, Backup Manager sends an `overdue` Discord
+notification to the profile's notification providers. The notification repeats
+at most once per `notify_repeat`; when the profile recovers, the episode is
+cleared and a future overdue state notifies again.
 
 ### `audit`
 

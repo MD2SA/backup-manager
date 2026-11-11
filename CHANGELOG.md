@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/etc/backup-manager/config.yaml` and `secrets.env` next to it.
 
 ### Added
+- **Operation timeouts:** `operations.backup_timeout` and
+  `operations.restore_timeout` bound dump/restore work; a timed-out operation is
+  marked failed instead of blocking the serial queue forever.
+- **Overdue notifications:** a periodic health check sends a Discord `overdue`
+  notification when a profile stops producing successful backups, repeats at
+  most once per day and clears the episode when the profile recovers.
 - **Production hardening:** the single-instance advisory lock is now acquired
   before migrations, so two replicas cannot race the schema version table.
   Backups left in `pending`/`running` by a crash are marked failed on startup,

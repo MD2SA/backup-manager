@@ -202,6 +202,9 @@ func (s *RestoreService) Execute(ctx context.Context, restoreID pgtype.UUID) err
 		return s.finishFailed(ctx, restore, time.Now(), nil, pgtype.UUID{}, "", err)
 	}
 
+	operationCtx, cancelOperation := operationContext(ctx, s.config.RestoreTimeout)
+	defer cancelOperation()
+
 	opts := parseRestoreOptions(restore.Options)
 	started := time.Now()
 	logs := []string{}
@@ -224,9 +227,9 @@ func (s *RestoreService) Execute(ctx context.Context, restoreID pgtype.UUID) err
 	s.notifyAll(ctx, profile.NotificationProviderIDs, notification.EventStarted,
 		fmt.Sprintf("Restore started for execution: %s", pgutil.UUIDToString(execution.ID)), nil)
 
-	providerID, storagePath, artifact, err := s.prepareArtifact(ctx, execution, profile, opts, logf)
+	providerID, storagePath, artifact, err := s.prepareArtifact(operationCtx, execution, profile, opts, logf)
 	if err != nil {
-		return s.finishFailed(ctx, restore, started, logs, pgtype.UUID{}, "", err)
+		return s.finishFailed(ctx, restore, started, logs, pgtype.UUID{}, "", operationError("restore", s.config.RestoreTimeout, operationCtx, err))
 	}
 	defer artifact.Cleanup()
 
@@ -240,8 +243,8 @@ func (s *RestoreService) Execute(ctx context.Context, restoreID pgtype.UUID) err
 
 	if s.gate != nil {
 		logf("waiting for the target database gate")
-		if err := s.gate.Acquire(ctx); err != nil {
-			return s.finishFailed(ctx, restore, started, logs, providerID, storagePath, err)
+		if err := s.gate.Acquire(operationCtx); err != nil {
+			return s.finishFailed(ctx, restore, started, logs, providerID, storagePath, operationError("restore", s.config.RestoreTimeout, operationCtx, err))
 		}
 		defer s.gate.Release()
 	}
@@ -260,15 +263,15 @@ func (s *RestoreService) Execute(ctx context.Context, restoreID pgtype.UUID) err
 	}
 
 	logf("preflight target database %q", target.DBName)
-	if err := target.Preflight(ctx, opts.TerminateConnections); err != nil {
-		return s.finishFailed(ctx, restore, started, logs, providerID, storagePath, err)
+	if err := target.Preflight(operationCtx, opts.TerminateConnections); err != nil {
+		return s.finishFailed(ctx, restore, started, logs, providerID, storagePath, operationError("restore", s.config.RestoreTimeout, operationCtx, err))
 	}
 
 	logf("applying artifact to target database")
-	output, applyErr := backup.ApplyArtifact(ctx, artifact, target, opts.SingleTransaction)
+	output, applyErr := backup.ApplyArtifact(operationCtx, artifact, target, opts.SingleTransaction)
 	appendOutput(&logs, output)
 	if applyErr != nil {
-		return s.finishFailed(ctx, restore, started, logs, providerID, storagePath, applyErr)
+		return s.finishFailed(ctx, restore, started, logs, providerID, storagePath, operationError("restore", s.config.RestoreTimeout, operationCtx, applyErr))
 	}
 	logf("restore applied successfully")
 

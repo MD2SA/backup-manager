@@ -88,6 +88,10 @@ type Config struct {
 	AllowUnencryptedBackups  bool
 	OverdueFactor            float64
 	OverdueGrace             time.Duration
+	OverdueNotifyInterval    time.Duration
+	OverdueNotifyRepeat      time.Duration
+	BackupTimeout            time.Duration
+	RestoreTimeout           time.Duration
 	AuditRetentionDays       int
 	AuditCleanupSchedule     string
 	MetadataDB               DatabaseConfig
@@ -106,6 +110,7 @@ type fileConfig struct {
 	TargetDatabase   databaseFileConfig       `yaml:"target_database"`
 	Encryption       encryptionFileConfig     `yaml:"encryption"`
 	MetadataBackup   metadataBackupFileConfig `yaml:"metadata_backup"`
+	Operations       operationsFileConfig     `yaml:"operations"`
 	Health           healthFileConfig         `yaml:"health"`
 	Audit            auditFileConfig          `yaml:"audit"`
 }
@@ -150,9 +155,16 @@ type metadataBackupFileConfig struct {
 	Embed     bool   `yaml:"embed"`
 }
 
+type operationsFileConfig struct {
+	BackupTimeout  string `yaml:"backup_timeout"`
+	RestoreTimeout string `yaml:"restore_timeout"`
+}
+
 type healthFileConfig struct {
-	OverdueFactor float64 `yaml:"overdue_factor"`
-	OverdueGrace  string  `yaml:"overdue_grace"`
+	OverdueFactor         float64 `yaml:"overdue_factor"`
+	OverdueGrace          string  `yaml:"overdue_grace"`
+	OverdueNotifyInterval string  `yaml:"notify_interval"`
+	OverdueNotifyRepeat   string  `yaml:"notify_repeat"`
 }
 
 type auditFileConfig struct {
@@ -219,9 +231,15 @@ func defaultFileConfig() fileConfig {
 			Retention: 14,
 			Embed:     true,
 		},
+		Operations: operationsFileConfig{
+			BackupTimeout:  "6h",
+			RestoreTimeout: "2h",
+		},
 		Health: healthFileConfig{
-			OverdueFactor: 2.0,
-			OverdueGrace:  "15m",
+			OverdueFactor:         2.0,
+			OverdueGrace:          "15m",
+			OverdueNotifyInterval: "15m",
+			OverdueNotifyRepeat:   "24h",
 		},
 		Audit: auditFileConfig{
 			RetentionDays:   90,
@@ -312,6 +330,22 @@ func loadFrom(path, secretsPathOverride string, requireAdminKey bool) (Config, e
 	if err != nil {
 		return Config{}, fmt.Errorf("health.overdue_grace: %w", err)
 	}
+	overdueNotifyInterval, err := parseDurationField(file.Health.OverdueNotifyInterval, "health.notify_interval")
+	if err != nil {
+		return Config{}, err
+	}
+	overdueNotifyRepeat, err := parseDurationField(file.Health.OverdueNotifyRepeat, "health.notify_repeat")
+	if err != nil {
+		return Config{}, err
+	}
+	backupTimeout, err := parseDurationField(file.Operations.BackupTimeout, "operations.backup_timeout")
+	if err != nil {
+		return Config{}, err
+	}
+	restoreTimeout, err := parseDurationField(file.Operations.RestoreTimeout, "operations.restore_timeout")
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		ConfigPath:               path,
@@ -337,6 +371,10 @@ func loadFrom(path, secretsPathOverride string, requireAdminKey bool) (Config, e
 		AllowUnencryptedBackups:  file.Encryption.AllowUnencryptedBackups,
 		OverdueFactor:            file.Health.OverdueFactor,
 		OverdueGrace:             overdueGrace,
+		OverdueNotifyInterval:    overdueNotifyInterval,
+		OverdueNotifyRepeat:      overdueNotifyRepeat,
+		BackupTimeout:            backupTimeout,
+		RestoreTimeout:           restoreTimeout,
 		AuditRetentionDays:       file.Audit.RetentionDays,
 		AuditCleanupSchedule:     file.Audit.CleanupSchedule,
 		MetadataDB: DatabaseConfig{
@@ -528,6 +566,20 @@ func (c *Config) validate(requireAdminKey bool) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+func parseDurationField(value, field string) (time.Duration, error) {
+	if strings.TrimSpace(value) == "" {
+		return 0, fmt.Errorf("%s is required (use 0 to disable)", field)
+	}
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", field, err)
+	}
+	if duration < 0 {
+		return 0, fmt.Errorf("%s must not be negative", field)
+	}
+	return duration, nil
 }
 
 func validateDatabase(field string, db DatabaseConfig, add func(string, ...any)) {

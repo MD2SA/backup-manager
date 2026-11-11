@@ -76,6 +76,18 @@ func TestLoad_DefaultsAndSecrets(t *testing.T) {
 	if cfg.OverdueGrace != 15*time.Minute {
 		t.Errorf("default overdue grace = %v", cfg.OverdueGrace)
 	}
+	if cfg.BackupTimeout != 6*time.Hour {
+		t.Errorf("default backup timeout = %v", cfg.BackupTimeout)
+	}
+	if cfg.RestoreTimeout != 2*time.Hour {
+		t.Errorf("default restore timeout = %v", cfg.RestoreTimeout)
+	}
+	if cfg.OverdueNotifyInterval != 15*time.Minute {
+		t.Errorf("default overdue notify interval = %v", cfg.OverdueNotifyInterval)
+	}
+	if cfg.OverdueNotifyRepeat != 24*time.Hour {
+		t.Errorf("default overdue notify repeat = %v", cfg.OverdueNotifyRepeat)
+	}
 	if cfg.AuditRetentionDays != 90 {
 		t.Errorf("default audit retention = %d", cfg.AuditRetentionDays)
 	}
@@ -233,6 +245,45 @@ func TestLoad_RestoreCredentials(t *testing.T) {
 	configPath, _ = writeTestFiles(t, dir, cfg, "METADATA_DB_PASSWORD=secret\nTARGET_DB_PASSWORD=readpass\n")
 	if _, err := Load(configPath); err == nil {
 		t.Fatal("expected missing restore password to fail")
+	}
+}
+
+func TestLoad_OperationTimeouts(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+	cfg := minimalConfig + `operations:
+  backup_timeout: "12h"
+  restore_timeout: "0"
+health:
+  notify_interval: "5m"
+  notify_repeat: "48h"
+`
+	configPath, _ := writeTestFiles(t, dir, cfg, "METADATA_DB_PASSWORD=secret\n")
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded.BackupTimeout != 12*time.Hour || loaded.RestoreTimeout != 0 {
+		t.Fatalf("unexpected operation timeouts: backup=%v restore=%v", loaded.BackupTimeout, loaded.RestoreTimeout)
+	}
+	if loaded.OverdueNotifyInterval != 5*time.Minute || loaded.OverdueNotifyRepeat != 48*time.Hour {
+		t.Fatalf("unexpected notify settings: interval=%v repeat=%v", loaded.OverdueNotifyInterval, loaded.OverdueNotifyRepeat)
+	}
+
+	bad := minimalConfig + "operations:\n  backup_timeout: \"not-a-duration\"\n"
+	configPath, _ = writeTestFiles(t, dir, bad, "METADATA_DB_PASSWORD=secret\n")
+	if _, err := Load(configPath); err == nil {
+		t.Fatal("expected invalid backup timeout to fail")
+	}
+}
+
+func TestLoad_NegativeTimeoutFails(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+	cfg := minimalConfig + "operations:\n  restore_timeout: \"-1h\"\n"
+	configPath, _ := writeTestFiles(t, dir, cfg, "METADATA_DB_PASSWORD=secret\n")
+	if _, err := Load(configPath); err == nil {
+		t.Fatal("expected negative restore timeout to fail")
 	}
 }
 

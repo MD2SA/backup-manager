@@ -43,6 +43,7 @@ type App struct {
 	ProviderService *service.ProviderService
 	MetadataBackup  *selfbackup.Service
 	Maintenance     *maintenance.Service
+	OverdueNotifier *service.OverdueNotifier
 	Metrics         *metrics.Metrics
 	InstanceLock    *database.InstanceLock
 }
@@ -87,6 +88,7 @@ func NewWithOptions(ctx context.Context, cfg config.Config, opts Options) (*App,
 	maintenanceService := maintenance.New(log, authService, cfg.AuditRetentionDays, cfg.AuditCleanupSchedule, metricsService)
 	backupService := service.NewBackupService(repo, providerService, retentionEngine, monitorService, cfg, log, gate, notifier, metricsService)
 	restoreService := service.NewRestoreService(repo, providerService, cfg, log, gate, notifier, metricsService)
+	overdueNotifier := service.NewOverdueNotifier(log, monitorService, repo, notifier, cfg.OverdueNotifyInterval, cfg.OverdueNotifyRepeat)
 
 	a := &App{
 		Config:          cfg,
@@ -100,6 +102,7 @@ func NewWithOptions(ctx context.Context, cfg config.Config, opts Options) (*App,
 		AuthService:     authService,
 		ProviderService: providerService,
 		Maintenance:     maintenanceService,
+		OverdueNotifier: overdueNotifier,
 		Metrics:         metricsService,
 		InstanceLock:    instanceLock,
 	}
@@ -158,6 +161,9 @@ func (a *App) Start(ctx context.Context) {
 	a.Scheduler.Start()
 	a.MetadataBackup.Start()
 	a.Maintenance.Start()
+	if a.OverdueNotifier != nil {
+		a.OverdueNotifier.Start(ctx)
+	}
 
 	if err := a.syncScheduler(ctx); err != nil {
 		a.Logger.Error("Failed to synchronize scheduler", "error", err)
@@ -233,6 +239,9 @@ func (a *App) syncScheduler(ctx context.Context) error {
 // Stop halts background schedulers. It must be called before closing the
 // database pool during graceful shutdown.
 func (a *App) Stop() {
+	if a.OverdueNotifier != nil {
+		a.OverdueNotifier.Stop()
+	}
 	if a.MetadataBackup != nil {
 		a.MetadataBackup.Stop()
 	}

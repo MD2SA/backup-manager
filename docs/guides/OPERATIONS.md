@@ -104,6 +104,10 @@ The cleanup runs once at startup and then on the cron. Set
 - Use `verify_only` to validate an artifact without touching the target.
 - Test a real restore periodically; a backup that has never been restored is
   not a proven backup.
+- `operations.backup_timeout` and `operations.restore_timeout` prevent a stuck
+  `pg_dump`/`pg_restore` from blocking the serial queue forever.
+- Overdue profiles trigger a Discord notification every `health.notify_interval`,
+  repeated at most once per `health.notify_repeat`.
 
 ### Verify and restore drills
 
