@@ -4,28 +4,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"os"
-	"path"
 	"path/filepath"
-	"sort"
-	"strings"
 	"time"
 
-	"github.com/MD2SA/backup-manager/internal/backup"
 	"github.com/MD2SA/backup-manager/internal/config"
-	"github.com/MD2SA/backup-manager/internal/database"
-	"github.com/MD2SA/backup-manager/internal/logger"
-	"github.com/MD2SA/backup-manager/internal/metarestore"
-	"github.com/MD2SA/backup-manager/internal/pkg/crypto"
-	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
-	"github.com/MD2SA/backup-manager/internal/repository"
-	"github.com/MD2SA/backup-manager/internal/repository/db"
-	"github.com/MD2SA/backup-manager/internal/service"
-	"github.com/MD2SA/backup-manager/internal/storage"
-	"github.com/MD2SA/backup-manager/internal/storage/local"
-	"github.com/MD2SA/backup-manager/internal/storage/s3"
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/MD2SA/backup-manager/internal/recovery"
 )
 
 func runRecover(args []string) {
@@ -70,6 +54,20 @@ func registerRecoverS3Flags(fs *flag.FlagSet, opts *recoverS3Flags) {
 	fs.BoolVar(&opts.useSSL, "s3-use-ssl", true, "use https when the endpoint has no scheme")
 }
 
+func (f recoverS3Flags) options() recovery.S3Options {
+	return recovery.S3Options{
+		Bucket:    f.bucket,
+		Region:    f.region,
+		Key:       f.key,
+		Prefix:    f.prefix,
+		Endpoint:  f.endpoint,
+		AccessKey: f.accessKey,
+		SecretKey: f.secretKey,
+		PathStyle: f.pathStyle,
+		UseSSL:    f.useSSL,
+	}
+}
+
 func recoverMetadata(args []string) {
 	fs := flag.NewFlagSet("recover metadata", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config.yaml pointing at the metadata database to restore into")
@@ -89,113 +87,53 @@ func recoverMetadata(args []string) {
 	if err != nil {
 		fatal("Configuration error:\n%v", err)
 	}
-	log := logger.New(cfg.LogLevel)
 
-	profileID := ""
-	if s3Opts.profileID != "" {
-		parsed, parseErr := pgutil.ParseUUID(s3Opts.profileID)
-		if parseErr != nil || !parsed.Valid {
-			fatal("Invalid --profile-id: %v", parseErr)
-		}
-		profileID = pgutil.UUIDToString(parsed)
+	result, err := recovery.Metadata(context.Background(), cfg, recovery.MetadataOptions{
+		File:        *file,
+		StoragePath: *storagePath,
+		ProfileID:   s3Opts.profileID,
+		List:        *listOnly,
+		Passphrase:  *passphrase,
+		Identity:    *identity,
+		Replace:     *replace,
+		DryRun:      *dryRun,
+		Timeout:     *timeout,
+		S3:          s3Opts.options(),
+		Progressf: func(format string, args ...any) {
+			fmt.Printf(format+"\n", args...)
+		},
+	})
+	if err != nil {
+		fatal("Metadata recovery failed: %v", err)
 	}
-
-	snapshot := *file
-	source := snapshot
-	cleanup := func() {}
-	if snapshot == "" {
-		ctx, cancel := context.WithTimeout(context.Background(), *timeout)
-		defer cancel()
-
-		switch {
-		case s3Opts.bucket != "" || s3Opts.key != "":
-			provider, providerErr := newRecoveryS3Provider(ctx, s3Opts)
-			if providerErr != nil {
-				fatal("S3 source error: %v", providerErr)
-			}
-			key := s3Opts.key
-			if key == "" {
-				prefix := s3Opts.prefix
-				if profileID != "" {
-					prefix = metadataPrefix(profileID)
-				}
-				keys, listErr := listMetadataSnapshots(ctx, provider, []string{prefix})
-				if listErr != nil {
-					fatal("List metadata snapshots: %v", listErr)
-				}
-				if *listOnly {
-					printSnapshotCandidates(keys, "")
-					return
-				}
-				key = latestSnapshotKey(keys)
-				if key == "" {
-					fatal("No metadata snapshots found under s3://%s/%s", s3Opts.bucket, prefix)
-				}
-			}
-			if *listOnly {
-				printSnapshotCandidates([]string{key}, key)
-				return
-			}
-			snapshot, cleanup, err = downloadSnapshot(ctx, provider, key, cfg.TempDir)
-			if err != nil {
-				fatal("Download metadata snapshot: %v", err)
-			}
-			source = fmt.Sprintf("s3://%s/%s", s3Opts.bucket, key)
-
-		default:
-			root := *storagePath
-			if root == "" {
-				root = cfg.StoragePath
-			}
-			if root == "" {
-				fatal("No local storage path available; pass --storage-path, --file or S3 flags")
-			}
-			provider, providerErr := local.New(root)
-			if providerErr != nil {
-				fatal("Local storage error: %v", providerErr)
-			}
-			prefixes := []string{"meta/", "metadata/"}
-			if profileID != "" {
-				prefixes = []string{metadataPrefix(profileID), "metadata/"}
-			}
-			keys, listErr := listMetadataSnapshots(ctx, provider, prefixes)
-			if listErr != nil {
-				fatal("List metadata snapshots: %v", listErr)
-			}
-			if *listOnly {
-				printSnapshotCandidates(keys, root)
-				return
-			}
-			key := latestSnapshotKey(keys)
-			if key == "" {
-				fatal("No metadata snapshots found under %s", root)
-			}
-			snapshot = filepath.Join(root, key)
-			source = snapshot
-		}
-	}
-	defer cleanup()
-
 	if *listOnly {
-		printSnapshotCandidates([]string{snapshot}, "")
+		printMetadataSnapshots(result)
 		return
 	}
 
-	fmt.Printf("Metadata snapshot: %s\n", source)
-	if err := metarestore.Run(log, cfg, metarestore.Options{
-		File:       snapshot,
-		Passphrase: *passphrase,
-		Identity:   *identity,
-		Replace:    *replace,
-		DryRun:     *dryRun,
-	}); err != nil {
-		fatal("Metadata recovery failed: %v", err)
-	}
-	if *dryRun {
+	if result.DryRun {
 		fmt.Println("Metadata snapshot is valid; nothing was written")
 		return
 	}
 	fmt.Println("Metadata recovery completed")
+}
+
+func printMetadataSnapshots(result recovery.MetadataResult) {
+	if len(result.Snapshots) == 0 {
+		fmt.Println("No metadata snapshots found")
+		return
+	}
+	for _, key := range result.Snapshots {
+		display := key
+		if result.Root != "" {
+			display = filepath.Join(result.Root, key)
+		}
+		marker := " "
+		if key == result.Latest {
+			marker = "*"
+		}
+		fmt.Printf("%s %s\n", marker, display)
+	}
 }
 
 func recoverData(args []string) {
@@ -215,346 +153,51 @@ func recoverData(args []string) {
 	timeout := fs.Duration("timeout", 30*time.Minute, "overall timeout")
 	_ = fs.Parse(args)
 
-	if *file != "" && (*executionID != "" || *profileID != "") {
-		fatal("--file cannot be combined with --execution/--profile")
-	}
-	if *file == "" && *executionID == "" && *profileID == "" {
-		fatal("Provide --execution, --profile or --file")
-	}
-	if *executionID != "" && *profileID != "" {
-		fatal("Provide either --execution or --profile, not both")
-	}
-	if *file != "" && *providerID != "" {
-		fatal("--provider-id cannot be used with --file")
-	}
-	if !*verifyOnly && !*confirm {
-		fatal("Refusing to restore without --confirm (or use --verify-only)")
-	}
-
 	cfg, err := config.LoadLenient(*configPath)
 	if err != nil {
 		fatal("Configuration error:\n%v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
-	defer cancel()
-
-	encPassphrase := *passphrase
-	if encPassphrase == "" {
-		encPassphrase = cfg.EncryptionPassphrase
+	result, err := recovery.Data(context.Background(), cfg, recovery.DataOptions{
+		ExecutionID:          *executionID,
+		ProfileID:            *profileID,
+		File:                 *file,
+		ProviderID:           *providerID,
+		TargetDSN:            *targetDSN,
+		Confirm:              *confirm,
+		VerifyOnly:           *verifyOnly,
+		TerminateConnections: *terminate,
+		Passphrase:           *passphrase,
+		Identity:             *identity,
+		KeepArtifact:         *keepArtifact,
+		Timeout:              *timeout,
+		Logf: func(format string, args ...any) {
+			fmt.Printf("  %s\n", fmt.Sprintf(format, args...))
+		},
+		Progressf: func(format string, args ...any) {
+			fmt.Printf(format+"\n", args...)
+		},
+	})
+	if err != nil {
+		fatal("%v", err)
 	}
-	encIdentity := *identity
-	if encIdentity == "" {
-		encIdentity = cfg.AgePrivateKey
-	}
 
-	var artifact *backup.Artifact
-	if *file != "" {
-		absolute, absErr := filepath.Abs(*file)
-		if absErr != nil {
-			fatal("Resolve file: %v", absErr)
-		}
-		provider, localErr := local.New(filepath.Dir(absolute))
-		if localErr != nil {
-			fatal("Local artifact source: %v", localErr)
-		}
-		artifact, err = backup.PrepareArtifact(ctx, provider, filepath.Base(absolute), cfg.TempDir, "", false, encPassphrase, encIdentity, recoveryLogf)
-		if err != nil {
-			fatal("Verify artifact: %v", err)
-		}
-		fmt.Printf("Artifact: %s\n", absolute)
-	} else {
-		pool, poolErr := database.New(ctx, cfg.MetadataDB)
-		if poolErr != nil {
-			fatal("Metadata database connection failed: %v", poolErr)
-		}
-		defer pool.Close()
-
-		var encKey []byte
-		if cfg.ConfigEncryptionKey != "" {
-			encKey = crypto.DeriveConfigKey(cfg.ConfigEncryptionKey)
-		}
-		repo := repository.NewPostgres(pool, encKey)
-		providers := service.NewProviderService(repo, cfg)
-
-		execution, resolveErr := resolveRecoveryExecution(ctx, repo, *executionID, *profileID)
-		if resolveErr != nil {
-			fatal("Resolve execution: %v", resolveErr)
-		}
-
-		var requested pgtype.UUID
-		if *providerID != "" {
-			requested, err = pgutil.ParseUUID(*providerID)
-			if err != nil || !requested.Valid {
-				fatal("Invalid provider ID: %v", err)
-			}
-		}
-
-		fmt.Printf("Execution: %s\n", executionLabel(execution))
-		candidates, candidateErr := executionArtifactCandidates(ctx, repo, execution, requested)
-		if candidateErr != nil {
-			fatal("Resolve storage copies: %v", candidateErr)
-		}
-		if len(candidates) == 0 {
-			fatal("Execution has no storage copy")
-		}
-
-		var failures []string
-		for _, candidate := range candidates {
-			fmt.Printf("Trying provider %s\n", pgutil.UUIDToString(candidate.providerID))
-			candidateArtifact, prepErr := prepareCandidateArtifact(
-				ctx, providers, cfg, execution, candidate, encPassphrase, encIdentity, recoveryLogf,
-			)
-			if prepErr != nil {
-				failures = append(failures, fmt.Sprintf("%s: %v", pgutil.UUIDToString(candidate.providerID), prepErr))
-				fmt.Fprintf(os.Stderr, "  provider %s failed: %v\n", pgutil.UUIDToString(candidate.providerID), prepErr)
-				continue
-			}
-			artifact = candidateArtifact
-			fmt.Printf("Using provider %s path=%s\n", pgutil.UUIDToString(candidate.providerID), candidate.storagePath)
-			break
-		}
-		if artifact == nil {
-			fatal("No usable backup artifact:\n  %s", strings.Join(failures, "\n  "))
-		}
+	if result.ArtifactSource != "" {
+		fmt.Printf("Artifact: %s\n", result.ArtifactSource)
 	}
 	if *keepArtifact {
-		fmt.Printf("Artifact kept at %s\n", artifact.Path)
-	} else {
-		defer artifact.Cleanup()
+		fmt.Printf("Artifact kept at %s\n", result.ArtifactPath)
 	}
-
-	if artifact.ChecksumVerified {
+	if result.ChecksumVerified {
 		fmt.Println("Checksum: verified")
 	} else {
 		fmt.Println("Checksum: not recorded/verified")
 	}
-
 	if *verifyOnly {
 		fmt.Println("Verification completed; target database untouched")
 		return
 	}
-
-	target, err := restoreTargetForRecovery(*targetDSN, cfg)
-	if err != nil {
-		fatal("Target database: %v", err)
+	if result.Applied {
+		fmt.Printf("Restore completed into %s\n", result.TargetDatabase)
 	}
-	if err := target.Preflight(ctx, *terminate); err != nil {
-		fatal("Target preflight failed: %v", err)
-	}
-	output, err := backup.ApplyArtifact(ctx, artifact, target, true)
-	if err != nil {
-		fatal("Restore failed: %v\n%s", err, output)
-	}
-	fmt.Printf("Restore completed into %s\n", target.DBName)
-}
-
-func resolveRecoveryExecution(ctx context.Context, repo repository.Repository, executionID, profileID string) (db.Execution, error) {
-	if executionID != "" {
-		id, err := pgutil.ParseUUID(executionID)
-		if err != nil || !id.Valid {
-			return db.Execution{}, fmt.Errorf("invalid execution ID: %w", err)
-		}
-		execution, err := repo.GetExecution(ctx, id)
-		if err != nil {
-			return db.Execution{}, fmt.Errorf("execution not found: %w", err)
-		}
-		return execution, nil
-	}
-
-	id, err := pgutil.ParseUUID(profileID)
-	if err != nil || !id.Valid {
-		return db.Execution{}, fmt.Errorf("invalid profile ID: %w", err)
-	}
-	executions, err := repo.ListExecutionsByProfile(ctx, id)
-	if err != nil {
-		return db.Execution{}, fmt.Errorf("list executions: %w", err)
-	}
-	for _, execution := range executions {
-		if execution.Status == string(backup.StatusSuccess) {
-			return execution, nil
-		}
-	}
-	return db.Execution{}, fmt.Errorf("profile has no successful execution")
-}
-
-func newRecoveryS3Provider(ctx context.Context, opts recoverS3Flags) (*s3.S3Provider, error) {
-	if opts.bucket == "" {
-		return nil, fmt.Errorf("--s3-bucket is required when --s3-key is not provided")
-	}
-	if opts.accessKey == "" || opts.secretKey == "" {
-		return nil, fmt.Errorf("S3 credentials are required (--s3-access-key/--s3-secret-key or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)")
-	}
-	return s3.New(ctx, s3.Options{
-		Region:         opts.region,
-		Bucket:         opts.bucket,
-		AccessKey:      opts.accessKey,
-		SecretKey:      opts.secretKey,
-		Endpoint:       opts.endpoint,
-		ForcePathStyle: opts.pathStyle,
-		UseSSL:         opts.useSSL,
-	})
-}
-
-func metadataPrefix(profileID string) string {
-	return "meta/" + profileID + "/"
-}
-
-// listMetadataSnapshots lists every metadata dump under the given prefixes and
-// keeps only snapshot objects. Local keys use os separators; callers normalize
-// them when joining the storage root.
-func listMetadataSnapshots(ctx context.Context, provider storage.StorageProvider, prefixes []string) ([]string, error) {
-	seen := make(map[string]bool)
-	var snapshots []string
-	for _, prefix := range prefixes {
-		keys, err := listSnapshotKeys(ctx, provider, prefix)
-		if err != nil {
-			return nil, fmt.Errorf("list %s: %w", prefix, err)
-		}
-		for _, key := range keys {
-			if !isMetadataSnapshotKey(key) || seen[key] {
-				continue
-			}
-			seen[key] = true
-			snapshots = append(snapshots, key)
-		}
-	}
-	sort.Strings(snapshots)
-	return snapshots, nil
-}
-
-type recursiveLister interface {
-	ListRecursive(ctx context.Context, prefix string) ([]string, error)
-}
-
-func listSnapshotKeys(ctx context.Context, provider storage.StorageProvider, prefix string) ([]string, error) {
-	if lister, ok := provider.(recursiveLister); ok {
-		return lister.ListRecursive(ctx, prefix)
-	}
-	return provider.List(ctx, prefix)
-}
-
-func isMetadataSnapshotKey(key string) bool {
-	base := path.Base(key)
-	if !strings.HasPrefix(base, "metadata-") {
-		return false
-	}
-	return strings.HasSuffix(base, ".dump.age") || strings.HasSuffix(base, ".dump")
-}
-
-func latestSnapshotKey(keys []string) string {
-	var candidates []string
-	for _, key := range keys {
-		if isMetadataSnapshotKey(key) {
-			candidates = append(candidates, key)
-		}
-	}
-	if len(candidates) == 0 {
-		return ""
-	}
-	sort.Slice(candidates, func(i, j int) bool {
-		left, right := path.Base(candidates[i]), path.Base(candidates[j])
-		if left == right {
-			return candidates[i] > candidates[j]
-		}
-		return left < right
-	})
-	return candidates[len(candidates)-1]
-}
-
-func printSnapshotCandidates(keys []string, root string) {
-	if len(keys) == 0 {
-		fmt.Println("No metadata snapshots found")
-		return
-	}
-	latest := latestSnapshotKey(keys)
-	for _, key := range keys {
-		display := key
-		if root != "" {
-			display = filepath.Join(root, key)
-		}
-		marker := " "
-		if key == latest {
-			marker = "*"
-		}
-		fmt.Printf("%s %s\n", marker, display)
-	}
-}
-
-func downloadSnapshot(ctx context.Context, provider storage.StorageProvider, key, tempDir string) (string, func(), error) {
-	if tempDir == "" {
-		tempDir = os.TempDir()
-	}
-	f, err := os.CreateTemp(tempDir, "metadata-recover-*")
-	if err != nil {
-		return "", nil, err
-	}
-	name := f.Name()
-	cleanup := func() { _ = os.Remove(name) }
-
-	reader, err := provider.Download(ctx, key)
-	if err != nil {
-		_ = f.Close()
-		cleanup()
-		return "", nil, err
-	}
-	defer func() { _ = reader.Close() }()
-
-	if _, err := io.Copy(f, reader); err != nil {
-		_ = f.Close()
-		cleanup()
-		return "", nil, err
-	}
-	if err := f.Close(); err != nil {
-		cleanup()
-		return "", nil, err
-	}
-	if err := os.Chmod(name, 0o600); err != nil {
-		cleanup()
-		return "", nil, err
-	}
-	return name, cleanup, nil
-}
-
-func restoreTargetForRecovery(dsn string, cfg config.Config) (backup.RestoreTarget, error) {
-	var target backup.RestoreTarget
-	if dsn != "" {
-		parsed, err := parseScratchTarget(dsn)
-		if err != nil {
-			return backup.RestoreTarget{}, err
-		}
-		target = parsed
-	} else {
-		target = backup.RestoreTarget{
-			Host:     cfg.TargetDB.Host,
-			Port:     cfg.TargetDB.Port,
-			User:     cfg.TargetDB.User,
-			Password: cfg.TargetDB.Password,
-			DBName:   cfg.TargetDB.DBName,
-			SSLMode:  cfg.TargetDB.SSLMode,
-		}
-		if cfg.TargetDB.RestoreUser != "" {
-			target.User = cfg.TargetDB.RestoreUser
-			target.Password = cfg.TargetDB.RestorePassword
-		}
-		if target.Host == "" || target.DBName == "" {
-			return backup.RestoreTarget{}, fmt.Errorf("target database is not configured; use --target-dsn")
-		}
-	}
-
-	if sameDatabaseTarget(target, cfg.MetadataDB) {
-		return backup.RestoreTarget{}, fmt.Errorf("refusing to restore into the metadata database %q", target.DBName)
-	}
-	return target, nil
-}
-
-func sameDatabaseTarget(target backup.RestoreTarget, metadata config.DatabaseConfig) bool {
-	return target.DBName != "" &&
-		strings.EqualFold(target.Host, metadata.Host) &&
-		target.Port == metadata.Port &&
-		strings.EqualFold(target.DBName, metadata.DBName)
-}
-
-func recoveryLogf(format string, args ...any) {
-	fmt.Printf("  %s\n", fmt.Sprintf(format, args...))
 }

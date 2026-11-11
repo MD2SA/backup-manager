@@ -4,9 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net/url"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/MD2SA/backup-manager/internal/backup"
@@ -14,10 +12,10 @@ import (
 	"github.com/MD2SA/backup-manager/internal/database"
 	"github.com/MD2SA/backup-manager/internal/pkg/crypto"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
+	"github.com/MD2SA/backup-manager/internal/recovery"
 	"github.com/MD2SA/backup-manager/internal/repository"
 	"github.com/MD2SA/backup-manager/internal/repository/db"
 	"github.com/MD2SA/backup-manager/internal/service"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -94,7 +92,7 @@ func runVerify(args []string) {
 		if len(executions) != 1 {
 			fatal("--scratch-dsn requires exactly one execution (use --execution)")
 		}
-		target, parseErr := parseScratchTarget(*scratchDSN)
+		target, parseErr := recovery.ParseTargetDSN(*scratchDSN)
 		if parseErr != nil {
 			fatal("Invalid scratch DSN: %v", parseErr)
 		}
@@ -121,7 +119,7 @@ func verifyExecution(
 	execution db.Execution,
 	scratch *backup.RestoreTarget,
 ) error {
-	candidates, err := executionArtifactCandidates(ctx, repo, execution, pgtype.UUID{})
+	candidates, err := recovery.ExecutionArtifactCandidates(ctx, repo, execution, pgtype.UUID{})
 	if err != nil {
 		return err
 	}
@@ -133,7 +131,7 @@ func verifyExecution(
 	verified := false
 	applied := false
 	for _, candidate := range candidates {
-		artifact, prepErr := prepareCandidateArtifact(
+		artifact, prepErr := recovery.PrepareCandidateArtifact(
 			ctx,
 			providers,
 			cfg,
@@ -147,15 +145,15 @@ func verifyExecution(
 		)
 		if prepErr != nil {
 			lastErr = prepErr
-			fmt.Fprintf(os.Stderr, "  provider %s: %v\n", pgutil.UUIDToString(candidate.providerID), prepErr)
+			fmt.Fprintf(os.Stderr, "  provider %s: %v\n", pgutil.UUIDToString(candidate.ProviderID), prepErr)
 			continue
 		}
 
 		verified = true
 		fmt.Printf("OK %s provider=%s path=%s checksum_verified=%t gzip=%t custom=%t\n",
 			pgutil.UUIDToString(execution.ID),
-			pgutil.UUIDToString(candidate.providerID),
-			candidate.storagePath,
+			pgutil.UUIDToString(candidate.ProviderID),
+			candidate.StoragePath,
 			artifact.ChecksumVerified,
 			artifact.Gzip,
 			artifact.CustomFormat,
@@ -182,29 +180,4 @@ func verifyExecution(
 		return lastErr
 	}
 	return nil
-}
-
-func parseScratchTarget(dsn string) (backup.RestoreTarget, error) {
-	parsed, err := pgx.ParseConfig(dsn)
-	if err != nil {
-		return backup.RestoreTarget{}, err
-	}
-	sslMode := "disable"
-	if u, parseErr := url.Parse(dsn); parseErr == nil {
-		if mode := u.Query().Get("sslmode"); mode != "" {
-			sslMode = mode
-		}
-	}
-	port := int(parsed.Port)
-	if port == 0 {
-		port = 5432
-	}
-	return backup.RestoreTarget{
-		Host:     parsed.Host,
-		Port:     strconv.Itoa(port),
-		User:     parsed.User,
-		Password: parsed.Password,
-		DBName:   parsed.Database,
-		SSLMode:  sslMode,
-	}, nil
 }
