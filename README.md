@@ -63,7 +63,7 @@ Then create a retention policy, a storage provider, and a profile through the AP
 
 ## Quick start (from source)
 
-Requirements: Go 1.26+, PostgreSQL 13–17, `pg_dump`/`psql`/`pg_restore` in `PATH`.
+Requirements: Go 1.26+, PostgreSQL 13–18, `pg_dump`/`psql`/`pg_restore` in `PATH`. The Docker image ships the PostgreSQL 18 client, which can dump older servers; run `config check --connect` to verify client/server compatibility.
 
 ```bash
 git clone https://github.com/MD2SA/backup-manager.git

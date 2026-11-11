@@ -1,5 +1,10 @@
 # syntax=docker/dockerfile:1
 
+# Runtime base image. Alpine 3.24 ships the PostgreSQL 18 client. Override to
+# build an image with a different client version, for example:
+#   docker build --build-arg RUNTIME_IMAGE=alpine:3.21 ...
+ARG RUNTIME_IMAGE=alpine:3.24
+
 FROM golang:1.26.5-alpine AS builder
 
 ARG VERSION=dev
@@ -30,7 +35,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       -X github.com/MD2SA/backup-manager/internal/version.Date=${BUILD_DATE}" \
     -o /bin/backup-manager ./cmd/api
 
-FROM alpine:3.21
+FROM ${RUNTIME_IMAGE}
 
 # OCI Labels
 LABEL org.opencontainers.image.title="Backup Manager" \
@@ -39,6 +44,8 @@ LABEL org.opencontainers.image.title="Backup Manager" \
       org.opencontainers.image.vendor="MD2SA" \
       org.opencontainers.image.licenses="MIT"
 
+# Alpine 3.24 ships the PostgreSQL 18 client. A newer client can dump older
+# servers; the service also validates this at runtime with `config check`.
 RUN apk add --no-cache \
     postgresql-client \
     ca-certificates \

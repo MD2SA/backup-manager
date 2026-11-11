@@ -214,6 +214,18 @@ tables are ignored by older binaries. Restoring a metadata snapshot requires
    service; then use `recover data` for the target database.
 7. Use the audit log for who triggered the change.
 
+## PostgreSQL versions
+
+The supported target range is PostgreSQL 13–18. The container includes the
+PostgreSQL 18 client, which can dump older servers. Before an upgrade, run:
+
+```bash
+backup-manager config check --connect --config /etc/backup-manager/config.yaml
+```
+
+The check fails if `pg_dump`, `pg_restore` or `psql` is older than the target
+server. For a future PostgreSQL major, update the runtime image client first.
+
 ## Limits
 
 - The scheduler is in-memory and assumes one service instance. The process

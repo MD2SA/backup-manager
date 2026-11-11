@@ -110,6 +110,11 @@ tests against a `postgres:16-alpine` service container. The recovery integration
 test is a required step, so a change that breaks metadata recovery or data
 restore fails the pull request.
 
+A separate `PostgreSQL compatibility` workflow runs the restore and recovery
+integration tests against PostgreSQL 13, 14, 15, 16, 17 and 18. It runs each
+test binary inside the matching `postgres:<major>-alpine` image, so `pg_dump`,
+`pg_restore` and `psql` always match the server major.
+
 A separate `Recovery drill` workflow runs the container drill:
 
 - weekly (`schedule`);

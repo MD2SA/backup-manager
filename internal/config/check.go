@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -91,10 +93,84 @@ func Check(cfg Config, connect bool) (warnings []string, err error) {
 					add("target restore database: %v", pingErr)
 				}
 			}
+			checkPostgresClientCompatibility(cfg.TargetDB, add, warn)
 		}
 	}
 
 	return warnings, errors.Join(errs...)
+}
+
+var postgresVersionPattern = regexp.MustCompile(`\b(\d+)\.\d+\b`)
+
+func parsePostgresClientVersion(output string) (int, error) {
+	match := postgresVersionPattern.FindStringSubmatch(output)
+	if len(match) < 2 {
+		return 0, fmt.Errorf("cannot parse PostgreSQL version from %q", strings.TrimSpace(output))
+	}
+	major, err := strconv.Atoi(match[1])
+	if err != nil {
+		return 0, fmt.Errorf("parse PostgreSQL major from %q: %w", output, err)
+	}
+	return major, nil
+}
+
+func postgresClientVersion(binary string) (int, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, binary, "--version").Output()
+	if err != nil {
+		return 0, "", err
+	}
+	raw := strings.TrimSpace(string(out))
+	major, err := parsePostgresClientVersion(raw)
+	return major, raw, err
+}
+
+func postgresServerVersion(cfg DatabaseConfig) (int, string, error) {
+	conn, err := sql.Open("pgx", cfg.DSN())
+	if err != nil {
+		return 0, "", err
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var raw string
+	if err := conn.QueryRowContext(ctx, "SHOW server_version_num").Scan(&raw); err != nil {
+		return 0, "", err
+	}
+	num, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0, raw, fmt.Errorf("parse server_version_num %q: %w", raw, err)
+	}
+	major := num / 10000
+	if major < 10 {
+		// PostgreSQL 9.x used a different encoding; treat it as unsupported.
+		return major, raw, fmt.Errorf("unsupported PostgreSQL version %s", raw)
+	}
+	return major, raw, nil
+}
+
+func checkPostgresClientCompatibility(cfg DatabaseConfig, add func(string, ...any), warn func(string, ...any)) {
+	serverMajor, serverRaw, err := postgresServerVersion(cfg)
+	if err != nil {
+		warn("could not determine target PostgreSQL version: %v", err)
+		return
+	}
+	for _, binary := range []string{"pg_dump", "pg_restore", "psql"} {
+		if _, lookErr := exec.LookPath(binary); lookErr != nil {
+			continue
+		}
+		major, raw, versionErr := postgresClientVersion(binary)
+		if versionErr != nil {
+			warn("could not determine %s version: %v", binary, versionErr)
+			continue
+		}
+		if major < serverMajor {
+			add("%s cannot operate on PostgreSQL %d (server %s); installed: %s; use a PostgreSQL %d client or newer", binary, serverMajor, serverRaw, raw, serverMajor)
+		}
+	}
 }
 
 func checkDir(path, field string, add func(string, ...any)) {

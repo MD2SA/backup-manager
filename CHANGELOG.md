@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/etc/backup-manager/config.yaml` and `secrets.env` next to it.
 
 ### Added
+- **PostgreSQL 13–18 compatibility:** the runtime image now ships the
+  PostgreSQL 18 client, `config check --connect` validates that `pg_dump`,
+  `pg_restore` and `psql` are new enough for the target server, and CI runs
+  restore/recovery integration tests against PostgreSQL 13 through 18.
 - **Operation timeouts:** `operations.backup_timeout` and
   `operations.restore_timeout` bound dump/restore work; a timed-out operation is
   marked failed instead of blocking the serial queue forever.

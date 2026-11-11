@@ -619,6 +619,33 @@ and a restore into an empty scratch database.
 
 ---
 
+## PostgreSQL version compatibility
+
+Supported target versions: **PostgreSQL 13 through 18**.
+
+Backup Manager calls the external PostgreSQL client binaries. A client can dump
+a server with the same or an older major version; it cannot dump a newer server.
+The Docker image ships the PostgreSQL 18 client, so it can back up 13–18.
+
+`config check --connect` compares `pg_dump`, `pg_restore` and `psql` majors with
+the target server and fails with a clear message when the client is too old:
+
+```text
+pg_dump (PostgreSQL) 17.11 cannot operate on PostgreSQL 18 (server 180006);
+use a PostgreSQL 18 client or newer
+```
+
+For a newer PostgreSQL major, build the image with a newer Alpine base (or
+install a newer `postgresql-client` in the runtime image):
+
+```bash
+docker build --build-arg RUNTIME_IMAGE=alpine:3.24 -t backup-manager:pg18 .
+```
+
+Running the service outside Docker requires the matching client binaries in
+`PATH`. CI runs the restore and recovery integration tests against PostgreSQL
+13 through 18.
+
 ## Troubleshooting
 
 | Symptom | Fix |
