@@ -609,3 +609,6 @@ and a restore into an empty scratch database.
 | `metadata database not reachable after 60s` | Check `metadata_database` and the network; migrations retry for 60 seconds. |
 | `config.yaml not found` inside Docker | Mount it at `/etc/backup-manager/config.yaml` or set `APP_CONFIG_PATH`. |
 | `password authentication failed` after changing `POSTGRES_PASSWORD` | The bundled PostgreSQL volume was initialized with the old password. Run `docker compose down -v` once (this deletes the metadata database) or change the password inside PostgreSQL. |
+| `No metadata snapshots found` | Check `storage.path`, or pass `--storage-path`, `--file`, or the correct `--s3-bucket`/`--s3-prefix`. Use `--list` to inspect what is visible. |
+| `target database contains data; pass --replace` | Metadata recovery refuses a non-empty database by design. Use an empty database or `--replace` after taking a copy. |
+| `Refusing to restore without --confirm` | Add `--confirm` for a real data restore, or use `--verify-only` to validate only. |
