@@ -23,8 +23,13 @@ The project includes built-in Swagger documentation. To view it:
 *   `PUT /profiles/{id}`: Update an existing profile.
 *   `DELETE /profiles/{id}`: Delete a profile.
 *   `POST /profiles/{id}/run`: Trigger a backup execution immediately (asynchronous).
-*   `POST /profiles/{id}/activate`: Set a profile as the active scheduled job.
+*   `POST /profiles/{id}/activate`: Enable scheduled backups for this profile.
+*   `POST /profiles/{id}/deactivate`: Disable scheduled backups for this profile.
 *   `GET /profiles/{id}/executions`: List backup history for a specific profile.
+
+`enabled=true` means the profile is scheduled. Several profiles may be enabled
+at the same time, each with its own schedule, storage providers and retention
+policy. Triggered backups are queued and executed serially.`
 
 ### Executions
 *   `GET /executions`: List all backup executions in the system.

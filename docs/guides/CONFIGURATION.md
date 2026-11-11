@@ -397,6 +397,28 @@ does not change, so existing profiles and execution history are preserved.
 
 ---
 
+## Scheduling profiles
+
+A profile is scheduled when `enabled=true` in its configuration. **Several
+profiles may be enabled at the same time**, each with its own cron expression,
+storage providers and retention policy. This supports patterns such as:
+
+- hourly backups to S3 with a short retention;
+- a daily backup to a NAS or local disk with a long retention;
+- a weekly encrypted archive.
+
+Triggered backups are queued and executed serially against the single target
+database. The queue accepts different profiles; the same profile cannot be
+queued twice while pending or running.
+
+Use `POST /api/v1/profiles/{id}/activate` and
+`POST /api/v1/profiles/{id}/deactivate` (or `enabled` on create/update) to
+change scheduling. Changes are applied to the running scheduler immediately.
+
+New backup objects are stored under
+`<storage.path>/<profile-slug>-<profile-id-prefix>/...`, keeping profiles with
+similar names isolated.
+
 ## Metadata disaster recovery
 
 Backup Manager protects its own state in two complementary ways.

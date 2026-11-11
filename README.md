@@ -280,6 +280,21 @@ See [**Architecture**](docs/guides/ARCHITECTURE.md) and [**API Reference**](docs
 5. Restores are asynchronous jobs: download → decrypt → checksum → target
    preflight → `psql`/`pg_restore` → status and logs.
 
+### Scheduling profiles
+
+`enabled=true` means a profile is scheduled. You can enable several profiles at
+once — for example hourly backups to S3 with short retention and a daily backup
+to a NAS with long retention:
+
+```bash
+curl -X POST -H "X-API-Key: $ADMIN_KEY" http://localhost:8080/api/v1/profiles/$ID/activate
+curl -X POST -H "X-API-Key: $ADMIN_KEY" http://localhost:8080/api/v1/profiles/$ID/deactivate
+```
+
+Each profile has its own cron expression, storage providers and retention
+policy. Triggered backups are queued and executed serially, so two profiles
+firing together do not overlap.
+
 ### Restore
 
 ```bash

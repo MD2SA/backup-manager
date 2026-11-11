@@ -72,6 +72,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Per-user controls:** rate limiting per authenticated user and idempotency
   keys scoped by user; restore jobs record `requested_by_user_id` and
   `requested_by_key_id`.
+- **Multiple scheduled profiles:** every profile can now be enabled
+  independently. The scheduler keeps one cron entry per profile and reconciles
+  changes immediately after create/update/activate/deactivate/delete.
+- **Serial backup queue:** different profiles can be queued and run one at a
+  time; the same profile cannot be queued twice. This supports hourly S3 +
+  daily NAS-style policies without dropping triggers.
+- **Scheduling API:** `/profiles/{id}/activate` and
+  `/profiles/{id}/deactivate` affect only the selected profile. Health summary
+  reports the earliest next run across all enabled profiles.
+- **Storage isolation:** new backup paths include a short profile ID, avoiding
+  collisions between profiles with similar names.
 
 ### Security
 - **Secrets isolation:** secrets are not loaded into the process environment,

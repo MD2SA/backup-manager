@@ -27,8 +27,8 @@ Configuration is deliberately outside the runtime database:
 1.  **API Handler (`internal/api`)**: Exposes REST endpoints for managing profiles, viewing execution history, and manual triggers.
 2.  **Configuration (`internal/config`)**: Strict YAML config, secrets file, validation and `init`/`check` helpers.
 3.  **Authentication (`internal/auth`)**: users, hashed API keys, bootstrap admin and audit log. Single admin role.
-4.  **Scheduler (`internal/scheduler`)**: Manages cron jobs based on Profile configurations.
-5.  **Backup Runner (`internal/backup/runner.go`)**: A serial task processor that ensures only one backup runs at a time to prevent resource exhaustion.
+4.  **Scheduler (`internal/scheduler`)**: Manages one cron entry per enabled profile and reconciles the in-memory jobs with the database after every profile mutation.
+5.  **Backup Runner (`internal/backup/runner.go`)**: A serial queue that accepts different profiles but never runs two backups at once. Duplicate profiles are rejected while pending/running.
 6.  **Backup Pipeline (`internal/backup/pipeline.go`)**: Orchestrates the execution of multiple "Stages".
 7.  **Providers (`internal/storage`, `internal/notification`)**: Pluggable implementations for different storage backends and notification channels.
 8.  **Database (`internal/database`)**: pgx pool and in-process migrations.

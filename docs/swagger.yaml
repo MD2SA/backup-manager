@@ -1005,10 +1005,8 @@ paths:
       - profiles
   /profiles/{id}/activate:
     post:
-      description: |-
-        Set a profile as the active one for scheduled backups.
-        This updates the system scheduler to use this profile's schedule.
-        Note: The current system logic may only support one active profile at a time.
+      description: Enable scheduled backups for this profile. Other profiles remain
+        enabled.
       parameters:
       - description: Profile ID
         in: path
@@ -1028,7 +1026,33 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
-      summary: Activate a backup profile (sets as scheduled)
+      summary: Enable scheduling for a profile
+      tags:
+      - profiles
+  /profiles/{id}/deactivate:
+    post:
+      description: Disable scheduled backups for this profile without affecting other
+        profiles.
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Disable scheduling for a profile
       tags:
       - profiles
   /profiles/{id}/executions:

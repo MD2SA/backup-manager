@@ -835,11 +835,49 @@ const docTemplate = `{
         },
         "/profiles/{id}/activate": {
             "post": {
-                "description": "Set a profile as the active one for scheduled backups.\nThis updates the system scheduler to use this profile's schedule.\nNote: The current system logic may only support one active profile at a time.",
+                "description": "Enable scheduled backups for this profile. Other profiles remain enabled.",
                 "tags": [
                     "profiles"
                 ],
-                "summary": "Activate a backup profile (sets as scheduled)",
+                "summary": "Enable scheduling for a profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/profiles/{id}/deactivate": {
+            "post": {
+                "description": "Disable scheduled backups for this profile without affecting other profiles.",
+                "tags": [
+                    "profiles"
+                ],
+                "summary": "Disable scheduling for a profile",
                 "parameters": [
                     {
                         "type": "string",
