@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Dependency and image hardening:** build with Go 1.26.11, upgrade
+  `go-chi/chi` to 5.4.0, refresh Alpine packages during the image build, and
+  run `govulncheck` plus Trivy image scanning in CI.
+
 ## [1.0.0] - 2026-11-11
 
 ### Breaking

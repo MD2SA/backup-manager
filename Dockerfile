@@ -4,8 +4,9 @@
 # build an image with a different client version, for example:
 #   docker build --build-arg RUNTIME_IMAGE=alpine:3.21 ...
 ARG RUNTIME_IMAGE=alpine:3.24
+ARG GO_IMAGE=golang:1.26.11-alpine
 
-FROM golang:1.26.5-alpine AS builder
+FROM ${GO_IMAGE} AS builder
 
 ARG VERSION=dev
 ARG COMMIT=unknown
@@ -46,7 +47,8 @@ LABEL org.opencontainers.image.title="Backup Manager" \
 
 # Alpine 3.24 ships the PostgreSQL 18 client. A newer client can dump older
 # servers; the service also validates this at runtime with `config check`.
-RUN apk add --no-cache \
+RUN apk upgrade --no-cache && \
+    apk add --no-cache \
     postgresql-client \
     ca-certificates \
     tzdata \
