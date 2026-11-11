@@ -36,6 +36,8 @@ help:
 	@echo "  make test       - Run fast tests"
 	@echo "  make test-integration - Run PostgreSQL integration tests (BACKUP_MANAGER_TEST_DSN)"
 	@echo "  make recovery-drill - Run the container disaster-recovery drill"
+	@echo "  make docs-serve - Serve the documentation locally"
+	@echo "  make docs-build - Build the documentation strictly"
 	@echo "  make fmt        - Format Go code"
 	@echo "  make lint       - Run golangci-lint"
 	@echo "  make swagger    - Generate Swagger documentation"
@@ -83,6 +85,14 @@ test-integration:
 
 recovery-drill:
 	./scripts/recovery-drill.sh
+
+docs-serve:
+	@command -v mkdocs >/dev/null 2>&1 || (echo "Install docs dependencies: pip install -r requirements-docs.txt"; exit 1)
+	mkdocs serve
+
+docs-build:
+	@command -v mkdocs >/dev/null 2>&1 || (echo "Install docs dependencies: pip install -r requirements-docs.txt"; exit 1)
+	mkdocs build --strict
 
 fmt:
 	go fmt ./...

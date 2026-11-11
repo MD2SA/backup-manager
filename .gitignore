@@ -14,3 +14,7 @@ backups/
 /secrets.env
 /secrets.*.env
 !/secrets.example.env
+
+# MkDocs build output
+site/
+.venv/

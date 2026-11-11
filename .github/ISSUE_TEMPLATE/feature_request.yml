@@ -1,0 +1,60 @@
+name: Feature request
+description: Suggest an improvement or new capability
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Backup Manager deliberately targets a single PostgreSQL instance.
+        Please explain why the feature matters for that scope and whether it
+        could be solved operationally instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem are you trying to solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behaviour you would like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds, other tools or existing configuration options.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Backup
+        - Restore / recovery
+        - Storage
+        - Encryption
+        - Scheduling / retention
+        - API / authentication
+        - Observability
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and discussions.
+          required: true
+        - label: This fits the single-instance PostgreSQL scope.
+          required: true

@@ -17,9 +17,13 @@ Configuration is deliberately outside the runtime database:
 - `internal/config` parses both files with a strict schema (`version: 1`),
   resolves secret references, validates values and exposes a typed `Config`.
 - `backup-manager config check` performs production preflight checks
-  (permissions, binaries, directories, Age keys, cron, optional DB connectivity).
-- `backup-manager serve` applies pending migrations in-process and then starts
-  the HTTP server. `internal/database` handles the pool and Goose integration.
+  (permissions, binaries, directories, Age keys, cron, optional DB connectivity)
+  and verifies that the PostgreSQL client binaries are new enough for the target
+  server.
+- `backup-manager serve` acquires a PostgreSQL advisory lock before running
+  migrations, then applies pending migrations in-process and starts the HTTP
+  server. The lock prevents two replicas from racing the schema or scheduling
+  duplicate backups.
 - `backup-manager init` generates a working pair of files, including keys.
 
 ### Core Components
@@ -31,7 +35,10 @@ Configuration is deliberately outside the runtime database:
 5.  **Backup Runner (`internal/backup/runner.go`)**: A serial queue that accepts different profiles but never runs two backups at once. Duplicate profiles are rejected while pending/running.
 6.  **Backup Pipeline (`internal/backup/pipeline.go`)**: Orchestrates the execution of multiple "Stages".
 7.  **Providers (`internal/storage`, `internal/notification`)**: Pluggable implementations for different storage backends and notification channels.
-8.  **Database (`internal/database`)**: pgx pool and in-process migrations.
+8.  **Database (`internal/database`)**: pgx pool, in-process migrations and the single-instance advisory lock.
+9.  **Recovery (`internal/recovery`)**: metadata snapshot discovery and restore, execution resolution, artifact selection and data restore.
+10. **Maintenance (`internal/maintenance`, `internal/selfbackup`)**: audit retention and local metadata self-backup.
+11. **Observability (`internal/metrics`, `internal/monitor`)**: Prometheus metrics, health summary and overdue detection. Overdue profiles notify their Discord providers at a configurable interval.
 
 ## System Components & Relationships
 
@@ -113,11 +120,27 @@ The pipeline consists of several stages sharing an `ExecutionContext`:
 *   **PostgresDumpStage**: Uses `pg_dump` to create a local compressed SQL file.
 *   **VerificationStage**: Calculates checksums and verifies archive integrity.
 *   **StorageStage**: (Iterative) Uploads the local file to all configured storage destinations.
-*   **RetentionStage**: (Iterative) Applies GFS (Grandfather-Father-Son) policies to the storage destination.
 *   **CleanupStage**: Removes the local temporary file.
 
+After all uploads succeed, the service applies GFS (Grandfather-Father-Son)
+retention once against every provider, finalizes the execution row, and uploads
+an encrypted metadata snapshot. Retention failures are operational warnings,
+not backup failures.
+
+Every backup and restore is bounded by `operations.backup_timeout` and
+`operations.restore_timeout`. The timeout context covers dump, download,
+decryption and apply, while the parent context remains available for the final
+status update and notifications.
+
 ### 4. Notification
-At the start, success, or failure of the pipeline, the service iterates through all linked notification providers to broadcast the status.
+At the start, success, or failure of the pipeline, the service iterates through all linked notification providers to broadcast the status. A separate overdue worker notifies when a profile stops producing successful backups, with per-episode deduplication.
+
+### 5. Recovery
+`internal/recovery` is shared by `verify`, `recover metadata` and `recover data`.
+It supports local and S3 snapshot discovery, explicit files, multiple passphrase
+candidates, Age identities, per-provider artifact fallback, checksum
+verification, target preflight and a guard that refuses to restore into the
+metadata database.
 
 ## Design Patterns
 

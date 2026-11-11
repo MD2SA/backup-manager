@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/etc/backup-manager/config.yaml` and `secrets.env` next to it.
 
 ### Added
+- **Documentation site and repository polish:** MkDocs Material site with
+  GitHub Pages deployment, a rewritten landing README, a docs index,
+  contributing and security policies, pull-request template and issue forms.
 - **PostgreSQL 13–18 compatibility:** the runtime image now ships the
   PostgreSQL 18 client, `config check --connect` validates that `pg_dump`,
   `pg_restore` and `psql` are new enough for the target server, and CI runs

@@ -1,0 +1,78 @@
+site_name: Backup Manager
+site_description: Self-hosted PostgreSQL backups with verified recovery
+site_author: MD2SA
+site_url: https://md2sa.github.io/backup-manager/
+repo_url: https://github.com/MD2SA/backup-manager
+repo_name: MD2SA/backup-manager
+edit_uri: edit/main/docs/
+docs_dir: docs
+site_dir: site
+
+exclude_docs: |
+  README.md
+  docs.go
+  swagger.json
+  swagger.yaml
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.footer
+    - navigation.top
+    - content.action.edit
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Configuration: guides/CONFIGURATION.md
+  - Operations: guides/OPERATIONS.md
+  - API: guides/API.md
+  - Architecture: guides/ARCHITECTURE.md
+  - Testing: guides/TESTING.md
+  - Changelog: https://github.com/MD2SA/backup-manager/blob/main/CHANGELOG.md
+  - Security: https://github.com/MD2SA/backup-manager/blob/main/SECURITY.md
+  - Contributing: https://github.com/MD2SA/backup-manager/blob/main/CONTRIBUTING.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/MD2SA/backup-manager
+
+copyright: Copyright &copy; MD2SA. MIT licensed.
