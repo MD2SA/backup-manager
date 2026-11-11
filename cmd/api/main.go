@@ -53,6 +53,8 @@ func main() {
 		runUser(os.Args[2:])
 	case "key":
 		runKey(os.Args[2:])
+	case "verify":
+		runVerify(os.Args[2:])
 	case "version", "--version":
 		fmt.Println(version.Version)
 	case "help", "-h", "--help":
@@ -75,6 +77,7 @@ Usage:
   backup-manager metadata-restore [--config PATH] [--file PATH] [flags]
   backup-manager user <create|list> [flags]
   backup-manager key create --email EMAIL --name NAME [flags]
+  backup-manager verify [--execution ID | --profile ID --latest N] [--scratch-dsn DSN]
   backup-manager keygen
   backup-manager version
 

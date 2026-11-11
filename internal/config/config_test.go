@@ -207,6 +207,35 @@ func TestLoad_RejectsTargetSameAsMetadata(t *testing.T) {
 	}
 }
 
+func TestLoad_RestoreCredentials(t *testing.T) {
+	t.Setenv("APP_SECRETS_FILE", "")
+	dir := t.TempDir()
+	cfg := minimalConfig + `target_database:
+  host: target
+  port: "5432"
+  user: backup_reader
+  dbname: db
+  sslmode: disable
+  restore_user: restore_admin
+`
+	secrets := "METADATA_DB_PASSWORD=secret\nTARGET_DB_PASSWORD=readpass\nTARGET_DB_RESTORE_PASSWORD=writepass\n"
+	configPath, _ := writeTestFiles(t, dir, cfg, secrets)
+
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded.TargetDB.RestoreUser != "restore_admin" || loaded.TargetDB.RestorePassword != "writepass" {
+		t.Fatalf("unexpected restore credentials: %+v", loaded.TargetDB)
+	}
+
+	// Restore user without a restore password must fail.
+	configPath, _ = writeTestFiles(t, dir, cfg, "METADATA_DB_PASSWORD=secret\nTARGET_DB_PASSWORD=readpass\n")
+	if _, err := Load(configPath); err == nil {
+		t.Fatal("expected missing restore password to fail")
+	}
+}
+
 func TestNormalizeTrustedProxies(t *testing.T) {
 	prefixes, err := normalizeTrustedProxies([]string{"127.0.0.1", "10.0.0.0/8", "2001:db8::/32"})
 	if err != nil {

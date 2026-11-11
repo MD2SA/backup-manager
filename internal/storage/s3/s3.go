@@ -2,33 +2,67 @@ package s3
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	smithy "github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
+
+type Options struct {
+	Region         string
+	Bucket         string
+	AccessKey      string
+	SecretKey      string
+	Endpoint       string
+	ForcePathStyle bool
+	UseSSL         bool
+}
 
 type S3Provider struct {
 	client *s3.Client
 	bucket string
 }
 
-func New(ctx context.Context, region, bucket, accessKey, secretKey string) (*S3Provider, error) {
+func New(ctx context.Context, opts Options) (*S3Provider, error) {
 	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(region),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
+		config.WithRegion(opts.Region),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(opts.AccessKey, opts.SecretKey, "")),
 	)
 	if err != nil {
 		return nil, err
 	}
 
+	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		if opts.Endpoint != "" {
+			o.BaseEndpoint = aws.String(normalizeEndpoint(opts.Endpoint, opts.UseSSL))
+		}
+		o.UsePathStyle = opts.ForcePathStyle
+	})
+
 	return &S3Provider{
-		client: s3.NewFromConfig(cfg),
-		bucket: bucket,
+		client: client,
+		bucket: opts.Bucket,
 	}, nil
+}
+
+func normalizeEndpoint(endpoint string, useSSL bool) string {
+	if endpoint == "" {
+		return ""
+	}
+	if strings.Contains(endpoint, "://") {
+		return endpoint
+	}
+	if useSSL {
+		return "https://" + endpoint
+	}
+	return "http://" + endpoint
 }
 
 func (s *S3Provider) Name() string { return "s3" }
@@ -66,11 +100,22 @@ func (s *S3Provider) Exists(ctx context.Context, key string) (bool, error) {
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
 	})
-	if err != nil {
-		// Handle 404
+	if err == nil {
+		return true, nil
+	}
+
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.ErrorCode() {
+		case "NotFound", "NoSuchKey":
+			return false, nil
+		}
+	}
+	var responseErr *smithyhttp.ResponseError
+	if errors.As(err, &responseErr) && responseErr.HTTPStatusCode() == 404 {
 		return false, nil
 	}
-	return true, nil
+	return false, err
 }
 
 // List returns object keys under prefix, sorted lexically.

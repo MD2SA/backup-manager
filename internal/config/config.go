@@ -32,12 +32,14 @@ const (
 
 // DatabaseConfig describes a PostgreSQL connection.
 type DatabaseConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DBName   string
-	SSLMode  string
+	Host            string
+	Port            string
+	User            string
+	Password        string
+	DBName          string
+	SSLMode         string
+	RestoreUser     string
+	RestorePassword string
 }
 
 // DSN renders the connection string used by pgx, psql and pg_dump helpers.
@@ -128,11 +130,13 @@ type storageFileConfig struct {
 }
 
 type databaseFileConfig struct {
-	Host    string `yaml:"host"`
-	Port    string `yaml:"port"`
-	User    string `yaml:"user"`
-	DBName  string `yaml:"dbname"`
-	SSLMode string `yaml:"sslmode"`
+	Host                  string `yaml:"host"`
+	Port                  string `yaml:"port"`
+	User                  string `yaml:"user"`
+	DBName                string `yaml:"dbname"`
+	SSLMode               string `yaml:"sslmode"`
+	RestoreUser           string `yaml:"restore_user"`
+	RestorePasswordSecret string `yaml:"restore_password_secret"`
 }
 
 type encryptionFileConfig struct {
@@ -161,6 +165,7 @@ type auditFileConfig struct {
 type secretRefs struct {
 	MetadataDBPassword       string `yaml:"metadata_db_password"`
 	TargetDBPassword         string `yaml:"target_db_password"`
+	TargetDBRestorePassword  string `yaml:"target_db_restore_password"`
 	AgePrivateKey            string `yaml:"age_private_key"`
 	EncryptionPassphrase     string `yaml:"encryption_passphrase"`
 	AdminKey                 string `yaml:"admin_key"`
@@ -172,6 +177,7 @@ func defaultSecretRefs() secretRefs {
 	return secretRefs{
 		MetadataDBPassword:       "METADATA_DB_PASSWORD",
 		TargetDBPassword:         "TARGET_DB_PASSWORD",
+		TargetDBRestorePassword:  "TARGET_DB_RESTORE_PASSWORD",
 		AgePrivateKey:            "AGE_PRIVATE_KEY",
 		EncryptionPassphrase:     "ENCRYPTION_PASSPHRASE",
 		AdminKey:                 "ADMIN_KEY",
@@ -342,12 +348,14 @@ func loadFrom(path, secretsPathOverride string, requireAdminKey bool) (Config, e
 			SSLMode:  file.MetadataDatabase.SSLMode,
 		},
 		TargetDB: DatabaseConfig{
-			Host:     file.TargetDatabase.Host,
-			Port:     file.TargetDatabase.Port,
-			User:     file.TargetDatabase.User,
-			Password: secrets[refs.TargetDBPassword],
-			DBName:   file.TargetDatabase.DBName,
-			SSLMode:  file.TargetDatabase.SSLMode,
+			Host:            file.TargetDatabase.Host,
+			Port:            file.TargetDatabase.Port,
+			User:            file.TargetDatabase.User,
+			Password:        secrets[refs.TargetDBPassword],
+			DBName:          file.TargetDatabase.DBName,
+			SSLMode:         file.TargetDatabase.SSLMode,
+			RestoreUser:     file.TargetDatabase.RestoreUser,
+			RestorePassword: secrets[refs.TargetDBRestorePassword],
 		},
 	}
 
@@ -368,6 +376,9 @@ func applySecretDefaults(refs *secretRefs) {
 	}
 	if refs.TargetDBPassword == "" {
 		refs.TargetDBPassword = defaults.TargetDBPassword
+	}
+	if refs.TargetDBRestorePassword == "" {
+		refs.TargetDBRestorePassword = defaults.TargetDBRestorePassword
 	}
 	if refs.AgePrivateKey == "" {
 		refs.AgePrivateKey = defaults.AgePrivateKey
@@ -401,6 +412,9 @@ func (c *Config) validateSecrets(path string, secrets map[string]string, refs se
 	require(refs.MetadataDBPassword, "metadata_database")
 	if c.TargetDB.configured() {
 		require(refs.TargetDBPassword, "target_database")
+		if c.TargetDB.RestoreUser != "" {
+			require(refs.TargetDBRestorePassword, "target_database restore")
+		}
 	}
 	if requireAdminKey && c.IsProduction() {
 		require(refs.ConfigEncryptKey, "secrets.config_encrypt_key")
@@ -455,6 +469,9 @@ func (c *Config) validate(requireAdminKey bool) error {
 		validateDatabase("target_database", c.TargetDB, add)
 		if sameDatabase(c.MetadataDB, c.TargetDB) {
 			add("target_database must not point to the same database as metadata_database")
+		}
+		if c.TargetDB.RestoreUser != "" && c.TargetDB.RestorePassword == "" {
+			add("target_database restore password is required when restore_user is set")
 		}
 	}
 

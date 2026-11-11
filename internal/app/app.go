@@ -44,6 +44,7 @@ type App struct {
 	MetadataBackup  *selfbackup.Service
 	Maintenance     *maintenance.Service
 	Metrics         *metrics.Metrics
+	InstanceLock    *database.InstanceLock
 }
 
 func New(ctx context.Context, cfg config.Config) (*App, error) {
@@ -52,6 +53,11 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	dbPool, err := database.New(ctx, cfg.MetadataDB)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	}
+	instanceLock, err := database.AcquireInstanceLock(ctx, cfg.MetadataDB)
+	if err != nil {
+		dbPool.Close()
+		return nil, fmt.Errorf("single-instance guard: %w", err)
 	}
 
 	repo := repository.NewPostgres(dbPool, configKeyForRepo(cfg))
@@ -82,6 +88,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		ProviderService: providerService,
 		Maintenance:     maintenanceService,
 		Metrics:         metricsService,
+		InstanceLock:    instanceLock,
 	}
 
 	a.logInfrastructureStatus()
@@ -231,6 +238,11 @@ func (a *App) Stop() {
 	case <-done:
 	case <-time.After(15 * time.Second):
 		a.Logger.Warn("Timed out waiting for background runners to stop")
+	}
+	if a.InstanceLock != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		a.InstanceLock.Release(ctx)
 	}
 }
 

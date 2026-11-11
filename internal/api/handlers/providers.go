@@ -22,7 +22,7 @@ type ProviderHandler struct {
 // @Description Get a list of all configured storage providers.
 // @Description The 'config' field varies by 'type':
 // @Description - 'local': Use {"path": "/tmp/backups"} to define the base directory on the server.
-// @Description - 's3': Use {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."} for AWS S3 compatible storage.
+// @Description - 's3': Use {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "...", "endpoint": "https://minio:9000", "force_path_style": true, "use_ssl": true} for AWS S3 or compatible storage.
 // @Tags storage-providers
 // @Produce json
 // @Param limit query int false "Page size (default 50, max 200)"
@@ -113,7 +113,7 @@ func (h *ProviderHandler) CreateStorage(w http.ResponseWriter, r *http.Request) 
 // @Description Update a storage provider's configuration by ID.
 // @Description Ensure the 'config' object matches the 'type':
 // @Description - 'local': {"path": "/tmp/backups"}
-// @Description - 's3': {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "..."}
+// @Description - 's3': {"region": "us-east-1", "bucket": "my-backups", "access_key": "...", "secret_key": "...", "endpoint": "https://minio:9000", "force_path_style": true, "use_ssl": true}
 // @Tags storage-providers
 // @Accept json
 // @Produce json

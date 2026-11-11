@@ -49,6 +49,9 @@ target_database:
   user: "backup_reader"
   dbname: "app"
   sslmode: "require"
+  # Optional: a separate role with write privileges for restores.
+  restore_user: "restore_admin"
+  restore_password_secret: "TARGET_DB_RESTORE_PASSWORD"
 
 encryption:
   # Set this to your Age recipient (age1...) or leave empty and use the

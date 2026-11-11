@@ -83,6 +83,14 @@ func Check(cfg Config, connect bool) (warnings []string, err error) {
 			if pingErr := pingDatabase(cfg.TargetDB); pingErr != nil {
 				add("target database: %v", pingErr)
 			}
+			if cfg.TargetDB.RestoreUser != "" {
+				restoreDB := cfg.TargetDB
+				restoreDB.User = cfg.TargetDB.RestoreUser
+				restoreDB.Password = cfg.TargetDB.RestorePassword
+				if pingErr := pingDatabase(restoreDB); pingErr != nil {
+					add("target restore database: %v", pingErr)
+				}
+			}
 		}
 	}
 

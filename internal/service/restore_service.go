@@ -254,6 +254,10 @@ func (s *RestoreService) Execute(ctx context.Context, restoreID pgtype.UUID) err
 		DBName:   s.config.TargetDB.DBName,
 		SSLMode:  s.config.TargetDB.SSLMode,
 	}
+	if s.config.TargetDB.RestoreUser != "" {
+		target.User = s.config.TargetDB.RestoreUser
+		target.Password = s.config.TargetDB.RestorePassword
+	}
 
 	logf("preflight target database %q", target.DBName)
 	if err := target.Preflight(ctx, opts.TerminateConnections); err != nil {
