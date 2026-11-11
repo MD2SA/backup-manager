@@ -95,6 +95,15 @@ sequenceDiagram
 ### 1. Triggering
 A backup starts when a `ProfileID` is enqueued into the `BackupRunner`. The runner processes tasks sequentially.
 
+### 1b. Restore jobs
+Restores are separate asynchronous jobs stored in the `restores` table and
+processed by `RestoreRunner`. The restore worker downloads the artifact,
+decrypts it, verifies the recorded SHA-256 checksum, re-detects the format
+(plain SQL, gzip or custom archive), preflights the empty target database and
+applies it with `psql`/`pg_restore` inside a single transaction. Backups and
+restores share a target database gate, so a dump and a restore never overlap.
+Every uploaded copy is recorded in `execution_storage`.
+
 ### 2. Resolution
 The `BackupService` fetches the profile from the database and uses the `ProviderService` to resolve linked Storage and Notification IDs into actual functional implementations (e.g., an S3 client or a Discord webhook client).
 

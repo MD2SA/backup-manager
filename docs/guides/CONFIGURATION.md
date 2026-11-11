@@ -188,6 +188,16 @@ them empty:
 file). A partially configured target database fails validation. Backups and
 restores report a clear infrastructure error while it is empty.
 
+`sslmode` is applied to `pg_dump`, `psql` and `pg_restore` (via `PGSSLMODE`).
+
+**Restore requires an empty target database.** A target with user tables,
+views or sequences is rejected with `409` before a restore job is queued. This
+keeps restores predictable and avoids a failed `psql` halfway through. New
+backups are dumped with `--no-owner --no-acl` for portability.
+
+The target database must not be the same as `metadata_database`; the service
+refuses to start if they point to the same host, port and database name.
+
 ### `encryption`
 
 | Field | Default | Description |
@@ -206,6 +216,29 @@ precedence when encrypting.
 | `schedule` | empty (disabled) | 5-field cron for the local metadata self-backup. |
 | `retention` | `14` | Snapshots to keep per local directory / per profile per provider. |
 | `embed` | `true` | Upload an encrypted metadata snapshot with every backup execution. |
+
+---
+
+## Restore behavior
+
+Restores are asynchronous and use the target database configured above.
+
+- `POST /api/v1/executions/{id}/restore` returns `202` with a restore ID.
+- `GET /api/v1/restores/{id}` returns status, logs, provider, path and whether
+  the checksum was verified.
+- A real restore requires `{"confirm": true}`.
+- `{"verify_only": true}` downloads, decrypts, verifies the checksum and
+  detects the format without touching the target.
+- `{"terminate_connections": true}` allows the job to disconnect other clients
+  from the target database. Default is `false`.
+- A non-empty target returns `409` immediately.
+- The checksum recorded at backup time is verified before any SQL is executed.
+- `psql` runs with `ON_ERROR_STOP=1` and `--single-transaction`; a failure rolls
+  the restore back.
+- gzip, plain SQL and PostgreSQL custom-format artifacts are supported.
+
+Only one restore runs at a time, and backups and restores share a target
+database gate so a `pg_dump` cannot overlap a restore.
 
 ---
 

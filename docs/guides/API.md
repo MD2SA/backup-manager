@@ -29,8 +29,40 @@ The project includes built-in Swagger documentation. To view it:
 ### Executions
 *   `GET /executions`: List all backup executions in the system.
 *   `GET /executions/{id}`: Get detailed logs and status of a specific execution.
-*   `POST /executions/{id}/restore`: Trigger a database restore from this specific backup.
+*   `POST /executions/{id}/restore`: Enqueue an asynchronous restore (see below).
+*   `GET /executions/{id}/restores`: Restore history for an execution.
 *   `POST /executions/{id}/pin`: Pin an execution to prevent automatic cleanup (if retention supports it).
+
+### Restores
+*   `GET /restores`: List all restore jobs.
+*   `GET /restores/{id}`: Get restore status, logs, provider, checksum verification and errors.
+
+Restores are **asynchronous**. `POST /executions/{id}/restore` returns `202`
+immediately with a restore ID; poll `GET /restores/{id}` for progress.
+
+```json
+{
+  "confirm": true,
+  "verify_only": false,
+  "provider_id": "optional-storage-provider-uuid",
+  "terminate_connections": false
+}
+```
+
+*   `confirm: true` is required for a real restore. Use `verify_only: true` to
+    download, decrypt and verify the artifact without touching the target DB.
+*   The target database must be **empty**. A non-empty target returns `409`
+    before the job is queued.
+*   `terminate_connections: true` allows the restore job to terminate other
+    client connections to the target database. Default is `false`.
+*   `provider_id` selects a specific stored copy. Without it, the restore tries
+    the recorded copies (newest upload first) and falls back to the legacy
+    execution path for old backups.
+*   The job verifies the recorded SHA-256 checksum before applying anything.
+*   `psql` runs with `ON_ERROR_STOP=1` and `--single-transaction`; a failure
+    rolls the restore back.
+*   Supported artifacts: plain SQL, gzip, PostgreSQL custom format, and Age
+    encrypted variants.
 
 ### Storage Providers
 *   `GET /storage-providers`: List all configured storage providers.

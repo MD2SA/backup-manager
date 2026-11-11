@@ -14,6 +14,8 @@ definitions:
         type: string
       id:
         type: string
+      is_encrypted:
+        type: boolean
       is_pinned:
         type: boolean
       logs:
@@ -136,6 +138,50 @@ definitions:
           type: string
         type: array
       updated_at:
+        type: string
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.RestoreRequest:
+    properties:
+      confirm:
+        type: boolean
+      provider_id:
+        type: string
+      terminate_connections:
+        type: boolean
+      verify_only:
+        type: boolean
+    type: object
+  github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse:
+    properties:
+      checksum_verified:
+        type: boolean
+      created_at:
+        type: string
+      duration:
+        type: string
+      error_message:
+        type: string
+      execution_id:
+        type: string
+      finished_at:
+        type: string
+      id:
+        type: string
+      logs:
+        items:
+          type: string
+        type: array
+      provider_id:
+        type: string
+      request_id:
+        type: string
+      started_at:
+        type: string
+      status:
+        type: string
+      storage_path:
+        type: string
+      target_db:
         type: string
     type: object
   github_com_MD2SA_backup-manager_internal_api_dto.RetentionPolicyRequest:
@@ -347,27 +393,84 @@ paths:
       - executions
   /executions/{id}/restore:
     post:
-      description: Trigger a restoration process from a specific backup execution
+      consumes:
+      - application/json
+      description: |-
+        Enqueue an asynchronous restore for a backup execution.
+        A real restore requires "confirm": true. Use "verify_only": true
+        to download, decrypt and verify the artifact without touching the target database.
+        The target database must be empty; see the configuration guide.
       parameters:
       - description: Execution ID
         in: path
         name: id
         required: true
         type: string
+      - description: Restore options
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreRequest'
+      produces:
+      - application/json
       responses:
         "202":
           description: Accepted
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Restore a backup
+      tags:
+      - restores
+  /executions/{id}/restores:
+    get:
+      description: Get the restore history of a specific backup execution, newest
+        first.
+      parameters:
+      - description: Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "404":
+          description: Not Found
           schema:
             $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
-      summary: Restore a backup
+      summary: List restores for a backup execution
       tags:
-      - executions
+      - restores
   /health/summary:
     get:
       description: Get an aggregated view of system health, storage usage, and active
@@ -739,6 +842,56 @@ paths:
       summary: Run a backup profile immediately
       tags:
       - profiles
+  /restores:
+    get:
+      description: Get the global restore history, newest first.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: List all restore jobs
+      tags:
+      - restores
+  /restores/{id}:
+    get:
+      description: Get the status, logs and result of a restore job.
+      parameters:
+      - description: Restore ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Get a restore job
+      tags:
+      - restores
   /retention-policies:
     get:
       description: |-

@@ -134,11 +134,78 @@
         },
         "/executions/{id}/restore": {
             "post": {
-                "description": "Trigger a restoration process from a specific backup execution",
+                "description": "Enqueue an asynchronous restore for a backup execution.\nA real restore requires \"confirm\": true. Use \"verify_only\": true\nto download, decrypt and verify the artifact without touching the target database.\nThe target database must be empty; see the configuration guide.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
-                    "executions"
+                    "restores"
                 ],
                 "summary": "Restore a backup",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Restore options",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/executions/{id}/restores": {
+            "get": {
+                "description": "Get the restore history of a specific backup execution, newest first.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "restores"
+                ],
+                "summary": "List restores for a backup execution",
                 "parameters": [
                     {
                         "type": "string",
@@ -149,11 +216,23 @@
                     }
                 ],
                 "responses": {
-                    "202": {
-                        "description": "Accepted"
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse"
+                            }
+                        }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
                         }
@@ -681,6 +760,82 @@
                 }
             }
         },
+        "/restores": {
+            "get": {
+                "description": "Get the global restore history, newest first.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "restores"
+                ],
+                "summary": "List all restore jobs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/restores/{id}": {
+            "get": {
+                "description": "Get the status, logs and result of a restore job.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "restores"
+                ],
+                "summary": "Get a restore job",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Restore ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/retention-policies": {
             "get": {
                 "description": "Get a list of all configured retention policies.\nPolicies define how many backups are kept for different time intervals:\n- keep_hourly: Last N hours.\n- keep_daily: Last N days.\n- keep_weekly: Last N weeks.\n- yearly_month: The month (1-12) chosen for yearly preservation.",
@@ -1010,6 +1165,9 @@
                 "id": {
                     "type": "string"
                 },
+                "is_encrypted": {
+                    "type": "boolean"
+                },
                 "is_pinned": {
                     "type": "boolean"
                 },
@@ -1190,6 +1348,73 @@
                     }
                 },
                 "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_api_dto.RestoreRequest": {
+            "type": "object",
+            "properties": {
+                "confirm": {
+                    "type": "boolean"
+                },
+                "provider_id": {
+                    "type": "string"
+                },
+                "terminate_connections": {
+                    "type": "boolean"
+                },
+                "verify_only": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "github_com_MD2SA_backup-manager_internal_api_dto.RestoreResponse": {
+            "type": "object",
+            "properties": {
+                "checksum_verified": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "duration": {
+                    "type": "string"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "execution_id": {
+                    "type": "string"
+                },
+                "finished_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "logs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "provider_id": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "storage_path": {
+                    "type": "string"
+                },
+                "target_db": {
                     "type": "string"
                 }
             }

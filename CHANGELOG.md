@@ -43,6 +43,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CORS/trusted proxies and per-client rate limits.
 - **CI/CD:** GitHub Actions workflow with gofmt, vet, lint, race tests, build,
   configuration smoke test, and Docker image publishing to GHCR.
+- **Reliable asynchronous restores:** new `restores` table and `RestoreRunner`
+  with `pending/running/success/failed` states, logs, provider/path audit,
+  checksum verification, gzip decompression, streaming Age decryption,
+  `psql ON_ERROR_STOP` + `--single-transaction`, and target preflight checks.
+- **Per-provider storage copies:** new `execution_storage` table records every
+  uploaded copy, so restores use the correct provider and retention can delete
+  all copies before removing an execution.
+- **Restore API:** `POST /executions/{id}/restore` now returns `202` with a
+  restore ID; `GET /restores/{id}`, `GET /executions/{id}/restores` and
+  `GET /restores` expose progress and history.
+- **Restore safety:** `confirm: true` is required for a real restore;
+  `verify_only` validates an artifact without touching the target; non-empty
+  target databases and active connections are rejected unless explicitly
+  terminated.
+- **Backup portability:** new dumps use `--no-owner --no-acl`, and the target
+  `sslmode` is applied to `pg_dump`, `psql` and `pg_restore`.
 
 ### Security
 - **Secrets isolation:** secrets are not loaded into the process environment,
@@ -73,6 +89,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bundled database credentials).
 - **Documentation:** README, configuration guide and API reference rewritten for
   the new model, with a production checklist and troubleshooting section.
+- **Restore semantics:** restores are now asynchronous and require
+  `{"confirm": true}`. A target database must be empty; use `verify_only` to
+  validate a backup safely.
+- **Retention:** the engine is provider-aware, only considers successful
+  backups for GFS, deletes every stored copy before removing an execution, and
+  skips executions with an active restore.
 
 ### Fixed
 - **Docker healthcheck:** it now probes the public `/healthz` endpoint instead

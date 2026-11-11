@@ -232,7 +232,32 @@ See [**Architecture**](docs/guides/ARCHITECTURE.md) and [**API Reference**](docs
 3. The execution result is persisted and notifications are sent.
 4. An encrypted metadata snapshot is uploaded to the same providers (unless
    disabled).
-5. A restore downloads the artifact, decrypts it, and applies it with `psql`.
+5. Restores are asynchronous jobs: download → decrypt → checksum → target
+   preflight → `psql`/`pg_restore` → status and logs.
+
+### Restore
+
+```bash
+# Validate a backup without touching the target database
+curl -X POST -H "X-API-Key: $ADMIN_KEY" -H 'Content-Type: application/json' \
+  -d '{"verify_only":true}' \
+  http://localhost:8080/api/v1/executions/$EXECUTION_ID/restore
+
+# Real restore into an empty target database
+curl -X POST -H "X-API-Key: $ADMIN_KEY" -H 'Content-Type: application/json' \
+  -d '{"confirm":true}' \
+  http://localhost:8080/api/v1/executions/$EXECUTION_ID/restore
+
+# Poll the job
+curl -H "X-API-Key: $ADMIN_KEY" \
+  http://localhost:8080/api/v1/restores/$RESTORE_ID
+```
+
+A restore requires `confirm: true`, verifies the recorded checksum, supports
+gzip and Age-encrypted artifacts, and refuses to run against a non-empty target
+database by default. Use `terminate_connections: true` if the target has active
+clients that should be disconnected. See the
+[API reference](docs/guides/API.md#restores).
 
 ### Technology stack
 
@@ -264,7 +289,7 @@ See [**Architecture**](docs/guides/ARCHITECTURE.md) and [**API Reference**](docs
 - [ ] Put the service behind a TLS-terminating proxy; set `cors_origins` and
       `trusted_proxies`.
 - [ ] Use a dedicated PostgreSQL role for the target database with read access,
-      and a separate metadata database.
+      and a separate metadata database. The target must be empty when restoring.
 - [ ] Pin the container image to a version tag, not `latest`.
 - [ ] Monitor `/readyz`, backup failures, and the last successful backup.
 - [ ] Test a restore before relying on the backups.
