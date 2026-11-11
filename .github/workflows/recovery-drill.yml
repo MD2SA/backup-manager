@@ -1,0 +1,44 @@
+name: Recovery drill
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 0"
+  pull_request:
+    paths:
+      - "internal/recovery/**"
+      - "internal/backup/**"
+      - "internal/storage/**"
+      - "internal/config/**"
+      - "internal/metarestore/**"
+      - "cmd/api/**"
+      - "scripts/recovery-drill.sh"
+      - "Dockerfile"
+      - ".github/workflows/recovery-drill.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recovery-drill-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drill:
+    name: Container disaster-recovery drill
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run drill
+        run: |
+          set -o pipefail
+          ./scripts/recovery-drill.sh --image backup-manager-drill:ci 2>&1 | tee recovery-drill.log
+
+      - name: Upload drill log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recovery-drill-log
+          path: recovery-drill.log

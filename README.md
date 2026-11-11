@@ -431,6 +431,7 @@ make init           # generate local config.yaml + secrets.env
 make config-check   # validate configuration
 make test           # fast go test ./...
 make test-integration # PostgreSQL integration tests (set BACKUP_MANAGER_TEST_DSN)
+make recovery-drill # container disaster-recovery drill (Docker)
 make lint           # golangci-lint
 make fmt            # gofmt
 make swagger        # regenerate OpenAPI docs

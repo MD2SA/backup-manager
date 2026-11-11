@@ -63,12 +63,53 @@ passphrase and once with an Age X25519 identity.
 Requirements: `pg_dump`, `pg_restore` and `psql` in `PATH`, plus permission to
 create databases.
 
+## Container recovery drill
+
+The final layer runs the real container image. It builds a disposable
+PostgreSQL instance and a synthetic database, runs a backup, destroys both the
+metadata database and the target database, and recovers everything through the
+CLI.
+
+```bash
+make recovery-drill
+```
+
+Useful options:
+
+```bash
+scripts/recovery-drill.sh --users 50000   # larger dataset
+scripts/recovery-drill.sh --keep          # keep the work directory
+scripts/recovery-drill.sh --no-build      # reuse an existing image
+```
+
+The drill asserts:
+
+- metadata recovery restores a successful execution with checksum and storage path;
+- `--verify-only` does not touch the target;
+- row-level checksums match the source for every table;
+- sequence values, indexes and foreign keys match;
+- artifact-only recovery (`--file`) produces the same data;
+- restoring into the metadata database is rejected;
+- restoring without `--confirm` is rejected.
+
+Requirements: Docker, `curl` and `python3`. The script finds free ports and uses
+a dedicated Docker network; no fixed host ports are required.
+
 ## CI
 
 The `test` job runs the fast suite with `-race`, then the PostgreSQL integration
 tests against a `postgres:16-alpine` service container. The recovery integration
 test is a required step, so a change that breaks metadata recovery or data
 restore fails the pull request.
+
+A separate `Recovery drill` workflow runs the container drill:
+
+- weekly (`schedule`);
+- on demand (`workflow_dispatch`);
+- on pull requests that touch recovery, backup, storage, config, metadata
+  restore, the CLI, the drill script or the Dockerfile.
+
+The drill log is uploaded as an artifact when it fails.
 
 ## Safety rules for integration tests
 

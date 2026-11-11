@@ -35,6 +35,7 @@ help:
 	@echo "  make build      - Build the application"
 	@echo "  make test       - Run fast tests"
 	@echo "  make test-integration - Run PostgreSQL integration tests (BACKUP_MANAGER_TEST_DSN)"
+	@echo "  make recovery-drill - Run the container disaster-recovery drill"
 	@echo "  make fmt        - Format Go code"
 	@echo "  make lint       - Run golangci-lint"
 	@echo "  make swagger    - Generate Swagger documentation"
@@ -79,6 +80,9 @@ test-integration:
 	BACKUP_MANAGER_TEST_DSN="$(BACKUP_MANAGER_TEST_DSN)" go test \
 		./internal/backup ./internal/auth ./internal/repository ./internal/database ./internal/recovery \
 		-run 'Integration|InstanceLock' -count=1
+
+recovery-drill:
+	./scripts/recovery-drill.sh
 
 fmt:
 	go fmt ./...

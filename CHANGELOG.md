@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Multi-passphrase metadata decryption:** metadata snapshots encrypted with
   either the profile encryption passphrase or `METADATA_BACKUP_PASSPHRASE` are
   now tried automatically during recovery.
+- **Container recovery drill:** `scripts/recovery-drill.sh` and
+  `make recovery-drill` exercise the real image end to end, including metadata
+  and target database loss, Age decryption, checksum/schema comparison and the
+  safety guards. It runs on critical pull requests and weekly in CI.
 - **Recovery CLI:** `backup-manager recover metadata` lists and restores the
   newest metadata snapshot from local storage, an explicit file, or S3/S3-
   compatible storage (`--s3-bucket`, `--s3-endpoint`, `--s3-path-style`).
