@@ -56,7 +56,9 @@ The tag push triggers `.github/workflows/ci.yml`:
 2. the Docker job waits for it;
 3. the image is built for `linux/amd64` and `linux/arm64`;
 4. provenance and SBOM attestations are attached;
-5. the image is pushed to GHCR.
+5. the image is pushed to GHCR;
+6. stable tags are also pushed to Docker Hub when
+   `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` are configured.
 
 Expected image tags for `v1.0.0`:
 
@@ -71,12 +73,32 @@ Expected image tags for `v1.0.0`:
 `main` images are published on pushes to `main`. They are development builds;
 do not deploy them to production.
 
+## Docker Hub mirror
+
+Docker Hub is an optional discovery mirror for **stable releases only**. It is
+enabled when these repository secrets exist:
+
+```text
+DOCKERHUB_USERNAME
+DOCKERHUB_TOKEN
+```
+
+Create a public Docker Hub repository named `backup-manager` under that
+namespace and use an access token with read/write access. Development builds
+(`main`, `sha-*`) stay on GHCR only.
+
 ## Verify the image
 
 ```bash
 docker pull ghcr.io/md2sa/backup-manager:1.0.0
 
 docker run --rm ghcr.io/md2sa/backup-manager:1.0.0 version
+```
+
+If Docker Hub is configured:
+
+```bash
+docker pull <dockerhub-namespace>/backup-manager:1.0.0
 ```
 
 Check the manifest and attestations:

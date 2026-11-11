@@ -81,6 +81,15 @@ curl http://localhost:8080/readyz
 IMAGE_TAG=backup-manager:local docker compose run --rm backup-manager config check --connect
 ```
 
+## Container images
+
+```bash
+docker pull ghcr.io/md2sa/backup-manager:1.0.0
+```
+
+Stable releases may also be mirrored to Docker Hub. Use an exact version in
+production.
+
 ## Recovery first
 
 ```bash
