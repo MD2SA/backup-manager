@@ -95,10 +95,10 @@ docker pull ghcr.io/md2sa/backup-manager:1.0.0
 docker run --rm ghcr.io/md2sa/backup-manager:1.0.0 version
 ```
 
-If Docker Hub is configured:
+The Docker Hub mirror is:
 
 ```bash
-docker pull <dockerhub-namespace>/backup-manager:1.0.0
+docker pull md2sa/backup-manager:1.0.0
 ```
 
 Check the manifest and attestations:
