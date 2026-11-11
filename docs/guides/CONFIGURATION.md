@@ -196,6 +196,18 @@ them empty:
 file). A partially configured target database fails validation. Backups and
 restores report a clear infrastructure error while it is empty.
 
+Optional restore credentials:
+
+```yaml
+target_database:
+  restore_user: "restore_admin"
+  restore_password_secret: "TARGET_DB_RESTORE_PASSWORD"
+```
+
+When `restore_user` is set, `pg_dump` continues to use the backup user while
+`psql`/`pg_restore` use the restore user. Without it, both use the same
+credentials.
+
 `sslmode` is applied to `pg_dump`, `psql` and `pg_restore` (via `PGSSLMODE`).
 
 **Restore requires an empty target database.** A target with user tables,
@@ -243,6 +255,27 @@ precedence when encrypting.
 | `cleanup_schedule` | `0 4 * * *` | Cron expression for the audit cleanup job. |
 
 ---
+
+## S3-compatible storage
+
+When creating an S3 storage provider through the API, the `config` object
+supports custom endpoints and path-style access:
+
+```json
+{
+  "region": "us-east-1",
+  "bucket": "backups",
+  "access_key": "...",
+  "secret_key": "...",
+  "endpoint": "https://minio.example.com:9000",
+  "force_path_style": true,
+  "use_ssl": true
+}
+```
+
+`endpoint` may include the scheme; otherwise `use_ssl` decides between
+`https://` and `http://`. This supports AWS S3, MinIO, Cloudflare R2 and other
+S3-compatible services.
 
 ## Restore behavior
 

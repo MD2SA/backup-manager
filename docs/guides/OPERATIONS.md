@@ -105,6 +105,31 @@ The cleanup runs once at startup and then on the cron. Set
 - Test a real restore periodically; a backup that has never been restored is
   not a proven backup.
 
+### Verify and restore drills
+
+Verify the latest backup without touching production:
+
+```bash
+backup-manager verify --config /etc/backup-manager/config.yaml --execution <id>
+backup-manager verify --config ... --profile <id> --latest 5
+```
+
+Verify and apply to an empty scratch database (a real restore drill):
+
+```bash
+createdb -h scratch-db -U postgres restore_drill
+backup-manager verify --config ... --execution <id> \
+  --scratch-dsn 'postgres://postgres:...@scratch-db:5432/restore_drill?sslmode=disable'
+```
+
+Use a separate restore role when possible:
+
+```yaml
+target_database:
+  user: backup_reader
+  restore_user: restore_admin
+```
+
 ## API key rotation
 
 1. Create a new key for the user (`POST /users/{id}/keys` or `POST /auth/keys`).
@@ -145,7 +170,8 @@ tables are ignored by older binaries. Restoring a metadata snapshot requires
 
 ## Limits
 
-- The scheduler is in-memory and assumes one service instance. Multiple replicas
-  would schedule the same profiles twice.
+- The scheduler is in-memory and assumes one service instance. The process
+  holds a PostgreSQL advisory lock, so a second instance refuses to start with
+  `another Backup Manager instance already holds the scheduler lock`.
 - Restores and backups share a target database gate and never overlap.
 - The target database must be empty for a restore.

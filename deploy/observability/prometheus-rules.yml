@@ -1,0 +1,56 @@
+groups:
+  - name: backup-manager
+    rules:
+      - alert: BackupManagerOverdue
+        expr: backup_manager_overdue_profiles > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} perfil(es) de backup overdue"
+          description: "Um ou mais perfis não têm um backup bem-sucedido dentro do intervalo esperado."
+
+      - alert: BackupManagerBackupFailed
+        expr: increase(backup_manager_backups_total{status="failed"}[1h]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backup falhado nos últimos 60 minutos"
+          description: "Verifica as execuções em /api/v1/executions e os logs do perfil."
+
+      - alert: BackupManagerBackupStale
+        expr: time() - max by (profile_id, profile_name) (backup_manager_last_success_timestamp_seconds) > 86400
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sem backup bem-sucedido há mais de 24h ({{ $labels.profile_name }})"
+          description: "Confirma o schedule e o estado do scheduler."
+
+      - alert: BackupManagerRestoreFailed
+        expr: increase(backup_manager_restores_total{status="failed"}[1h]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Restore falhado nos últimos 60 minutos"
+          description: "Inspeciona GET /api/v1/restores/{id} antes de tentar novamente."
+
+      - alert: BackupManagerAuthFailures
+        expr: increase(backup_manager_auth_failures_total[5m]) > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Aumento de falhas de autenticação"
+          description: "Possível tentativa de brute force ou chave inválida em clientes."
+
+      - alert: BackupManagerQueueBacklog
+        expr: backup_manager_queue_depth > 5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fila de backups com atraso"
+          description: "Há mais de 5 perfis à espera de execução."

@@ -96,6 +96,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Build version:** `/version` plus Docker/CI build metadata.
 - **Operations runbook:** `docs/guides/OPERATIONS.md` with alerts, key rotation,
   upgrades and incident checklist.
+- **Verification CLI:** `backup-manager verify` validates one or more executions,
+  with optional application to an empty scratch database for real restore drills.
+- **Separate restore credentials:** optional `target_database.restore_user` and
+  `restore_password_secret`; backups use the read user and restores use the
+  privileged user.
+- **S3-compatible endpoints:** `endpoint`, `force_path_style` and `use_ssl` are
+  now honored; `Exists` no longer reports auth/network errors as "not found".
+- **Single-instance guard:** a PostgreSQL advisory lock prevents two service
+  instances from scheduling duplicate backups.
+- **Observability assets:** Prometheus alert rules and a Grafana dashboard under
+  `deploy/observability/`.
 
 ### Security
 - **Secrets isolation:** secrets are not loaded into the process environment,

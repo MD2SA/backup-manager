@@ -20,6 +20,7 @@ A self-hosted service that automates PostgreSQL backups with scheduling, retenti
 - **Declarative configuration**: one `config.yaml` for non-secret settings and one `secrets.env` for secrets, with strict validation.
 - **Keyset pagination**: every list endpoint supports `limit` and an opaque `cursor`, with `has_more`, `next_cursor` and a `Link` header.
 - **Operational visibility**: per-profile overdue detection, authenticated Prometheus metrics, build version endpoint and configurable audit-log retention.
+- **Verification CLI**: `backup-manager verify` downloads, decrypts, checks and optionally applies a backup to an empty scratch database.
 
 ---
 
@@ -351,11 +352,14 @@ clients that should be disconnected. See the
       (and as a recovery key) until an active user exists.
 - [ ] Put the service behind a TLS-terminating proxy; set `cors_origins` and
       `trusted_proxies`.
-- [ ] Use a dedicated PostgreSQL role for the target database with read access,
-      and a separate metadata database. The target must be empty when restoring.
+- [ ] Use a dedicated PostgreSQL role with read access for backups and, ideally,
+      a separate `restore_user` with write access. Keep a separate metadata
+      database. The target must be empty when restoring.
 - [ ] Pin the container image to a version tag, not `latest`.
-- [ ] Monitor `/readyz`, backup failures, and the last successful backup.
-- [ ] Test a restore before relying on the backups.
+- [ ] Run one Backup Manager replica; the advisory lock refuses a second one.
+- [ ] Monitor `/readyz`, `/api/v1/metrics`, backup failures and overdue profiles.
+- [ ] Run `backup-manager verify` on recent backups and test a real restore
+      into an empty scratch database before relying on the backups.
 
 ---
 
