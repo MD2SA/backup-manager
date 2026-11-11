@@ -36,6 +36,8 @@ type RestoreOptions struct {
 	VerifyOnly           bool
 	SingleTransaction    bool
 	RequestID            string
+	UserID               pgtype.UUID
+	KeyID                pgtype.UUID
 }
 
 type RestoreService struct {
@@ -147,13 +149,15 @@ func (s *RestoreService) Enqueue(ctx context.Context, executionID pgtype.UUID, o
 	}
 
 	restore, err := s.repo.CreateRestore(ctx, db.CreateRestoreParams{
-		ExecutionID: executionID,
-		Status:      "pending",
-		RequestID:   pgutil.ToText(opts.RequestID),
-		Options:     payload,
-		TargetDb:    pgutil.ToText(s.config.TargetDB.DBName),
-		ProviderID:  opts.ProviderID,
-		StoragePath: pgtype.Text{},
+		ExecutionID:       executionID,
+		Status:            "pending",
+		RequestID:         pgutil.ToText(opts.RequestID),
+		Options:           payload,
+		TargetDb:          pgutil.ToText(s.config.TargetDB.DBName),
+		ProviderID:        opts.ProviderID,
+		StoragePath:       pgtype.Text{},
+		RequestedByUserID: opts.UserID,
+		RequestedByKeyID:  opts.KeyID,
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError

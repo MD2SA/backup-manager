@@ -130,7 +130,7 @@ func TestLoad_ProductionRequiresAdminAndEncryption(t *testing.T) {
 		t.Fatal("expected production validation to fail without admin key, config key and encryption")
 	}
 	msg := err.Error()
-	for _, want := range []string{"ADMIN_KEY", "CONFIG_ENCRYPT_KEY", "production requires backup encryption"} {
+	for _, want := range []string{"CONFIG_ENCRYPT_KEY", "production requires backup encryption"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("expected error to mention %q, got %v", want, msg)
 		}

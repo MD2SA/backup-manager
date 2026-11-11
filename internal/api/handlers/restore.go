@@ -9,6 +9,7 @@ import (
 
 	"github.com/MD2SA/backup-manager/internal/api/dto"
 	apimiddleware "github.com/MD2SA/backup-manager/internal/api/middleware"
+	"github.com/MD2SA/backup-manager/internal/auth"
 	"github.com/MD2SA/backup-manager/internal/pkg/apiutil"
 	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository"
@@ -70,12 +71,15 @@ func (h *RestoreHandler) Trigger(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	principal, _ := auth.PrincipalFromContext(r.Context())
 	restore, err := h.Enqueue(r.Context(), executionID, service.RestoreOptions{
 		ProviderID:           providerID,
 		TerminateConnections: req.TerminateConnections,
 		VerifyOnly:           req.VerifyOnly,
 		SingleTransaction:    true,
 		RequestID:            apimiddleware.GetRequestID(r.Context()),
+		UserID:               principal.UserID,
+		KeyID:                principal.KeyID,
 	})
 	if err != nil {
 		writeRestoreError(w, err)

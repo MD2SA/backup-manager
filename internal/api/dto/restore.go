@@ -22,20 +22,22 @@ func (r *RestoreRequest) Validate() error {
 }
 
 type RestoreResponse struct {
-	ID               string     `json:"id"`
-	ExecutionID      string     `json:"execution_id"`
-	Status           string     `json:"status"`
-	RequestID        string     `json:"request_id,omitempty"`
-	ProviderID       string     `json:"provider_id,omitempty"`
-	StoragePath      string     `json:"storage_path,omitempty"`
-	TargetDB         string     `json:"target_db,omitempty"`
-	ChecksumVerified bool       `json:"checksum_verified"`
-	StartedAt        *time.Time `json:"started_at"`
-	FinishedAt       *time.Time `json:"finished_at"`
-	Duration         string     `json:"duration"`
-	ErrorMessage     string     `json:"error_message,omitempty"`
-	Logs             any        `json:"logs" swaggertype:"array,string"`
-	CreatedAt        time.Time  `json:"created_at"`
+	ID                string     `json:"id"`
+	ExecutionID       string     `json:"execution_id"`
+	Status            string     `json:"status"`
+	RequestID         string     `json:"request_id,omitempty"`
+	ProviderID        string     `json:"provider_id,omitempty"`
+	StoragePath       string     `json:"storage_path,omitempty"`
+	TargetDB          string     `json:"target_db,omitempty"`
+	RequestedByUserID string     `json:"requested_by_user_id,omitempty"`
+	RequestedByKeyID  string     `json:"requested_by_key_id,omitempty"`
+	ChecksumVerified  bool       `json:"checksum_verified"`
+	StartedAt         *time.Time `json:"started_at"`
+	FinishedAt        *time.Time `json:"finished_at"`
+	Duration          string     `json:"duration"`
+	ErrorMessage      string     `json:"error_message,omitempty"`
+	Logs              any        `json:"logs" swaggertype:"array,string"`
+	CreatedAt         time.Time  `json:"created_at"`
 }
 
 func ToRestoreResponse(r db.Restore) RestoreResponse {
@@ -45,20 +47,22 @@ func ToRestoreResponse(r db.Restore) RestoreResponse {
 	}
 
 	return RestoreResponse{
-		ID:               pgutil.UUIDToString(r.ID),
-		ExecutionID:      pgutil.UUIDToString(r.ExecutionID),
-		Status:           r.Status,
-		RequestID:        r.RequestID.String,
-		ProviderID:       pgutil.UUIDToString(r.ProviderID),
-		StoragePath:      r.StoragePath.String,
-		TargetDB:         r.TargetDb.String,
-		ChecksumVerified: r.ChecksumVerified,
-		StartedAt:        timestamptzPtr(r.StartedAt),
-		FinishedAt:       timestamptzPtr(r.FinishedAt),
-		Duration:         pgutil.IntervalToString(r.Duration),
-		ErrorMessage:     r.ErrorMessage.String,
-		Logs:             logs,
-		CreatedAt:        r.CreatedAt.Time,
+		ID:                pgutil.UUIDToString(r.ID),
+		ExecutionID:       pgutil.UUIDToString(r.ExecutionID),
+		Status:            r.Status,
+		RequestID:         r.RequestID.String,
+		ProviderID:        pgutil.UUIDToString(r.ProviderID),
+		StoragePath:       r.StoragePath.String,
+		TargetDB:          r.TargetDb.String,
+		RequestedByUserID: pgutil.UUIDToString(r.RequestedByUserID),
+		RequestedByKeyID:  pgutil.UUIDToString(r.RequestedByKeyID),
+		ChecksumVerified:  r.ChecksumVerified,
+		StartedAt:         timestamptzPtr(r.StartedAt),
+		FinishedAt:        timestamptzPtr(r.FinishedAt),
+		Duration:          pgutil.IntervalToString(r.Duration),
+		ErrorMessage:      r.ErrorMessage.String,
+		Logs:              logs,
+		CreatedAt:         r.CreatedAt.Time,
 	}
 }
 

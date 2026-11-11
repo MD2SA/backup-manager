@@ -50,6 +50,10 @@ func main() {
 		runKeygen()
 	case "metadata-restore":
 		runMetadataRestore(os.Args[2:])
+	case "user":
+		runUser(os.Args[2:])
+	case "key":
+		runKey(os.Args[2:])
 	case "version", "--version":
 		fmt.Println(version)
 	case "help", "-h", "--help":
@@ -70,6 +74,8 @@ Usage:
   backup-manager config check [--config PATH] [--connect]
   backup-manager migrate [--config PATH] [--migrations-dir DIR]
   backup-manager metadata-restore [--config PATH] [--file PATH] [flags]
+  backup-manager user <create|list> [flags]
+  backup-manager key create --email EMAIL --name NAME [flags]
   backup-manager keygen
   backup-manager version
 

@@ -20,21 +20,25 @@ INSERT INTO restores (
     options,
     target_db,
     provider_id,
-    storage_path
+    storage_path,
+    requested_by_user_id,
+    requested_by_key_id
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7
+    $1,$2,$3,$4,$5,$6,$7,$8,$9
 )
-RETURNING id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at
+RETURNING id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at, requested_by_user_id, requested_by_key_id
 `
 
 type CreateRestoreParams struct {
-	ExecutionID pgtype.UUID
-	Status      string
-	RequestID   pgtype.Text
-	Options     json.RawMessage
-	TargetDb    pgtype.Text
-	ProviderID  pgtype.UUID
-	StoragePath pgtype.Text
+	ExecutionID       pgtype.UUID
+	Status            string
+	RequestID         pgtype.Text
+	Options           json.RawMessage
+	TargetDb          pgtype.Text
+	ProviderID        pgtype.UUID
+	StoragePath       pgtype.Text
+	RequestedByUserID pgtype.UUID
+	RequestedByKeyID  pgtype.UUID
 }
 
 func (q *Queries) CreateRestore(ctx context.Context, arg CreateRestoreParams) (Restore, error) {
@@ -46,6 +50,8 @@ func (q *Queries) CreateRestore(ctx context.Context, arg CreateRestoreParams) (R
 		arg.TargetDb,
 		arg.ProviderID,
 		arg.StoragePath,
+		arg.RequestedByUserID,
+		arg.RequestedByKeyID,
 	)
 	var i Restore
 	err := row.Scan(
@@ -64,12 +70,14 @@ func (q *Queries) CreateRestore(ctx context.Context, arg CreateRestoreParams) (R
 		&i.ErrorMessage,
 		&i.Logs,
 		&i.CreatedAt,
+		&i.RequestedByUserID,
+		&i.RequestedByKeyID,
 	)
 	return i, err
 }
 
 const getActiveRestoreByExecution = `-- name: GetActiveRestoreByExecution :one
-SELECT id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at
+SELECT id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at, requested_by_user_id, requested_by_key_id
 FROM restores
 WHERE execution_id = $1
   AND status IN ('pending', 'running')
@@ -96,12 +104,14 @@ func (q *Queries) GetActiveRestoreByExecution(ctx context.Context, executionID p
 		&i.ErrorMessage,
 		&i.Logs,
 		&i.CreatedAt,
+		&i.RequestedByUserID,
+		&i.RequestedByKeyID,
 	)
 	return i, err
 }
 
 const getRestore = `-- name: GetRestore :one
-SELECT id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at
+SELECT id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at, requested_by_user_id, requested_by_key_id
 FROM restores
 WHERE id = $1
 LIMIT 1
@@ -126,12 +136,14 @@ func (q *Queries) GetRestore(ctx context.Context, id pgtype.UUID) (Restore, erro
 		&i.ErrorMessage,
 		&i.Logs,
 		&i.CreatedAt,
+		&i.RequestedByUserID,
+		&i.RequestedByKeyID,
 	)
 	return i, err
 }
 
 const listRestores = `-- name: ListRestores :many
-SELECT id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at
+SELECT id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at, requested_by_user_id, requested_by_key_id
 FROM restores
 ORDER BY created_at DESC
 `
@@ -161,6 +173,8 @@ func (q *Queries) ListRestores(ctx context.Context) ([]Restore, error) {
 			&i.ErrorMessage,
 			&i.Logs,
 			&i.CreatedAt,
+			&i.RequestedByUserID,
+			&i.RequestedByKeyID,
 		); err != nil {
 			return nil, err
 		}
@@ -173,7 +187,7 @@ func (q *Queries) ListRestores(ctx context.Context) ([]Restore, error) {
 }
 
 const listRestoresByExecution = `-- name: ListRestoresByExecution :many
-SELECT id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at
+SELECT id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at, requested_by_user_id, requested_by_key_id
 FROM restores
 WHERE execution_id = $1
 ORDER BY created_at DESC
@@ -204,6 +218,8 @@ func (q *Queries) ListRestoresByExecution(ctx context.Context, executionID pgtyp
 			&i.ErrorMessage,
 			&i.Logs,
 			&i.CreatedAt,
+			&i.RequestedByUserID,
+			&i.RequestedByKeyID,
 		); err != nil {
 			return nil, err
 		}
@@ -245,7 +261,7 @@ SET
     error_message = $9,
     logs = $10
 WHERE id = $1
-RETURNING id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at
+RETURNING id, execution_id, status, request_id, provider_id, storage_path, target_db, options, checksum_verified, started_at, finished_at, duration, error_message, logs, created_at, requested_by_user_id, requested_by_key_id
 `
 
 type UpdateRestoreParams struct {
@@ -291,6 +307,8 @@ func (q *Queries) UpdateRestore(ctx context.Context, arg UpdateRestoreParams) (R
 		&i.ErrorMessage,
 		&i.Logs,
 		&i.CreatedAt,
+		&i.RequestedByUserID,
+		&i.RequestedByKeyID,
 	)
 	return i, err
 }

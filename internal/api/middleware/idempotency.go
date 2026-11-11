@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/MD2SA/backup-manager/internal/auth"
+	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 )
 
 const idempotencyTTL = 24 * time.Hour
@@ -47,9 +50,9 @@ func (s *idempotencyStore) set(key string, status int, body []byte) {
 	}
 }
 
-func idempotencyKeyHash(idempotencyKey, method, uri string) string {
+func idempotencyKeyHash(idempotencyKey, method, uri, userID string) string {
 	h := sha256.New()
-	h.Write([]byte(method + "|" + uri + "|" + idempotencyKey))
+	h.Write([]byte(method + "|" + uri + "|" + userID + "|" + idempotencyKey))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
@@ -66,7 +69,13 @@ func Idempotency(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		hash := idempotencyKeyHash(key, r.Method, r.RequestURI)
+		userID := "insecure"
+		if principal, ok := auth.PrincipalFromContext(r.Context()); ok {
+			if id := pgutil.UUIDToString(principal.UserID); id != "" {
+				userID = id
+			}
+		}
+		hash := idempotencyKeyHash(key, r.Method, r.RequestURI, userID)
 		if status, body, ok := globalIdempotencyStore.get(hash); ok {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(status)

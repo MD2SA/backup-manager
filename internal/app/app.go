@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MD2SA/backup-manager/internal/api/router"
+	"github.com/MD2SA/backup-manager/internal/auth"
 	"github.com/MD2SA/backup-manager/internal/backup"
 	"github.com/MD2SA/backup-manager/internal/config"
 	"github.com/MD2SA/backup-manager/internal/database"
@@ -36,6 +37,7 @@ type App struct {
 	Monitor         *monitor.Service
 	BackupService   *service.BackupService
 	RestoreService  *service.RestoreService
+	AuthService     *auth.Service
 	RestoreRunner   *backup.RestoreRunner
 	ProviderService *service.ProviderService
 	MetadataBackup  *selfbackup.Service
@@ -50,6 +52,10 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	}
 
 	repo := repository.NewPostgres(dbPool, configKeyForRepo(cfg))
+	authService := auth.NewService(repo, log)
+	if err := authService.Bootstrap(ctx, cfg.AdminKey, !cfg.IsProduction()); err != nil {
+		return nil, fmt.Errorf("auth bootstrap: %w", err)
+	}
 	retentionEngine := retention.New(repo, log)
 	monitorService := monitor.New(repo)
 	providerService := service.NewProviderService(repo, cfg)
@@ -67,6 +73,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		Monitor:         monitorService,
 		BackupService:   backupService,
 		RestoreService:  restoreService,
+		AuthService:     authService,
 		ProviderService: providerService,
 	}
 
@@ -92,7 +99,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		_ = a.Runner.Enqueue(profileID)
 	})
 
-	r := router.New(log, repo, monitorService, a.Config.AdminKey, a.Config.RateLimitRequests, a.Config.RateLimitWindow, a.Config.CORSOrigins, trustedProxies, func(ctx context.Context) error {
+	r := router.New(log, repo, monitorService, authService, a.Config.RateLimitRequests, a.Config.RateLimitWindow, a.Config.CORSOrigins, trustedProxies, func(ctx context.Context) error {
 		return dbPool.Ping(ctx)
 	}, func(profileID pgtype.UUID) error {
 		return a.Runner.Enqueue(profileID)

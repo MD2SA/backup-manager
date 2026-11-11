@@ -6,9 +6,11 @@ INSERT INTO restores (
     options,
     target_db,
     provider_id,
-    storage_path
+    storage_path,
+    requested_by_user_id,
+    requested_by_key_id
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7
+    $1,$2,$3,$4,$5,$6,$7,$8,$9
 )
 RETURNING *;
 

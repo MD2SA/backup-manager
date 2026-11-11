@@ -1,29 +1,24 @@
 package middleware
 
 import (
-	"crypto/subtle"
 	"net/http"
 
+	"github.com/MD2SA/backup-manager/internal/auth"
 	"github.com/MD2SA/backup-manager/internal/pkg/apiutil"
 )
 
-// ApiKeyAuth provides simple API key authentication.
-// If adminKey is empty, it skips validation (Insecure Mode).
-func ApiKeyAuth(adminKey string) func(http.Handler) http.Handler {
+// Authenticate resolves X-API-Key into an auth.Principal. In insecure
+// development mode the authenticator returns a synthetic principal even when
+// no key is supplied.
+func Authenticate(authenticator auth.Authenticator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if adminKey == "" {
-				next.ServeHTTP(w, r)
+			principal, err := authenticator.Authenticate(r.Context(), r.Header.Get("X-API-Key"))
+			if err != nil {
+				apiutil.Error(w, http.StatusUnauthorized, "Invalid or missing API key")
 				return
 			}
-
-			key := r.Header.Get("X-API-Key")
-			if subtle.ConstantTimeCompare([]byte(key), []byte(adminKey)) != 1 {
-				apiutil.Error(w, http.StatusUnauthorized, "Invalid or missing API Key")
-				return
-			}
-
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), principal)))
 		})
 	}
 }

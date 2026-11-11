@@ -10,6 +10,31 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ApiKey struct {
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+	Name       string
+	KeyPrefix  string
+	KeyHash    []byte
+	ExpiresAt  pgtype.Timestamptz
+	RevokedAt  pgtype.Timestamptz
+	LastUsedAt pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+}
+
+type AuditLog struct {
+	ID           pgtype.UUID
+	UserID       pgtype.UUID
+	ApiKeyID     pgtype.UUID
+	Action       string
+	ResourceType pgtype.Text
+	ResourceID   pgtype.Text
+	RequestID    pgtype.Text
+	Ip           pgtype.Text
+	Metadata     json.RawMessage
+	CreatedAt    pgtype.Timestamptz
+}
+
 type Execution struct {
 	ID           pgtype.UUID
 	ProfileID    pgtype.UUID
@@ -69,21 +94,23 @@ type ProfileStorageProvider struct {
 }
 
 type Restore struct {
-	ID               pgtype.UUID
-	ExecutionID      pgtype.UUID
-	Status           string
-	RequestID        pgtype.Text
-	ProviderID       pgtype.UUID
-	StoragePath      pgtype.Text
-	TargetDb         pgtype.Text
-	Options          json.RawMessage
-	ChecksumVerified bool
-	StartedAt        pgtype.Timestamptz
-	FinishedAt       pgtype.Timestamptz
-	Duration         pgtype.Interval
-	ErrorMessage     pgtype.Text
-	Logs             json.RawMessage
-	CreatedAt        pgtype.Timestamptz
+	ID                pgtype.UUID
+	ExecutionID       pgtype.UUID
+	Status            string
+	RequestID         pgtype.Text
+	ProviderID        pgtype.UUID
+	StoragePath       pgtype.Text
+	TargetDb          pgtype.Text
+	Options           json.RawMessage
+	ChecksumVerified  bool
+	StartedAt         pgtype.Timestamptz
+	FinishedAt        pgtype.Timestamptz
+	Duration          pgtype.Interval
+	ErrorMessage      pgtype.Text
+	Logs              json.RawMessage
+	CreatedAt         pgtype.Timestamptz
+	RequestedByUserID pgtype.UUID
+	RequestedByKeyID  pgtype.UUID
 }
 
 type RetentionPolicy struct {
@@ -104,6 +131,15 @@ type StorageProvider struct {
 	Name      string
 	Type      string
 	Config    json.RawMessage
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
+type User struct {
+	ID        pgtype.UUID
+	Email     string
+	Name      string
+	Active    bool
 	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
 }

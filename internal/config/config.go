@@ -371,7 +371,6 @@ func (c *Config) validateSecrets(path string, secrets map[string]string, refs se
 		require(refs.TargetDBPassword, "target_database")
 	}
 	if requireAdminKey && c.IsProduction() {
-		require(refs.AdminKey, "secrets.admin_key")
 		require(refs.ConfigEncryptKey, "secrets.config_encrypt_key")
 	}
 
@@ -455,9 +454,6 @@ func (c *Config) validate(requireAdminKey bool) error {
 	}
 
 	if requireAdminKey && c.IsProduction() {
-		if c.AdminKey == "" {
-			add("the admin key secret is required when server.env=production (secrets.admin_key)")
-		}
 		if c.ConfigEncryptionKey == "" {
 			add("the provider config encryption key is required when server.env=production (secrets.config_encrypt_key)")
 		}

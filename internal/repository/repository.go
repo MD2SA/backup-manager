@@ -5,6 +5,9 @@ type Repository interface {
 	ExecutionRepository
 	ExecutionStorageRepository
 	RestoreRepository
+	UserRepository
+	APIKeyRepository
+	AuditRepository
 	NotificationProviderRepository
 	RetentionPolicyRepository
 	StorageProviderRepository

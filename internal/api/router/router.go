@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/netip"
@@ -10,7 +11,9 @@ import (
 	_ "github.com/MD2SA/backup-manager/docs"
 	"github.com/MD2SA/backup-manager/internal/api/handlers"
 	apimiddleware "github.com/MD2SA/backup-manager/internal/api/middleware"
+	"github.com/MD2SA/backup-manager/internal/auth"
 	"github.com/MD2SA/backup-manager/internal/monitor"
+	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/repository"
 	"github.com/MD2SA/backup-manager/internal/repository/db"
 	"github.com/MD2SA/backup-manager/internal/service"
@@ -26,7 +29,7 @@ func New(
 	logger *slog.Logger,
 	repo repository.Repository,
 	monitorService *monitor.Service,
-	adminKey string,
+	authService *auth.Service,
 	rateLimitRequests int,
 	rateLimitWindow time.Duration,
 	corsOrigins []string,
@@ -64,15 +67,49 @@ func New(
 	monitorHandler := &handlers.MonitorHandler{Service: monitorService}
 	restoreHandler := &handlers.RestoreHandler{Repo: repo, Enqueue: onRestore}
 	retentionHandler := &handlers.RetentionHandler{Repo: repo}
+	authHandler := &handlers.AuthHandler{Service: authService}
+	userHandler := &handlers.UserHandler{Service: authService}
+	auditHandler := &handlers.AuditHandler{Service: authService}
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(httprate.LimitBy(rateLimitRequests, rateLimitWindow, func(r *http.Request) (string, error) {
 			return httprate.CanonicalizeIP(apimiddleware.GetClientIP(r.Context())), nil
 		}))
-		r.Use(apimiddleware.ApiKeyAuth(adminKey))
+		r.Use(apimiddleware.Authenticate(authService))
+		r.Use(apimiddleware.Audit(authService, logger))
+		r.Use(httprate.LimitBy(rateLimitRequests, rateLimitWindow, func(r *http.Request) (string, error) {
+			principal, ok := auth.PrincipalFromContext(r.Context())
+			if !ok {
+				return "", errors.New("missing principal")
+			}
+			if id := pgutil.UUIDToString(principal.UserID); id != "" {
+				return id, nil
+			}
+			return principal.Email, nil
+		}))
 
 		r.Get("/health", handlers.Health)
 		r.Get("/health/summary", monitorHandler.HealthSummary)
+
+		r.Route("/auth", func(r chi.Router) {
+			r.Get("/me", authHandler.Me)
+			r.Get("/keys", authHandler.ListKeys)
+			r.Post("/keys", authHandler.CreateKey)
+			r.Post("/keys/{id}/revoke", authHandler.RevokeKey)
+		})
+
+		r.Route("/users", func(r chi.Router) {
+			r.Get("/", userHandler.List)
+			r.Post("/", userHandler.Create)
+			r.Get("/{id}", userHandler.Get)
+			r.Put("/{id}", userHandler.Update)
+			r.Delete("/{id}", userHandler.Deactivate)
+			r.Get("/{id}/keys", userHandler.ListKeys)
+			r.Post("/{id}/keys", userHandler.CreateKey)
+			r.Post("/{id}/keys/{keyID}/revoke", userHandler.RevokeKey)
+		})
+
+		r.Get("/audit", auditHandler.List)
 
 		r.Get("/retention-policies", retentionHandler.List)
 		r.Post("/retention-policies", retentionHandler.Create)

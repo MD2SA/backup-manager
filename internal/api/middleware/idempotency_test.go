@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/MD2SA/backup-manager/internal/auth"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func TestIdempotency_StoreAndReplay(t *testing.T) {
@@ -40,6 +43,33 @@ func TestIdempotency_StoreAndReplay(t *testing.T) {
 	}
 	if w2.Code != http.StatusAccepted {
 		t.Fatalf("replayed response should be 202, got %d", w2.Code)
+	}
+}
+
+func TestIdempotency_DifferentUsersDoNotShareResponses(t *testing.T) {
+	callCount := 0
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(http.StatusAccepted)
+	})
+	wrapped := Idempotency(handler)
+
+	userA := auth.Principal{UserID: pgtype.UUID{Bytes: [16]byte{1}, Valid: true}}
+	userB := auth.Principal{UserID: pgtype.UUID{Bytes: [16]byte{2}, Valid: true}}
+
+	for _, principal := range []auth.Principal{userA, userB} {
+		req := httptest.NewRequest("POST", "/profiles/1/run", nil)
+		req.Header.Set("X-Idempotency-Key", "shared-key")
+		req = req.WithContext(auth.WithPrincipal(req.Context(), principal))
+		rec := httptest.NewRecorder()
+		wrapped.ServeHTTP(rec, req)
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("status = %d", rec.Code)
+		}
+	}
+
+	if callCount != 2 {
+		t.Fatalf("different users must not share idempotency responses, calls = %d", callCount)
 	}
 }
 
