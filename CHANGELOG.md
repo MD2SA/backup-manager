@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/etc/backup-manager/config.yaml` and `secrets.env` next to it.
 
 ### Added
+- **Recovery engine tests:** recovery orchestration now lives in
+  `internal/recovery` with a thin CLI, unit tests for snapshot discovery,
+  target guards, execution resolution and provider fallback, plus a
+  PostgreSQL integration test that destroys the metadata and target databases
+  and verifies restored checksums, sequences, indexes and foreign keys.
+- **Multi-passphrase metadata decryption:** metadata snapshots encrypted with
+  either the profile encryption passphrase or `METADATA_BACKUP_PASSPHRASE` are
+  now tried automatically during recovery.
 - **Recovery CLI:** `backup-manager recover metadata` lists and restores the
   newest metadata snapshot from local storage, an explicit file, or S3/S3-
   compatible storage (`--s3-bucket`, `--s3-endpoint`, `--s3-path-style`).

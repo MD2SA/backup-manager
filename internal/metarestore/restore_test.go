@@ -192,3 +192,21 @@ func TestRestoreCommandArgs(t *testing.T) {
 		}
 	}
 }
+
+func TestDecryptToMany_PassphraseCandidates(t *testing.T) {
+	dir := t.TempDir()
+	plainContent := "PGDMP\x00\x00\x00\x00fake-dump"
+	plain := filepath.Join(dir, "multi-src.dump")
+	src := filepath.Join(dir, "multi.dump.age")
+	dst := filepath.Join(dir, "multi-out.dump")
+	writeFile(t, plain, plainContent)
+	if err := crypto.EncryptWithPassphrase(plain, src, "correct"); err != nil {
+		t.Fatal(err)
+	}
+	if err := DecryptToMany(src, dst, []string{"wrong", "correct"}, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(dst); string(got) != plainContent {
+		t.Errorf("multi-passphrase roundtrip mismatch: %q", got)
+	}
+}

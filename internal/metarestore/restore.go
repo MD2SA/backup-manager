@@ -24,6 +24,10 @@ type Options struct {
 	File string
 	// Passphrase overrides APP_METADATA_BACKUP_PASSPHRASE.
 	Passphrase string
+	// Passphrases tries several passphrases in order. It is used when the
+	// metadata snapshot may have been encrypted with either the profile
+	// encryption passphrase or the metadata backup passphrase.
+	Passphrases []string
 	// Identity overrides APP_AGE_PRIVATE_KEY.
 	Identity string
 	// Replace allows restoring over a database that already contains data
@@ -90,6 +94,17 @@ func sniffFormat(path string) (snapshotFormat, error) {
 // supporting age (passphrase/identity), the legacy enc_v1 envelope and
 // plaintext copies. passphrase and identity may be empty depending on format.
 func DecryptTo(src, dst, passphrase, identity string) error {
+	var passphrases []string
+	if passphrase != "" {
+		passphrases = append(passphrases, passphrase)
+	}
+	return DecryptToMany(src, dst, passphrases, identity)
+}
+
+// DecryptToMany is DecryptTo with several passphrase candidates. The first
+// successful decryption wins; identity-based Age decryption is always tried
+// alongside each passphrase.
+func DecryptToMany(src, dst string, passphrases []string, identity string) error {
 	format, err := sniffFormat(src)
 	if err != nil {
 		return err
@@ -97,24 +112,40 @@ func DecryptTo(src, dst, passphrase, identity string) error {
 
 	switch format {
 	case formatAge:
-		if passphrase == "" && identity == "" {
+		if len(passphrases) == 0 && identity == "" {
 			return errors.New("snapshot is encrypted (age) but no passphrase or age identity was provided")
 		}
-		return crypto.DecryptKeyed(src, dst, passphrase, identity)
+		if len(passphrases) == 0 {
+			return crypto.DecryptKeyed(src, dst, "", identity)
+		}
+		var lastErr error
+		for _, passphrase := range passphrases {
+			if err := crypto.DecryptKeyed(src, dst, passphrase, identity); err != nil {
+				lastErr = err
+				continue
+			}
+			return nil
+		}
+		return lastErr
 
 	case formatEncV1:
-		if passphrase == "" {
+		if len(passphrases) == 0 {
 			return errors.New("snapshot uses the legacy enc_v1 format but no passphrase was provided")
 		}
 		data, err := os.ReadFile(src)
 		if err != nil {
 			return err
 		}
-		plain, err := crypto.DecodeProviderConfig(crypto.DeriveConfigKey(passphrase), data)
-		if err != nil {
-			return fmt.Errorf("decrypt legacy snapshot: %w", err)
+		var lastErr error
+		for _, passphrase := range passphrases {
+			plain, err := crypto.DecodeProviderConfig(crypto.DeriveConfigKey(passphrase), data)
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			return os.WriteFile(dst, plain, 0644)
 		}
-		return os.WriteFile(dst, plain, 0644)
+		return fmt.Errorf("decrypt legacy snapshot: %w", lastErr)
 
 	default:
 		srcFile, err := os.Open(src)
@@ -256,10 +287,19 @@ func Run(logger *slog.Logger, cfg config.Config, opts Options) error {
 	}
 	logger.Info("Metadata snapshot selected", "source", src)
 
-	passphrase, identity := opts.Passphrase, opts.Identity
-	if passphrase == "" {
-		passphrase = cfg.MetadataBackupPassphrase
+	passphrases := append([]string(nil), opts.Passphrases...)
+	if opts.Passphrase != "" {
+		passphrases = append([]string{opts.Passphrase}, passphrases...)
 	}
+	if len(passphrases) == 0 {
+		if cfg.EncryptionPassphrase != "" {
+			passphrases = append(passphrases, cfg.EncryptionPassphrase)
+		}
+		if cfg.MetadataBackupPassphrase != "" {
+			passphrases = append(passphrases, cfg.MetadataBackupPassphrase)
+		}
+	}
+	identity := opts.Identity
 	if identity == "" {
 		identity = cfg.AgePrivateKey
 	}
@@ -268,17 +308,17 @@ func Run(logger *slog.Logger, cfg config.Config, opts Options) error {
 	if err != nil {
 		return err
 	}
-	if format == formatAge && passphrase == "" && identity == "" {
+	if format == formatAge && len(passphrases) == 0 && identity == "" {
 		return errors.New("snapshot is encrypted (age); provide APP_METADATA_BACKUP_PASSPHRASE / APP_AGE_PRIVATE_KEY or --passphrase / --identity")
 	}
-	if format == formatEncV1 && passphrase == "" {
+	if format == formatEncV1 && len(passphrases) == 0 {
 		return errors.New("snapshot uses the legacy encryption format; provide the metadata backup passphrase (--passphrase or APP_METADATA_BACKUP_PASSPHRASE)")
 	}
 
 	plainFile := filepath.Join(cfg.TempDir, fmt.Sprintf("metadata-restore-%d.dump", os.Getpid()))
 	defer func() { _ = os.Remove(plainFile) }()
 
-	if err := DecryptTo(src, plainFile, passphrase, identity); err != nil {
+	if err := DecryptToMany(src, plainFile, passphrases, identity); err != nil {
 		return fmt.Errorf("decrypt snapshot: %w", err)
 	}
 

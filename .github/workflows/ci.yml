@@ -79,6 +79,11 @@ jobs:
           BACKUP_MANAGER_TEST_DSN: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
         run: go test ./internal/database -run TestInstanceLockIntegration -v -count=1
 
+      - name: Recovery integration test
+        env:
+          BACKUP_MANAGER_TEST_DSN: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
+        run: go test ./internal/recovery -run TestRecoveryIntegration_Postgres -v -count=1
+
       - name: Configuration smoke test
         run: |
           go run ./cmd/api init --non-interactive --force \

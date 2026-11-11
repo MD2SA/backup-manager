@@ -429,7 +429,8 @@ for details.
 make tools          # install Air, sqlc, goose, swag and golangci-lint
 make init           # generate local config.yaml + secrets.env
 make config-check   # validate configuration
-make test           # go test ./...
+make test           # fast go test ./...
+make test-integration # PostgreSQL integration tests (set BACKUP_MANAGER_TEST_DSN)
 make lint           # golangci-lint
 make fmt            # gofmt
 make swagger        # regenerate OpenAPI docs
@@ -438,6 +439,8 @@ make migrate        # apply migrations
 ```
 
 Swagger UI is served at `/swagger/index.html` when the server is running.
+See [docs/guides/TESTING.md](docs/guides/TESTING.md) for the test layers and
+the recovery integration test.
 
 ---
 

@@ -33,7 +33,8 @@ help:
 	@echo "  make run        - Run the API server"
 	@echo "  make dev        - Run the API server with live reload (air)"
 	@echo "  make build      - Build the application"
-	@echo "  make test       - Run tests"
+	@echo "  make test       - Run fast tests"
+	@echo "  make test-integration - Run PostgreSQL integration tests (BACKUP_MANAGER_TEST_DSN)"
 	@echo "  make fmt        - Format Go code"
 	@echo "  make lint       - Run golangci-lint"
 	@echo "  make swagger    - Generate Swagger documentation"
@@ -72,6 +73,12 @@ build:
 
 test:
 	go test ./...
+
+test-integration:
+	@test -n "$(BACKUP_MANAGER_TEST_DSN)" || (echo "Set BACKUP_MANAGER_TEST_DSN to a disposable PostgreSQL DSN"; exit 1)
+	BACKUP_MANAGER_TEST_DSN="$(BACKUP_MANAGER_TEST_DSN)" go test \
+		./internal/backup ./internal/auth ./internal/repository ./internal/database ./internal/recovery \
+		-run 'Integration|InstanceLock' -count=1
 
 fmt:
 	go fmt ./...
