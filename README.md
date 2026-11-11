@@ -2,339 +2,327 @@
 
 A self-hosted service that automates PostgreSQL backups with scheduling, retention policies, cloud storage, restore workflows, and monitoring.
 
-> **Status:** 🚧 Active development
+> **Status:** active development. The API is stable enough for self-hosted production use; see the production checklist in the configuration guide.
 
 ---
 
-## 🚀 Getting Started
+## Features
 
-You can run Backup Manager either as a pre-built Docker image or directly from the source code.
-
-### Option A: Docker Image (Recommended)
-
-This is the easiest way to get started. No need to install Go or build dependencies.
-
-1.  **Create a `docker-compose.yml`**:
-    ```yaml
-    services:
-      backup-manager:
-        image: md2sa/backup-manager:latest
-        ports:
-          - "8080:8080"
-        environment:
-          - APP_BACKUP_PATH=./backups
-          - APP_METADATA_DB_URL=postgres://...
-          - APP_TARGET_DB_HOST=...
-          - APP_ADMIN_KEY=your-secure-api-key # Optional but recommended
-          # - APP_ENCRYPTION_PASSPHRASE=... (Optional for simple encryption)
-        volumes:
-          - ./backups:/backups
-    ```
-2.  **Start the service**:
-    ```bash
-    docker-compose up -d
-    ```
-
-### Option B: From Source
-
-Ideal for development or custom deployments.
-
-1.  **Clone and install tools**:
-    ```bash
-    git clone https://github.com/MD2SA/backup-manager.git
-    cd backup-manager
-    make tools
-    ```
-2.  **Configure and Run**:
-    ```bash
-    cp .env.example .env
-    # Edit .env with your database details
-    make migrate
-    make dev
-    ```
+- **Scheduled PostgreSQL backups** via cron, plus manual triggers through the API.
+- **Compression and verification**: plain SQL or gzip, archive validation and SHA-256 checksums.
+- **End-to-end encryption** with [Age](https://age-encryption.org/): X25519 keypairs or passphrases.
+- **Multiple storage destinations** per profile: local filesystem and S3-compatible object storage.
+- **GFS retention** (hourly, daily, weekly, monthly, yearly) with pinned backups.
+- **Restore workflows** with automatic decryption.
+- **Notifications** via Discord webhooks.
+- **Metadata disaster recovery**: encrypted snapshots of the manager's own state embedded in every backup, plus an optional local self-backup and a `metadata-restore` command.
+- **Production hardening**: API key auth, per-IP rate limiting, CORS, trusted proxies, request IDs, encrypted provider credentials at rest.
+- **Declarative configuration**: one `config.yaml` for non-secret settings and one `secrets.env` for secrets, with strict validation.
 
 ---
 
-## 🔐 Security
+## Quick start (Docker Compose)
 
-### API Authentication
-To protect your API, set the `APP_ADMIN_KEY` environment variable. Once set, all requests to the `/api/v1` endpoints must include the `X-API-Key` header:
-
-```bash
-curl -H "X-API-Key: your-secure-api-key" http://localhost:8080/api/v1/profiles
-```
-
-If no key is set, the application will run in **Insecure Mode** and display a warning on startup.
-
-### Backup Encryption
-Backup Manager features professional, end-to-end encryption using the **Age** standard. You can choose between two modes:
-
-### 1. Simple Mode (Passphrase)
-Just set the `APP_ENCRYPTION_PASSPHRASE` environment variable. This is the easiest way to secure your backups.
-
-### 2. Pro Mode (X25519 Keypair)
-For maximum security, you can use a public/private key pair. Generate them using the built-in utility:
-
-**For Docker users**:
-```bash
-docker run --rm md2sa/backup-manager:latest keygen
-```
-
-**For Source users**:
-```bash
-go run ./cmd/api keygen
-```
-
----
-
-## Project Structure
-
-*   [**Architecture Overview**](docs/guides/ARCHITECTURE.md)
-*   [**Configuration Guide**](docs/guides/CONFIGURATION.md)
-*   [**API Reference**](docs/guides/API.md)
-
-```text
-.
-├── cmd/                   # Application entry points
-├── internal/
-│   ├── api/               # REST API layer (Handlers, DTOs)
-│   ├── app/               # App initialization and wiring (DI)
-│   ├── backup/            # Core Backup Engine (Runner, Pipeline, Stages)
-│   ├── repository/        # Data access layer (Postgres + SQLC)
-│   ├── service/           # Domain business logic
-│   ├── storage/           # Storage provider implementations
-│   ├── notification/      # Notification provider implementations
-│   ├── retention/         # Retention policy engine
-│   └── verification/      # Integrity verification logic
-├── sql/                   # SQL migrations and queries
-└── docs/                  # Documentation and OpenAPI specs
-```
-
----
-
-## Architecture
-
-Backup Manager follows a **Modular Monolith** architecture.
-
-Each package represents a business domain with a single responsibility. Business logic is kept independent from infrastructure, making it straightforward to introduce new storage providers, notification providers, or verification strategies without impacting the rest of the application.
-
-Core domains include:
-
-* **Backup** – Coordinates the backup pipeline
-* **Storage** – Uploads and manages backup artifacts
-* **Retention** – Applies GFS retention policies
-* **Verification** – Validates backup integrity
-* **Notifications** – Sends backup events
-* **Repository** – Database persistence
-* **Service** – Coordinates business operations
-* **API** – Exposes REST endpoints
-
----
-
-## Technology Stack
-
-| Component | Technology |
-|---|---|
-| Language | Go |
-| HTTP Router | Chi |
-| API Documentation | OpenAPI / Swagger |
-| Database | PostgreSQL |
-| Database Access | pgx + sqlc |
-| Migrations | Goose |
-| Logging | slog |
-| Configuration | Environment Variables |
-| Validation | go-playground/validator |
-| Hot Reload | Air |
-| Linting | golangci-lint |
-| Containers | Docker & Docker Compose |
-
----
-
-## Getting Started
-
-### Requirements
-
-* Go 1.26+
-* PostgreSQL
-* Docker (optional)
-
-### Clone
+Requirements: Docker with Compose.
 
 ```bash
 git clone https://github.com/MD2SA/backup-manager.git
-
 cd backup-manager
-```
 
-### Install development tools
-
-Backup Manager uses local development tools for code generation, migrations, documentation, hot reload, and linting.
-
-Install them with:
-
-```bash
-make tools
-```
-
-This installs:
-
-* Air (hot reload)
-* SQLC (database code generation)
-* Goose (database migrations)
-* Swag (OpenAPI documentation)
-* golangci-lint (code quality checks)
-
-### Configure environment
-
-Create your local environment file:
-
-```bash
 cp .env.example .env
+# Edit .env: set POSTGRES_PASSWORD (and APP_BACKUP_PATH if needed).
+
+# Build the image and generate config.yaml + secrets.env.
+docker build -t backup-manager:latest .
+docker run --rm -it -u "$(id -u):$(id -g)" \
+  -v "$PWD:/work" -w /work \
+  backup-manager:latest init --docker
+
+# The wizard asks for the metadata DB password. Use the same value as
+# POSTGRES_PASSWORD in .env. It writes config.yaml and secrets.env (0600).
+
+docker compose up -d
 ```
 
-Update the required database and application settings.
-
-### Run database migrations
+Check it:
 
 ```bash
-make migrate
+curl http://localhost:8080/healthz
+curl http://localhost:8080/readyz
+docker compose run --rm backup-manager config check --connect
 ```
 
-### Run the API
+Then create a retention policy, a storage provider, and a profile through the API. The generated admin key is printed by `init` and stored as `ADMIN_KEY` in `secrets.env`.
 
-For normal execution:
+> The bundled `metadata-db` uses `POSTGRES_*` from `.env`. Those values must match `metadata_database` in `config.yaml` and `METADATA_DB_PASSWORD` in `secrets.env`. `init --docker` uses `metadata-db` as the database host for you.
+
+---
+
+## Quick start (from source)
+
+Requirements: Go 1.26+, PostgreSQL 13–17, `pg_dump`/`psql`/`pg_restore` in `PATH`.
 
 ```bash
-make run
+git clone https://github.com/MD2SA/backup-manager.git
+cd backup-manager
+
+# Generate config.yaml + secrets.env. For a local PostgreSQL use localhost and
+# a relative storage path, for example:
+go run ./cmd/api init --metadata-host localhost --storage-path ./backups
+
+# Validate before starting (add --connect to test database connectivity):
+go run ./cmd/api config check --connect
+
+# Apply migrations and start:
+go run ./cmd/api serve
 ```
 
-For development with hot reload:
+The server applies pending migrations automatically on startup. To run them
+separately, use `go run ./cmd/api migrate`.
+
+Alternatively, use the Makefile:
 
 ```bash
-make dev
-```
-
-### Generate code
-
-Generate SQLC code:
-
-```bash
-make sqlc
-```
-
-Generate Swagger/OpenAPI documentation:
-
-```bash
-make swagger
-```
-
-### Other commands
-
-```bash
-make test      # Run tests
-make fmt       # Format Go code
-make lint      # Run golangci-lint
-make build     # Build API binary
-make clean     # Remove build artifacts
-```
-
-### Health Check
-
-```http
-GET /api/v1/health
-```
-
-Response:
-
-```text
-OK
+make init           # interactive setup
+make config-check   # validate config.yaml + secrets.env
+make run            # serve (migrations run automatically)
+make dev            # live reload with Air
 ```
 
 ---
 
-## Production Deployment
+## Configuration
 
-### Running with Docker
+Backup Manager uses two files:
 
-Backup Manager is designed to be deployed as a containerized microservice. The provided `Dockerfile` uses a multi-stage build to keep the image small and secure (running as a non-root user).
+| File | Purpose | Permissions |
+|---|---|---|
+| `config.yaml` | All non-secret settings: server, storage, databases, retention defaults | `0644` |
+| `secrets.env` | Passwords, API keys and encryption keys | `0600` (never commit) |
 
-1. **Build the image:**
-   ```bash
-   docker build -t backup-manager:latest .
-   ```
+`config.yaml` references secret names under `secrets:`; the values are read from
+`secrets.env`. The application never loads `.env` and never reads configuration
+from process environment variables (except the optional `APP_CONFIG_PATH` and
+`APP_SECRETS_FILE` path overrides).
 
-2. **Configure environment:**
-   Ensure your `.env` file has the correct `APP_METADATA_DB_*` (for internal state) and `APP_TARGET_DB_*` (the database to backup) settings.
+Generate a working pair with:
 
-3. **Deploy with Docker Compose:**
-   For production, the base configuration starts only the manager and its metadata database:
-   ```bash
-   docker-compose up -d
-   ```
+```bash
+backup-manager init
+```
 
-### Local Development & Testing
+Validate them with:
 
-To test the full pipeline locally with a sample target database, use the provided development stack:
+```bash
+backup-manager config check --connect
+```
+
+See [**Configuration Guide**](docs/guides/CONFIGURATION.md) for the complete
+reference, Docker secrets examples, production checklist, and migration from the
+old environment-variable setup.
+
+A commented template is available at [`config.example.yaml`](config.example.yaml)
+and [`secrets.example.env`](secrets.example.env).
+
+---
+
+## Docker
+
+The image is available at `ghcr.io/md2sa/backup-manager` once published by CI.
+The production Compose stack starts:
+
+1. `metadata-db` — internal PostgreSQL for the manager's own state (no host port).
+2. `backup-manager` — the API, with `config.yaml` and `secrets.env` mounted read-only.
+
+```yaml
+services:
+  backup-manager:
+    image: ghcr.io/md2sa/backup-manager:latest
+    ports:
+      - "8080:8080"
+    environment:
+      APP_CONFIG_PATH: /etc/backup-manager/config.yaml
+    volumes:
+      - ./config.yaml:/etc/backup-manager/config.yaml:ro
+      - ./secrets.env:/etc/backup-manager/secrets.env:ro
+      - ./backups:/backups
+```
+
+The container healthcheck probes `/healthz` (public, no API key). Readiness at
+`/readyz` checks the metadata database.
+
+For local development with a target database:
 
 ```bash
 make docker-dev-up
 ```
 
-This will start:
-1. **Backup Manager:** The microservice.
-2. **Metadata DB:** To store internal state.
-3. **Target DB:** A sample database to be backed up.
+This uses `docker-compose.yml` + `docker-compose.dev.yml`. Generate the config
+with the `--dev` preset so it points at `metadata-db` and `target-db`:
 
-To stop the development stack:
 ```bash
-make docker-dev-down
+make init-dev
 ```
 
-This service exposes **only an HTTP API** (`/api/v1`). It is designed to be
-consumed by dashboards and tools built by whoever operates it; there is no
-bundled UI.
+---
 
-### Important Deployment Notes
+## Security
 
-* **Authentication:** Set `APP_ADMIN_KEY`. With `APP_ENV=production` the
-  service **refuses to start** without it, so Insecure Mode can never reach a
-  production instance. All requests must include the `X-API-Key` header.
-* **Reverse proxy:** Put the service behind a TLS-terminating proxy (Caddy,
-  nginx, Traefik); configure `APP_CORS_ORIGINS` with your dashboard origin and
-  `APP_TRUSTED_PROXIES` with the proxy IPs/CIDRs so rate limiting sees real
-  client IPs.
-* **Secrets at rest:** Set `APP_CONFIG_ENCRYPT_KEY` to encrypt provider
-  credentials (S3, Discord) in the metadata database. Changing it later
-  invalidates existing provider configs.
-* **Metadata database is internal** in the production compose stack — it exposes
-  no host ports and is reachable only by the manager container.
-* **Disaster recovery built-in:** each backup execution also uploads an
-  encrypted snapshot of the management state (profiles, providers, history) to
-  the same storage providers, so a fresh instance can be rebuilt. See
-  `docs/guides/CONFIGURATION.md` → "Metadata Disaster Recovery".
-* **Protect the database you manage:** enable the metadata self-backup with
-  `APP_METADATA_BACKUP_SCHEDULE` (plus `APP_METADATA_BACKUP_PASSPHRASE`), so
-  profiles, providers, and history survive incidents.
-* **Auto-Adaptive Identity:** The Docker image automatically detects the owner
-  of the mounted `/backups` volume and runs with those permissions. This ensures
-  created backups are owned by your host user without manual configuration. You
-  can still override this using `PUID` and `PGID` environment variables.
-* **Database Compatibility:** The image includes `postgresql16-client`. This is
-  compatible with PostgreSQL 13 through 17.
-* **Automatic Migrations:** The container automatically runs database migrations
-  on the metadata database during startup. If migrations fail, the container
-  will exit with an error.
+- **API authentication:** every `/api/v1` request requires `X-API-Key`. The key
+  is the `ADMIN_KEY` secret. `/healthz` and `/readyz` are public for
+  orchestrators. In production (`server.env: production`) the service refuses to
+  start without an admin key.
+- **Provider credentials at rest:** S3 credentials and Discord webhook URLs are
+  AES-256-GCM encrypted in the metadata database when
+  `CONFIG_ENCRYPT_KEY` is set. Production requires it.
+- **Backup encryption:** Age passphrase or X25519 keypair. Production requires
+  one of them unless you explicitly set
+  `encryption.allow_unencrypted_backups: true`.
+- **Secrets:** kept out of `config.yaml`, out of the process environment, and out
+  of `docker inspect`. Mount `secrets.env` read-only with mode `0600`.
+- **Reverse proxy:** terminate TLS in front of the service (Caddy, nginx,
+  Traefik). Set `server.cors_origins` and `server.trusted_proxies` for your
+  deployment.
+
+Generate encryption keys with:
+
+```bash
+backup-manager keygen
+```
+
+Store the private key in `secrets.env` as `AGE_PRIVATE_KEY` and keep a secure
+offline copy. **Without it you cannot restore Age-encrypted backups.**
+
+---
+
+## Architecture
+
+Backup Manager is a **modular monolith**:
+
+```text
+cmd/api                  CLI (serve, init, config check, migrate, keygen, metadata-restore)
+internal/
+├── api/                 REST API (handlers, DTOs, middleware, router)
+├── app/                 Composition root and graceful shutdown
+├── backup/              Backup pipeline, stages, runner and restore
+├── config/              config.yaml + secrets.env loader, validation, init, check
+├── database/            pgx pool and automatic Goose migrations
+├── metarestore/         Metadata snapshot restore CLI
+├── monitor/             Health summary
+├── notification/        Notification providers (Discord)
+├── repository/          Data access (PostgreSQL + sqlc)
+├── retention/           GFS retention engine
+├── scheduler/           Cron scheduler
+├── selfbackup/          Local metadata self-backup
+├── service/             Domain services
+├── storage/             Storage providers (local, S3)
+└── verification/        Archive and checksum verification
+sql/                     Migrations and sqlc queries
+docs/                    Architecture, configuration, API and Swagger
+```
+
+See [**Architecture**](docs/guides/ARCHITECTURE.md) and [**API Reference**](docs/guides/API.md).
+
+### Backup lifecycle
+
+1. A cron trigger or `POST /api/v1/profiles/{id}/run` enqueues the profile.
+2. The serial runner creates an execution and runs the pipeline:
+   `pg_dump` → verification/checksum → optional Age encryption → upload to every
+   storage provider → GFS retention → cleanup.
+3. The execution result is persisted and notifications are sent.
+4. An encrypted metadata snapshot is uploaded to the same providers (unless
+   disabled).
+5. A restore downloads the artifact, decrypts it, and applies it with `psql`.
+
+### Technology stack
+
+| Component | Technology |
+|---|---|
+| Language | Go |
+| HTTP router | Chi |
+| API docs | OpenAPI / Swagger |
+| Database | PostgreSQL |
+| Database access | pgx + sqlc |
+| Migrations | Goose (embedded in the binary) |
+| Logging | slog (JSON) |
+| Configuration | YAML + secrets file |
+| Validation | go-playground/validator |
+| Hot reload | Air |
+| Linting | golangci-lint |
+| Containers | Docker & Docker Compose |
+
+---
+
+## Production checklist
+
+- [ ] Generate `config.yaml` and `secrets.env` with `init`; never commit either.
+- [ ] `chmod 600 secrets.env`.
+- [ ] Keep `secrets.env` and the Age private key in a secure backup.
+- [ ] Run `config check --connect` against the real metadata and target databases.
+- [ ] Set `server.env: production`; the service then requires an admin key, a
+      config encryption key, and backup encryption.
+- [ ] Put the service behind a TLS-terminating proxy; set `cors_origins` and
+      `trusted_proxies`.
+- [ ] Use a dedicated PostgreSQL role for the target database with read access,
+      and a separate metadata database.
+- [ ] Pin the container image to a version tag, not `latest`.
+- [ ] Monitor `/readyz`, backup failures, and the last successful backup.
+- [ ] Test a restore before relying on the backups.
+
+---
+
+## Metadata disaster recovery
+
+Every backup also uploads an encrypted snapshot of the manager's own state
+(profiles, providers, history) to the profile's storage providers. This is
+controlled by:
+
+```yaml
+metadata_backup:
+  embed: true
+  retention: 14
+  schedule: "0 3 * * *"   # optional local self-backup
+```
+
+The snapshot passphrase is `METADATA_BACKUP_PASSPHRASE` in `secrets.env`.
+Restore it before starting the service:
+
+```bash
+backup-manager metadata-restore --config /etc/backup-manager/config.yaml
+backup-manager metadata-restore --config ... --file snapshot.dump.age --dry-run
+backup-manager metadata-restore --config ... --replace
+```
+
+See the [configuration guide](docs/guides/CONFIGURATION.md#metadata-disaster-recovery)
+for details.
+
+---
+
+## Development
+
+```bash
+make tools          # install Air, sqlc, goose, swag and golangci-lint
+make init           # generate local config.yaml + secrets.env
+make config-check   # validate configuration
+make test           # go test ./...
+make lint           # golangci-lint
+make fmt            # gofmt
+make swagger        # regenerate OpenAPI docs
+make sqlc           # regenerate database code
+make migrate        # apply migrations
+```
+
+Swagger UI is served at `/swagger/index.html` when the server is running.
 
 ---
 
 ## Contributing
 
-This project is currently under active development and is not accepting external contributions yet.
-
-Contribution guidelines will be added once the project reaches a more stable stage.
+The project is under active development. Contribution guidelines will be added
+once the API and configuration format stabilize.
 
 ---
 
 ## License
 
-This project is currently under development. License information will be added before the first stable release.
+MIT. See [LICENSE](LICENSE).

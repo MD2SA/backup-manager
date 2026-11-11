@@ -368,19 +368,6 @@ paths:
       summary: Restore a backup
       tags:
       - executions
-  /health:
-    get:
-      description: Check if the API server is up and running
-      produces:
-      - text/plain
-      responses:
-        "200":
-          description: OK
-          schema:
-            type: string
-      summary: Simple health check
-      tags:
-      - health
   /health/summary:
     get:
       description: Get an aggregated view of system health, storage usage, and active
@@ -397,6 +384,21 @@ paths:
           schema:
             $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
       summary: Get system health summary
+      tags:
+      - health
+  /healthz:
+    get:
+      description: |-
+        Check if the API server process is up. This endpoint is public
+        (no API key) and is used by container healthchecks.
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Simple liveness check
       tags:
       - health
   /notification-providers:
@@ -583,6 +585,37 @@ paths:
           schema:
             $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
       summary: Delete a backup profile
+      tags:
+      - profiles
+    get:
+      description: Get a profile by ID, including its linked storage and notification
+        providers.
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse'
+      summary: Get a backup profile
       tags:
       - profiles
     put:
@@ -932,4 +965,9 @@ paths:
       summary: Update an existing storage provider
       tags:
       - storage-providers
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-API-Key
+    type: apiKey
 swagger: "2.0"

@@ -6,13 +6,31 @@ This document describes the high-level architecture of the Backup Manager and it
 
 Backup Manager is designed as a **Modular Monolith** using Go. It follows a layered approach where business logic is separated from infrastructure and external providers.
 
+## Configuration and startup
+
+Configuration is deliberately outside the runtime database:
+
+- `config.yaml` holds non-secret settings (server, storage, database endpoints,
+  encryption public key, metadata backup defaults).
+- `secrets.env` holds passwords and keys and is read directly from disk; it is
+  never exported into the process environment.
+- `internal/config` parses both files with a strict schema (`version: 1`),
+  resolves secret references, validates values and exposes a typed `Config`.
+- `backup-manager config check` performs production preflight checks
+  (permissions, binaries, directories, Age keys, cron, optional DB connectivity).
+- `backup-manager serve` applies pending migrations in-process and then starts
+  the HTTP server. `internal/database` handles the pool and Goose integration.
+- `backup-manager init` generates a working pair of files, including keys.
+
 ### Core Components
 
 1.  **API Handler (`internal/api`)**: Exposes REST endpoints for managing profiles, viewing execution history, and manual triggers.
-2.  **Scheduler (`internal/scheduler`)**: Manages cron jobs based on Profile configurations.
-3.  **Backup Runner (`internal/backup/runner.go`)**: A serial task processor that ensures only one backup runs at a time to prevent resource exhaustion.
-4.  **Backup Pipeline (`internal/backup/pipeline.go`)**: Orchestrates the execution of multiple "Stages".
-5.  **Providers (`internal/storage`, `internal/notification`)**: Pluggable implementations for different storage backends and notification channels.
+2.  **Configuration (`internal/config`)**: Strict YAML config, secrets file, validation and `init`/`check` helpers.
+3.  **Scheduler (`internal/scheduler`)**: Manages cron jobs based on Profile configurations.
+4.  **Backup Runner (`internal/backup/runner.go`)**: A serial task processor that ensures only one backup runs at a time to prevent resource exhaustion.
+5.  **Backup Pipeline (`internal/backup/pipeline.go`)**: Orchestrates the execution of multiple "Stages".
+6.  **Providers (`internal/storage`, `internal/notification`)**: Pluggable implementations for different storage backends and notification channels.
+7.  **Database (`internal/database`)**: pgx pool and in-process migrations.
 
 ## System Components & Relationships
 

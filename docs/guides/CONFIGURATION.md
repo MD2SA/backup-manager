@@ -1,283 +1,421 @@
 # Configuration Guide
 
-Backup Manager is configured via Environment Variables and through the REST API for dynamic entities like Storage and Notification providers.
+Backup Manager reads its configuration from two files:
 
-## Environment Variables
+| File | Purpose | Recommended mode |
+|---|---|---|
+| `config.yaml` | Non-secret settings (server, storage, databases, retention defaults) | `0644` |
+| `secrets.env` | Passwords, API keys and encryption keys | `0600` |
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `APP_PORT` | Port for the API server | `8080` |
-| `APP_LOG_LEVEL` | Logging level (debug, info, warn, error) | `info` |
-| `APP_ENV` | Runtime environment (`development` or `production`) | `development` |
-| `APP_TEMP_DIR` | Directory for temporary backup files | `/tmp` |
-| `APP_BACKUP_PATH` | (Docker only) Host path for backup persistence | **Mandatory** |
-| `APP_ADMIN_KEY` | Static API Key for authentication (**required in production**) | - |
-| `APP_CORS_ORIGINS` | Comma-separated allowed origins for CORS | `http://localhost:3000` |
-| `APP_TRUSTED_PROXIES` | Comma-separated IPs/CIDRs of reverse proxies (for correct client IP via X-Forwarded-For) | - |
-| `APP_CONFIG_ENCRYPT_KEY` | Passphrase to encrypt provider configs at rest (AES-256-GCM). Empty = plaintext (dev). | - |
-| `APP_METADATA_DB_URL` | PostgreSQL connection URL for internal state | `postgres://...` |
-| `APP_METADATA_DB_HOST` | Metadata database host | - |
-| `APP_METADATA_DB_PORT` | Metadata database port | - |
-| `APP_METADATA_DB_USER` | Metadata database user | - |
-| `APP_METADATA_DB_PASSWORD`| Metadata database password | - |
-| `APP_METADATA_DB_DBNAME` | Metadata database name | - |
-| `APP_METADATA_DB_SSLMODE`| Metadata database SSL mode | - |
-| `APP_TARGET_DB_HOST` | Host of the database to backup | `localhost` |
-| `APP_TARGET_DB_PORT` | Port of the database to backup | `5432` |
-| `APP_TARGET_DB_USER` | User for the target database | `postgres` |
-| `APP_TARGET_DB_PASSWORD`| Password for the target database | - |
-| `APP_TARGET_DB_NAME` | Name of the database to backup | - |
-| `APP_RATE_LIMIT_REQUESTS` | Max requests within the window | `100` |
-| `APP_RATE_LIMIT_WINDOW` | Time window for rate limiting (e.g. 1m, 1h) | `1m` |
-| `APP_ENCRYPTION_PASSPHRASE` | Passphrase for "Simple Mode" backup encryption | - |
-| `APP_AGE_PUBLIC_KEY` | Age X25519 public key for "Pro Mode" backup encryption | - |
-| `APP_AGE_PRIVATE_KEY` | Age X25519 private key for restore | - |
-| `APP_METADATA_BACKUP_SCHEDULE` | Cron expression for metadata self-backup (empty = disabled) | - |
-| `APP_METADATA_BACKUP_PASSPHRASE` | Passphrase to encrypt metadata snapshots (embed fallback + local cron) | - |
-| `APP_METADATA_BACKUP_RETENTION` | Number of metadata snapshots to keep, per profile/provider | `14` |
-| `APP_METADATA_BACKUP_EMBED` | Embed an encrypted metadata snapshot into every backup execution | `true` |
+The application does **not** load `.env` and does **not** read settings from
+process environment variables. Secrets never appear in `docker inspect` or in
+the environment of child processes such as `pg_dump`.
 
-## Docker User and Permissions
+The only environment variables the application understands are paths and
+deployment details:
 
-To ensure smooth operation and correct file ownership on your host machine, the Docker image features an **Auto-Adaptive Identity** system.
+| Variable | Meaning |
+|---|---|
+| `APP_CONFIG_PATH` | Path to `config.yaml` (default `./config.yaml`) |
+| `APP_SECRETS_FILE` | Overrides `secrets_file` from the config (useful for Docker/Kubernetes secrets) |
+| `APP_MIGRATIONS_DIR` | Path to SQL migrations (default `sql/migrations`) |
+| `PUID` / `PGID` | Container UID/GID overrides (entrypoint only) |
 
-### How it works
-On startup, the container inspects the mounted `/backups` volume. If it is owned by a non-root user on your host, the container automatically assumes that user's identity (UID and GID).
+---
 
-### Manual Overrides (Optional)
-If you need to force a specific identity, you can use the following environment variables:
+## Quick start
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PUID` | User ID to run the application as | *(Auto-detected)* |
-| `PGID` | Group ID to run the application as | *(Auto-detected)* |
+### Generate the files
 
-### Why is this useful?
-It eliminates "Permission Denied" errors and ensures that all backup files created by Docker are immediately accessible, movable, and deletable by you on your host machine without using `sudo`.
-
-### User/Group IDs for Docker
-...
-### Backup Encryption (Optional)
-
-Backup Manager supports two encryption modes using the **Age** standard.
-
-#### Mode A: Simple (Passphrase)
-Just set the `APP_ENCRYPTION_PASSPHRASE` environment variable with a strong password.
-
-#### Mode B: Pro (Keypair)
-Generate a key pair and set the public key in `APP_AGE_PUBLIC_KEY`. For restoration, the system will require `APP_AGE_PRIVATE_KEY`.
-
-**Generate keys using the built-in utility**:
 ```bash
-# Docker
-docker run --rm md2sa/backup-manager:latest keygen
-# Source
-go run ./cmd/api keygen
+backup-manager init
 ```
 
-> [!CAUTION]
-> If you lose your passphrase or private key, you will not be able to restore any encrypted backups.
-> You can always decrypt backups manually using the official tool:
-> `age --decrypt backup.sql.age > backup.sql`
+The wizard prompts for the databases, storage path, environment and encryption
+mode, then writes `config.yaml` and `secrets.env` (mode `0600`). It generates:
 
-## Storage Persistence
+- the bootstrap admin API key (`ADMIN_KEY`),
+- the provider-config encryption key (`CONFIG_ENCRYPT_KEY`),
+- an Age keypair (default) or an encryption passphrase,
+- a metadata snapshot passphrase when embedding is enabled.
 
-When using the `local` storage provider in a Docker environment, the application is pre-configured to use `/backups` as its internal persistent directory.
+Useful presets:
 
-To ensure your backups are saved on your host machine, you **must** define the `APP_BACKUP_PATH` environment variable in your `.env` file.
-
-### Best Practices
-
-| Scenario | Recommended `APP_BACKUP_PATH` | Why? |
-|----------|-------------------------------|------|
-| **Development** | `./backups` | Keeps files inside the project folder for easy access. |
-| **Production** | `/var/lib/backup-manager/storage` | Standard Linux path for persistent application data. |
-| **NAS / External** | `/mnt/nas/backups` | Directly stores backups on a network-attached storage or external disk. |
-
-### Storage Provider Configuration (API)
-
-When creating a **Storage Provider** of type `local` via the REST API, the configuration is simplified. The system automatically handles organization by profile name.
-
-```json
-{
-  "name": "Local Disk",
-  "type": "local",
-  "config": {}
-}
+```bash
+cp .env.example .env   # set POSTGRES_PASSWORD and other Compose values
+make init-docker       # metadata host "metadata-db", storage /backups, temp /tmp
+make init-dev          # docker preset + target host "target-db"
 ```
 
-> [!TIP]
-> - Backups are automatically organized as: `[APP_BACKUP_PATH]/[profile-name]/[YYYYMMDD-HHMMSS]-[execution-id].sql`.
-> - Each profile manages its own retention independently. Backups in the `daily` folder will not be affected by the cleanup rules of the `weekly` profile.
-> - The internal path `/backups` is automatically created with correct permissions during build.
+The presets read `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` and
+`TARGET_DB_NAME` from `.env` when run through the Makefile, so the generated
+configuration matches the bundled Compose databases.
 
-## Dynamic Configuration (API)
+Because the Docker preset uses `storage.path: /backups`, run the connectivity
+check inside the container where that path is mounted:
 
-Storage and Notification providers are created via the API. Each provider has a `type` and a `config` (JSONB).
-
-### Storage Providers
-
-#### Local Filesystem
-*   **Type**: `local`
-*   **Config**: `{}` (No additional path configuration required)
-
-#### S3 Compatible
-*   **Type**: `s3`
-*   **Config**:
-    ```json
-    {
-      "endpoint": "s3.amazonaws.com",
-      "region": "us-east-1",
-      "bucket": "my-backups",
-      "access_key": "...",
-      "secret_key": "...",
-      "use_ssl": true
-    }
-    ```
-
-### Notification Providers
-
-#### Discord Webhook
-*   **Type**: `discord`
-*   **Config**:
-    ```json
-    {
-      "webhook_url": "https://discord.com/api/webhooks/..."
-    }
-    ```
-
-### Backup Profiles
-
-A **Profile** connects a schedule, a retention policy, and multiple providers.
-
-```mermaid
-erDiagram
-    PROFILE ||--o{ STORAGE-PROVIDER : uses
-    PROFILE ||--o{ NOTIFICATION-PROVIDER : notifies
-    PROFILE }|--|| RETENTION-POLICY : follows
-    PROFILE ||--o{ EXECUTION : generates
+```bash
+make docker-config-check
 ```
 
-Example `POST /api/v1/profiles`:
-```json
-{
-  "name": "Production Daily",
-  "schedule": "0 2 * * *",
-  "storage_provider_ids": ["uuid-1", "uuid-2"],
-  "notification_provider_ids": ["uuid-3"],
-  "retention_policy_id": "uuid-4",
-  "compression_type": "gzip",
-  "compression_level": 6
-}
+Non-interactive example:
+
+```bash
+backup-manager init --non-interactive \
+  --metadata-host localhost --metadata-password '...' \
+  --target-host postgres.example.com --target-password '...' \
+  --storage-path /backups --env production --encryption keypair
 ```
 
-## Reverse Proxy & Client IP
+### Validate before starting
 
-When running behind a reverse proxy (nginx, Caddy, Traefik, Cloudflare), set
-`APP_TRUSTED_PROXIES` to the proxy IPs or CIDRs. The service then resolves the
-real client IP from `X-Forwarded-For` for rate limiting and logging:
-
-```env
-APP_TRUSTED_PROXIES=127.0.0.1,172.16.0.0/12
+```bash
+backup-manager config check
+backup-manager config check --connect   # also pings both databases
 ```
 
-Bare IPs are treated as host prefixes (e.g. `127.0.0.1` → `/32`). Any value in
-`APP_TRUSTED_PROXIES` that is not a valid IP or CIDR causes the service to fail
-at startup.
+`config check` validates the schema, secret references, file permissions,
+required binaries (`pg_dump`, `psql`, `pg_restore`), directory writability,
+Age key consistency and cron syntax. It prints a redacted summary and never
+prints secret values.
 
-## Metadata Disaster Recovery
+### Start
 
-Backup Manager protects its own management state (profiles, providers,
-retention policies, execution history) so it can be re-created after losing the
-host. There are two complementary mechanisms, both using `pg_dump -Fc` (requires
-`pg_dump` in PATH).
-
-### 1. Embedded into every backup (recommended, enabled by default)
-
-The simplest way to guarantee DR: each backup execution also uploads an
-encrypted metadata snapshot to **every storage provider of the profile**. If you
-back up to S3, the metadata rides along to S3 automatically — no separate
-destination to configure.
-
-*   Enabled by default; disable with `APP_METADATA_BACKUP_EMBED=false`.
-*   Object key: `meta/<profile-id>/metadata-<timestamp>.dump.age`.
-*   Retention: `APP_METADATA_BACKUP_RETENTION` (default `14`) oldest snapshots
-    are pruned, isolated **per profile and per provider** (a shared provider
-    never mixes or deletes another profile's metadata).
-
-**Encryption chain — the metadata is never uploaded in plaintext:**
-1. If the profile has encryption enabled, the snapshot is encrypted with the
-   **same keys as the data backup** (profile passphrase, or Age public key).
-2. Otherwise, it falls back to `APP_METADATA_BACKUP_PASSPHRASE`.
-3. If none is available, the metadata is **skipped with a warning** — the data
-   backup itself is unaffected.
-
-A metadata failure (dump, encryption, or upload) is logged but **never fails the
-main backup execution**.
-
-### 2. Scheduled local self-backup (optional)
-
-Backup Manager can also dump its own database on a cron schedule to the local
-storage path:
-
-```env
-APP_METADATA_BACKUP_SCHEDULE=0 3 * * *
-APP_METADATA_BACKUP_PASSPHRASE=some-strong-passphrase
-APP_METADATA_BACKUP_RETENTION=14
+```bash
+backup-manager serve
 ```
 
-Backups are written to `[APP_BACKUP_PATH]/metadata/metadata-<timestamp>.dump`
-(or `.dump.age` when a passphrase is set, encrypted with **age** — the same
-portable format used by the embedded snapshots, decryptable with the standard
-`age` CLI). This is a local copy — sync it off the host if you want remote
-coverage; the embedding mechanism above already covers the cloud case
-automatically.
+`serve` applies pending migrations automatically. Use `--no-migrate` to skip
+that step, or run `backup-manager migrate` separately.
+
+---
+
+## `config.yaml` reference
+
+```yaml
+version: 1
+
+server:
+  port: "8080"
+  env: "production"              # development | staging | production
+  log_level: "info"              # debug | info | warn | error
+  cors_origins:
+    - "https://backup.example.com"
+  trusted_proxies:
+    - "172.16.0.0/12"
+  rate_limit:
+    requests: 100
+    window: "1m"
+
+storage:
+  path: "/backups"
+  temp_dir: "/tmp"
+
+secrets_file: "secrets.env"
+
+secrets:
+  metadata_db_password: "METADATA_DB_PASSWORD"
+  target_db_password: "TARGET_DB_PASSWORD"
+  age_private_key: "AGE_PRIVATE_KEY"
+  encryption_passphrase: "ENCRYPTION_PASSPHRASE"
+  admin_key: "ADMIN_KEY"
+  config_encrypt_key: "CONFIG_ENCRYPT_KEY"
+  metadata_backup_passphrase: "METADATA_BACKUP_PASSPHRASE"
+
+metadata_database:
+  host: "metadata-db"
+  port: "5432"
+  user: "backup_manager"
+  dbname: "backup_manager"
+  sslmode: "require"
+
+target_database:
+  host: "postgres.example.com"
+  port: "5432"
+  user: "backup_reader"
+  dbname: "app"
+  sslmode: "require"
+
+encryption:
+  age_public_key: "age1..."
+  allow_unencrypted_backups: false
+
+metadata_backup:
+  schedule: "0 3 * * *"
+  retention: 14
+  embed: true
+```
+
+### Top-level fields
+
+| Field | Default | Description |
+|---|---|---|
+| `version` | — (required) | Schema version. Only `1` is accepted; unknown versions refuse to start. |
+| `secrets_file` | `secrets.env` | Secrets file path, resolved relative to `config.yaml` unless absolute. |
+
+### `server`
+
+| Field | Default | Description |
+|---|---|---|
+| `port` | `"8080"` | HTTP listen port. |
+| `env` | `development` | `production`/`prod` enables the production safety rules. |
+| `log_level` | `info` | `debug`, `info`, `warn` or `error`. |
+| `cors_origins` | `["http://localhost:3000"]` | Browser origins allowed by CORS. |
+| `trusted_proxies` | `[]` | IPs/CIDRs whose `X-Forwarded-For` is trusted. Bare IPs become `/32`. |
+| `rate_limit.requests` | `100` | Requests allowed per window, per client IP/key. |
+| `rate_limit.window` | `1m` | Window duration (`30s`, `1m`, `1h`, ...). |
+
+### `storage`
+
+| Field | Default | Description |
+|---|---|---|
+| `path` | `/backups` | Root directory for the local storage provider and metadata backups. Use an absolute path in production. |
+| `temp_dir` | `/tmp` | Staging directory for dumps, encryption and restore downloads. |
+
+### `metadata_database`
+
+The manager's own state. All fields are required:
+
+`host`, `port`, `user`, `dbname`, `sslmode` (and the password from the secrets
+file). This database must exist before startup; migrations run automatically.
+
+### `target_database`
+
+The PostgreSQL database to back up. Either configure **all** fields or leave
+them empty:
+
+`host`, `port`, `user`, `dbname`, `sslmode` (and the password from the secrets
+file). A partially configured target database fails validation. Backups and
+restores report a clear infrastructure error while it is empty.
+
+### `encryption`
+
+| Field | Default | Description |
+|---|---|---|
+| `age_public_key` | empty | Age X25519 recipient used for backup encryption. |
+| `allow_unencrypted_backups` | `false` | Production guard. Set `true` only if you deliberately accept unencrypted backups. |
+
+A passphrase can be used instead of (or alongside) the Age keypair by setting
+the `ENCRYPTION_PASSPHRASE` secret. If both are present, the passphrase takes
+precedence when encrypting.
+
+### `metadata_backup`
+
+| Field | Default | Description |
+|---|---|---|
+| `schedule` | empty (disabled) | 5-field cron for the local metadata self-backup. |
+| `retention` | `14` | Snapshots to keep per local directory / per profile per provider. |
+| `embed` | `true` | Upload an encrypted metadata snapshot with every backup execution. |
+
+---
+
+## `secrets.env` reference
+
+The file is a simple `KEY=VALUE` list. Blank lines and lines starting with `#`
+are ignored. Values containing spaces or `#` may be double-quoted.
+
+| Key | Required | Description |
+|---|---|---|
+| `METADATA_DB_PASSWORD` | yes | Password for `metadata_database`. |
+| `TARGET_DB_PASSWORD` | if target configured | Password for `target_database`. |
+| `ADMIN_KEY` | in production | Bootstrap API key (`X-API-Key`). Generate with `openssl rand -base64 32`. |
+| `CONFIG_ENCRYPT_KEY` | in production | AES-256-GCM key for provider credentials at rest. Changing it invalidates existing provider configs. |
+| `AGE_PRIVATE_KEY` | for Age restores | Age X25519 private key (`AGE-SECRET-KEY-...`). |
+| `ENCRYPTION_PASSPHRASE` | optional | Passphrase used when a profile enables passphrase encryption. |
+| `METADATA_BACKUP_PASSPHRASE` | recommended with `embed: true` | Passphrase for embedded/local metadata snapshots. |
+
+The names above are defaults. You can point each logical secret to a different
+key using the `secrets:` mapping in `config.yaml`.
+
+### File permissions
+
+```bash
+chmod 600 secrets.env
+```
+
+`config check` warns if the secrets file is readable by group or others.
+
+---
+
+## Docker and Docker Compose
+
+### Compose mounts
+
+```yaml
+services:
+  backup-manager:
+    image: ghcr.io/md2sa/backup-manager:latest
+    environment:
+      APP_CONFIG_PATH: /etc/backup-manager/config.yaml
+    volumes:
+      - ./config.yaml:/etc/backup-manager/config.yaml:ro
+      - ./secrets.env:/etc/backup-manager/secrets.env:ro
+      - ./backups:/backups
+```
+
+`secrets_file: secrets.env` is resolved relative to
+`/etc/backup-manager`, so the second mount is exactly where the application
+looks for it.
+
+### Docker/Kubernetes secrets as a single file
+
+If your platform mounts secrets as files, mount the whole `secrets.env` as one
+secret and point `APP_SECRETS_FILE` at it:
+
+```yaml
+environment:
+  APP_SECRETS_FILE: /run/secrets/backup-manager-secrets
+```
+
+This keeps secrets out of environment variables and `docker inspect`. If you
+prefer one file per secret, create separate files and use a small entrypoint
+script to assemble them into a single `secrets.env` before starting the
+container; the application intentionally supports one secrets file.
+
+### Bundled metadata database
+
+The Compose example's `metadata-db` container uses `POSTGRES_USER`,
+`POSTGRES_PASSWORD` and `POSTGRES_DB` from `.env`. They must match
+`metadata_database` in `config.yaml` and `METADATA_DB_PASSWORD` in
+`secrets.env`. For production, prefer an external managed PostgreSQL and remove
+the bundled service.
+
+---
+
+## Production checklist
+
+1. `server.env: "production"`.
+2. `ADMIN_KEY`, `CONFIG_ENCRYPT_KEY` and an encryption mode configured; the
+   service refuses to start otherwise.
+3. `secrets.env` mode `0600`, owned by the service user, excluded from Git.
+4. Absolute `storage.path` and `storage.temp_dir`, on a persistent volume.
+5. `sslmode: "require"` (or stricter) for both databases.
+6. A dedicated backup role on the target database with read-only access.
+7. TLS terminated by a reverse proxy; `cors_origins` restricted and
+   `trusted_proxies` set to the proxy IPs/CIDRs.
+8. Pinned image tag and a tested restore procedure.
+9. `config check --connect` run against the real environment before rollout.
+10. A secure offline copy of `secrets.env`, especially `AGE_PRIVATE_KEY`.
+11. Monitor `/readyz`, backup failures and the timestamp of the last successful
+    backup.
+
+---
+
+## Migrating from environment variables (schema 0.1)
+
+The previous releases configured everything through `APP_*` environment
+variables. They are no longer read. Generate a new config with `init` and move
+the values:
+
+| Old environment variable | New location |
+|---|---|
+| `APP_PORT` | `server.port` |
+| `APP_ENV` | `server.env` |
+| `APP_LOG_LEVEL` | `server.log_level` |
+| `APP_CORS_ORIGINS` | `server.cors_origins` |
+| `APP_TRUSTED_PROXIES` | `server.trusted_proxies` |
+| `APP_RATE_LIMIT_REQUESTS` | `server.rate_limit.requests` |
+| `APP_RATE_LIMIT_WINDOW` | `server.rate_limit.window` |
+| `APP_STORAGE_PATH` | `storage.path` |
+| `APP_TEMP_DIR` | `storage.temp_dir` |
+| `APP_METADATA_DB_*` | `metadata_database.*` + `METADATA_DB_PASSWORD` |
+| `APP_TARGET_DB_*` | `target_database.*` + `TARGET_DB_PASSWORD` |
+| `APP_ADMIN_KEY` | `ADMIN_KEY` secret |
+| `APP_CONFIG_ENCRYPT_KEY` | `CONFIG_ENCRYPT_KEY` secret |
+| `APP_AGE_PUBLIC_KEY` | `encryption.age_public_key` |
+| `APP_AGE_PRIVATE_KEY` | `AGE_PRIVATE_KEY` secret |
+| `APP_ENCRYPTION_PASSPHRASE` | `ENCRYPTION_PASSPHRASE` secret |
+| `APP_METADATA_BACKUP_SCHEDULE` | `metadata_backup.schedule` |
+| `APP_METADATA_BACKUP_RETENTION` | `metadata_backup.retention` |
+| `APP_METADATA_BACKUP_EMBED` | `metadata_backup.embed` |
+| `APP_METADATA_BACKUP_PASSPHRASE` | `METADATA_BACKUP_PASSPHRASE` secret |
+
+`APP_BACKUP_PATH` remains a Docker Compose variable (host path mounted at
+`/backups`); it is not application configuration.
+
+Deploy the new config before upgrading the image. The metadata database schema
+does not change, so existing profiles and execution history are preserved.
+
+---
+
+## Metadata disaster recovery
+
+Backup Manager protects its own state in two complementary ways.
+
+### 1. Embedded in every backup (default)
+
+Each backup execution uploads an encrypted snapshot of the metadata database to
+every storage provider of the profile:
+
+```text
+meta/<profile-id>/metadata-<timestamp>.dump.age
+```
+
+Configured by:
+
+```yaml
+metadata_backup:
+  embed: true
+  retention: 14
+```
+
+The snapshot is encrypted with the profile's backup keys (passphrase or Age
+public key), falling back to `METADATA_BACKUP_PASSPHRASE`. If neither is
+available, the metadata snapshot is skipped with a warning and the data backup
+continues normally. Snapshots are never uploaded in plaintext.
+
+### 2. Scheduled local self-backup
+
+```yaml
+metadata_backup:
+  schedule: "0 3 * * *"
+  retention: 14
+```
+
+Snapshots are written to `<storage.path>/metadata/metadata-<timestamp>.dump` and
+encrypted with `METADATA_BACKUP_PASSPHRASE` when set. This is a local copy; sync
+it off the host or rely on the embedded snapshots for remote coverage.
 
 ### 3. Restoring the metadata database
 
-`backup-manager metadata-restore` decrypts a snapshot and restores it into the
-metadata database with `pg_restore`. Run it **before** starting the service (the
-restored database already contains the `goose_db_version` table, so the boot
-migrations are skipped):
+Run before starting the service:
 
-```sh
-# Restore the newest local snapshot (age-encrypted, uses
-# APP_METADATA_BACKUP_PASSPHRASE and/or APP_AGE_PRIVATE_KEY to decrypt)
-backup-manager metadata-restore
+```bash
+# Newest local snapshot
+backup-manager metadata-restore --config /etc/backup-manager/config.yaml
 
-# Restore a specific snapshot downloaded from a storage provider
-backup-manager metadata-restore --file meta/12345/metadata-20260907-102030.dump.age
+# Specific snapshot
+backup-manager metadata-restore --config ... --file snapshot.dump.age
 
-# Validate a snapshot without writing anything to the database
-backup-manager metadata-restore --file snapshot.age --dry-run
+# Validate only
+backup-manager metadata-restore --config ... --file snapshot.dump.age --dry-run
 
-# Restore over an existing database (pg_restore --clean --if-exists)
-backup-manager metadata-restore --replace
+# Restore over a non-empty database
+backup-manager metadata-restore --config ... --replace
 ```
 
-The command accepts four flags:
+Supported formats are auto-detected: age (current), legacy `enc_v1`, and
+plaintext. Age snapshots require `METADATA_BACKUP_PASSPHRASE` or
+`AGE_PRIVATE_KEY`. By default the command refuses to restore into a database
+that already contains user objects.
 
-| Flag | Meaning |
-| --- | --- |
-| `--file` | Snapshot path. Omitted → newest snapshot in `[APP_BACKUP_PATH]/metadata`. |
-| `--passphrase` | Overrides `APP_METADATA_BACKUP_PASSPHRASE`. |
-| `--identity` | Overrides `APP_AGE_PRIVATE_KEY` (Age X25519 private key). |
-| `--replace` | Allow restoring over a non-empty database (`--clean --if-exists`). |
-| `--dry-run` | Only validate (`pg_restore --list`), write nothing. |
+Downloading an embedded snapshot from a cloud provider is not automated: fetch
+the `meta/<profile-id>/metadata-*.dump.age` object with your provider's CLI and
+pass it with `--file`.
 
-Supported snapshot formats (auto-detected from the file header):
-**age** (current), **legacy `enc_v1`** (produced by older builds of the local
-self-backup) and **plaintext**. Age snapshots require a passphrase or identity;
-legacy `enc_v1` snapshots require the metadata passphrase; plaintext snapshots
-are restored as-is.
+---
 
-By default the command refuses to restore into a database that already contains
-data; pass `--replace` only if you intend to overwrite it. In Docker:
+## Troubleshooting
 
-```sh
-docker compose run --rm backup-manager backup-manager metadata-restore
-```
-
-Downloading the snapshot from a cloud provider is not automated: fetch the
-`meta/<profile-id>/metadata-*.dump.age` object manually (e.g. with the AWS CLI)
-and pass its path with `--file`.
+| Symptom | Fix |
+|---|---|
+| `unsupported config version 0` | Add `version: 1` at the top of `config.yaml`. |
+| `field X not found` | The YAML has a typo or an unsupported field. The error names the exact key. |
+| `secret "Y" is missing or empty in ...` | Add `Y=...` to `secrets.env`. |
+| `secrets file ... is readable by group/others` | `chmod 600 secrets.env`. |
+| `target database is not configured` | Fill `target_database` or ignore until you are ready to back up. |
+| `production requires backup encryption` | Configure `encryption.age_public_key` or `ENCRYPTION_PASSPHRASE`, or explicitly set `encryption.allow_unencrypted_backups: true`. |
+| `age_public_key does not match ...` | The private key in `AGE_PRIVATE_KEY` belongs to a different keypair. |
+| `metadata database not reachable after 60s` | Check `metadata_database` and the network; migrations retry for 60 seconds. |
+| `config.yaml not found` inside Docker | Mount it at `/etc/backup-manager/config.yaml` or set `APP_CONFIG_PATH`. |
+| `password authentication failed` after changing `POSTGRES_PASSWORD` | The bundled PostgreSQL volume was initialized with the old password. Run `docker compose down -v` once (this deletes the metadata database) or change the password inside PostgreSQL. |

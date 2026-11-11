@@ -173,26 +173,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/health": {
-            "get": {
-                "description": "Check if the API server is up and running",
-                "produces": [
-                    "text/plain"
-                ],
-                "tags": [
-                    "health"
-                ],
-                "summary": "Simple health check",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
         "/health/summary": {
             "get": {
                 "description": "Get an aggregated view of system health, storage usage, and active profiles",
@@ -214,6 +194,26 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/healthz": {
+            "get": {
+                "description": "Check if the API server process is up. This endpoint is public\n(no API key) and is used by container healthchecks.",
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Simple liveness check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
@@ -446,6 +446,51 @@ const docTemplate = `{
             }
         },
         "/profiles/{id}": {
+            "get": {
+                "description": "Get a profile by ID, including its linked storage and notification providers.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profiles"
+                ],
+                "summary": "Get a backup profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_api_dto.ProfileResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_MD2SA_backup-manager_internal_pkg_apiutil.ErrorResponse"
+                        }
+                    }
+                }
+            },
             "put": {
                 "description": "Update a backup profile by its ID.\nThe schedule must be a valid cron expression:\n- \"0 * * * *\" (Hourly)\n- \"0 2 * * *\" (Daily at 2:00 AM)\n- \"0 0 * * 0\" (Weekly on Sunday)",
                 "consumes": [
@@ -1318,6 +1363,13 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "name": "X-API-Key",
+            "in": "header"
         }
     }
 }`

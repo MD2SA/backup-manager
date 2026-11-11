@@ -1,0 +1,63 @@
+# Backup Manager configuration (schema version 1).
+#
+# This file contains no secrets. Secret values are read from the file
+# referenced by `secrets_file` (chmod 600, never commit it).
+#
+# Validate before deploying:
+#   backup-manager config check --connect
+
+version: 1
+
+server:
+  port: "8080"
+  env: "production"
+  log_level: "info"
+  cors_origins:
+    - "https://backup.example.com"
+  trusted_proxies: []
+  rate_limit:
+    requests: 100
+    window: "1m"
+
+storage:
+  path: "/backups"
+  temp_dir: "/tmp"
+
+secrets_file: "secrets.env"
+
+# Logical secret names -> keys in secrets_file. Change the right-hand side if
+# your secret file uses a different naming convention.
+secrets:
+  metadata_db_password: "METADATA_DB_PASSWORD"
+  target_db_password: "TARGET_DB_PASSWORD"
+  age_private_key: "AGE_PRIVATE_KEY"
+  encryption_passphrase: "ENCRYPTION_PASSPHRASE"
+  admin_key: "ADMIN_KEY"
+  config_encrypt_key: "CONFIG_ENCRYPT_KEY"
+  metadata_backup_passphrase: "METADATA_BACKUP_PASSPHRASE"
+
+metadata_database:
+  host: "metadata-db"
+  port: "5432"
+  user: "backup_manager"
+  dbname: "backup_manager"
+  sslmode: "require"
+
+target_database:
+  host: "postgres.example.com"
+  port: "5432"
+  user: "backup_reader"
+  dbname: "app"
+  sslmode: "require"
+
+encryption:
+  # Set this to your Age recipient (age1...) or leave empty and use the
+  # ENCRYPTION_PASSPHRASE secret instead.
+  age_public_key: ""
+  # Set to true only if you explicitly accept unencrypted backups in production.
+  allow_unencrypted_backups: false
+
+metadata_backup:
+  schedule: "0 3 * * *"
+  retention: 14
+  embed: true

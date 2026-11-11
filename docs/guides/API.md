@@ -11,8 +11,10 @@ The project includes built-in Swagger documentation. To view it:
 ## Key Endpoints
 
 ### Health & Monitoring
-*   `GET /health`: Basic health check (returns "OK").
-*   `GET /health/summary`: Summary of system health and backup status.
+*   `GET /healthz`: Public liveness check (returns "OK", no API key). Used by the container healthcheck.
+*   `GET /readyz`: Public readiness check; pings the metadata database and returns 503 when unavailable.
+*   `GET /api/v1/health`: Authenticated health check (returns "OK").
+*   `GET /api/v1/health/summary`: Summary of system health and backup status.
 
 ### Profiles
 *   `GET /profiles`: List all backup profiles.
@@ -50,15 +52,21 @@ The project includes built-in Swagger documentation. To view it:
 
 ## Authentication
 
-All `/api/v1` endpoints (except `/health`) require the `X-API-Key` header.
+All `/api/v1` endpoints require the `X-API-Key` header, including
+`/api/v1/health`. The public endpoints `/healthz` and `/readyz` are intended for
+container and orchestrator probes and do not require a key.
 
 ```bash
-curl -H "X-API-Key: your-secure-api-key" http://localhost:8080/api/v1/profiles
+curl -H "X-API-Key: your-api-key" http://localhost:8080/api/v1/profiles
 ```
 
-*   The key is set with the `APP_ADMIN_KEY` environment variable.
-*   When `APP_ENV=production`, the service **fails to start** without an admin key.
-*   In development, if no key is set the service runs in **Insecure Mode** and logs a warning.
+*   The key is the `ADMIN_KEY` secret in `secrets.env`.
+*   When `server.env` is `production`, the service **fails to start** without
+    an admin key.
+*   In development, if no key is configured the service runs in **Insecure
+    Mode** and logs a warning.
+*   Generate a key with `openssl rand -base64 32` or let `backup-manager init`
+    create one.
 
 ### Idempotency
 
