@@ -106,6 +106,20 @@ make run
 
 ---
 
+## Container images
+
+CI publishes the service image to GHCR:
+
+```bash
+docker pull ghcr.io/md2sa/backup-manager:1.0.0
+```
+
+Stable releases may also be mirrored to Docker Hub when the release secrets are
+configured. Use an exact version tag in production, never `latest` or `main`.
+See [Releasing](docs/guides/RELEASING.md).
+
+---
+
 ## How it works
 
 ```mermaid

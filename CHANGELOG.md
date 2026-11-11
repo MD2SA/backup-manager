@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-11
+
 ### Breaking
 - **Declarative configuration:** the service no longer reads `APP_*`
   environment variables. Configuration now lives in `config.yaml` (non-secret)
@@ -24,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/etc/backup-manager/config.yaml` and `secrets.env` next to it.
 
 ### Added
+- **Docker Hub mirror:** stable releases are also published to Docker Hub when
+  the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets are set.
 - **Release pipeline hardening:** explicit `latest` tagging, SBOM and
   provenance attestations, multi-architecture images for `linux/amd64` and
   `linux/arm64`, and a release guide covering tags, GHCR, verification and
