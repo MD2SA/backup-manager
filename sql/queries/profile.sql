@@ -41,12 +41,11 @@ RETURNING *;
 DELETE FROM profiles
 WHERE id = $1;
 
--- name: ActivateProfile :exec
+-- name: SetProfileEnabled :one
 UPDATE profiles
-SET enabled = CASE
-    WHEN id = $1 THEN true
-    ELSE false
-END;
+SET enabled = $2, updated_at = now()
+WHERE id = $1
+RETURNING *;
 
 -- name: GetProfileStorageProviderIDs :many
 SELECT storage_provider_id FROM profile_storage_providers

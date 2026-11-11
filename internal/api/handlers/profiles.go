@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -16,9 +17,9 @@ import (
 )
 
 type ProfileHandler struct {
-	Repo       repository.Repository
-	OnTrigger  func(pgtype.UUID) error
-	OnActivate func(db.Profile)
+	Repo            repository.Repository
+	OnTrigger       func(pgtype.UUID) error
+	OnSchedulerSync func(context.Context) error
 }
 
 // List profiles
@@ -146,6 +147,9 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 		apiutil.InternalError(w, err)
 		return
 	}
+	if !h.syncScheduler(w, r) {
+		return
+	}
 
 	apiutil.Success(w, http.StatusCreated, dto.ToProfileResponse(profile.Profile, req.StorageProviderIDs, req.NotificationProviderIDs))
 }
@@ -213,6 +217,9 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 		apiutil.InternalError(w, err)
 		return
 	}
+	if !h.syncScheduler(w, r) {
+		return
+	}
 
 	apiutil.Success(w, http.StatusOK, dto.ToProfileResponse(profile.Profile, req.StorageProviderIDs, req.NotificationProviderIDs))
 }
@@ -235,6 +242,9 @@ func (h *ProfileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.Repo.DeleteProfile(r.Context(), id); err != nil {
 		apiutil.InternalError(w, err)
+		return
+	}
+	if !h.syncScheduler(w, r) {
 		return
 	}
 
@@ -268,10 +278,8 @@ func (h *ProfileHandler) RunNow(w http.ResponseWriter, r *http.Request) {
 }
 
 // Activate profile
-// @Summary Activate a backup profile (sets as scheduled)
-// @Description Set a profile as the active one for scheduled backups.
-// @Description This updates the system scheduler to use this profile's schedule.
-// @Description Note: The current system logic may only support one active profile at a time.
+// @Summary Enable scheduling for a profile
+// @Description Enable scheduled backups for this profile. Other profiles remain enabled.
 // @Tags profiles
 // @Param id path string true "Profile ID"
 // @Success 200 {object} dto.ProfileResponse
@@ -279,14 +287,39 @@ func (h *ProfileHandler) RunNow(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} apiutil.ErrorResponse
 // @Router /profiles/{id}/activate [post]
 func (h *ProfileHandler) Activate(w http.ResponseWriter, r *http.Request) {
+	h.setEnabled(w, r, true)
+}
+
+// Deactivate profile
+// @Summary Disable scheduling for a profile
+// @Description Disable scheduled backups for this profile without affecting other profiles.
+// @Tags profiles
+// @Param id path string true "Profile ID"
+// @Success 200 {object} dto.ProfileResponse
+// @Failure 400 {object} apiutil.ErrorResponse
+// @Failure 500 {object} apiutil.ErrorResponse
+// @Router /profiles/{id}/deactivate [post]
+func (h *ProfileHandler) Deactivate(w http.ResponseWriter, r *http.Request) {
+	h.setEnabled(w, r, false)
+}
+
+func (h *ProfileHandler) setEnabled(w http.ResponseWriter, r *http.Request, enabled bool) {
 	id, err := pgutil.ParseUUID(chi.URLParam(r, "id"))
 	if err != nil {
 		apiutil.Error(w, http.StatusBadRequest, "Invalid profile ID")
 		return
 	}
 
-	if err := h.Repo.ActivateProfile(r.Context(), id); err != nil {
+	if _, err := h.Repo.SetProfileEnabled(r.Context(), id, enabled); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			apiutil.Error(w, http.StatusNotFound, "Profile not found")
+			return
+		}
 		apiutil.InternalError(w, err)
+		return
+	}
+
+	if !h.syncScheduler(w, r) {
 		return
 	}
 
@@ -296,18 +329,25 @@ func (h *ProfileHandler) Activate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.OnActivate != nil {
-		h.OnActivate(p.Profile)
-	}
-
 	storageIDs := make([]string, len(p.StorageProviderIDs))
-	for i, id := range p.StorageProviderIDs {
-		storageIDs[i] = pgutil.UUIDToString(id)
+	for i, storageID := range p.StorageProviderIDs {
+		storageIDs[i] = pgutil.UUIDToString(storageID)
 	}
 	notificationIDs := make([]string, len(p.NotificationProviderIDs))
-	for i, id := range p.NotificationProviderIDs {
-		notificationIDs[i] = pgutil.UUIDToString(id)
+	for i, notificationID := range p.NotificationProviderIDs {
+		notificationIDs[i] = pgutil.UUIDToString(notificationID)
 	}
 
 	apiutil.Success(w, http.StatusOK, dto.ToProfileResponse(p.Profile, storageIDs, notificationIDs))
+}
+
+func (h *ProfileHandler) syncScheduler(w http.ResponseWriter, r *http.Request) bool {
+	if h.OnSchedulerSync == nil {
+		return true
+	}
+	if err := h.OnSchedulerSync(r.Context()); err != nil {
+		apiutil.InternalError(w, err)
+		return false
+	}
+	return true
 }

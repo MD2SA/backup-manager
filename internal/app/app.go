@@ -16,7 +16,6 @@ import (
 	"github.com/MD2SA/backup-manager/internal/monitor"
 	"github.com/MD2SA/backup-manager/internal/pkg/crypto"
 	"github.com/MD2SA/backup-manager/internal/repository"
-	"github.com/MD2SA/backup-manager/internal/repository/db"
 	"github.com/MD2SA/backup-manager/internal/retention"
 	"github.com/MD2SA/backup-manager/internal/scheduler"
 	"github.com/MD2SA/backup-manager/internal/selfbackup"
@@ -96,18 +95,16 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 
 	// Initialize Scheduler
 	a.Scheduler = scheduler.New(log, func(profileID pgtype.UUID) {
-		_ = a.Runner.Enqueue(profileID)
+		if err := a.Runner.Enqueue(profileID); err != nil {
+			log.Error("Failed to enqueue scheduled backup", "profile_id", profileID, "error", err)
+		}
 	})
 
 	r := router.New(log, repo, monitorService, authService, a.Config.RateLimitRequests, a.Config.RateLimitWindow, a.Config.CORSOrigins, trustedProxies, func(ctx context.Context) error {
 		return dbPool.Ping(ctx)
 	}, func(profileID pgtype.UUID) error {
 		return a.Runner.Enqueue(profileID)
-	}, a.RestoreService.Enqueue, func(p db.Profile) {
-		if err := a.Scheduler.SetActiveJob(p.ID, p.Schedule); err != nil {
-			log.Error("Failed to schedule activated profile", "profile_id", p.ID, "error", err)
-		}
-	})
+	}, a.RestoreService.Enqueue, a.syncScheduler)
 	a.Router = r
 
 	// Initialize metadata backup service (scheduled pg_dump of internal state).
@@ -128,21 +125,33 @@ func (a *App) Start(ctx context.Context) {
 	a.Scheduler.Start()
 	a.MetadataBackup.Start()
 
-	// Load the currently enabled profile into scheduler
+	if err := a.syncScheduler(ctx); err != nil {
+		a.Logger.Error("Failed to synchronize scheduler", "error", err)
+	}
+}
+
+// syncScheduler reconciles the in-memory cron jobs with every enabled profile.
+func (a *App) syncScheduler(ctx context.Context) error {
 	profiles, err := a.Repo.ListProfiles(ctx)
 	if err != nil {
-		a.Logger.Error("Failed to list profiles for scheduler", "error", err)
-		return
+		return err
 	}
 
-	for _, p := range profiles {
-		if p.Enabled {
-			if err := a.Scheduler.SetActiveJob(p.ID, p.Schedule); err != nil {
-				a.Logger.Error("Failed to add profile to scheduler", "profile_id", p.ID, "error", err)
-			}
-			break // Only one should be enabled
+	jobs := make([]scheduler.Job, 0)
+	for _, profile := range profiles {
+		if profile.Enabled {
+			jobs = append(jobs, scheduler.Job{
+				ProfileID: profile.ID,
+				Schedule:  profile.Schedule,
+			})
 		}
 	}
+
+	if err := a.Scheduler.Sync(jobs); err != nil {
+		return err
+	}
+	a.Logger.Info("Scheduler synchronized", "jobs", len(jobs))
+	return nil
 }
 
 // Stop halts background schedulers. It must be called before closing the
@@ -154,17 +163,20 @@ func (a *App) Stop() {
 	if a.Scheduler != nil {
 		a.Scheduler.Stop()
 	}
-	if a.RestoreRunner != nil {
-		done := make(chan struct{})
-		go func() {
-			a.RestoreRunner.Wait()
-			close(done)
-		}()
-		select {
-		case <-done:
-		case <-time.After(15 * time.Second):
-			a.Logger.Warn("Timed out waiting for the restore runner to stop")
+	done := make(chan struct{})
+	go func() {
+		if a.Runner != nil {
+			a.Runner.Wait()
 		}
+		if a.RestoreRunner != nil {
+			a.RestoreRunner.Wait()
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		a.Logger.Warn("Timed out waiting for background runners to stop")
 	}
 }
 

@@ -37,7 +37,7 @@ func New(
 	ready func(context.Context) error,
 	onTrigger func(pgtype.UUID) error,
 	onRestore func(context.Context, pgtype.UUID, service.RestoreOptions) (db.Restore, error),
-	onActivate func(db.Profile),
+	onSchedulerSync func(context.Context) error,
 ) *chi.Mux {
 	r := chi.NewRouter()
 
@@ -58,9 +58,9 @@ func New(
 	))
 
 	profileHandler := &handlers.ProfileHandler{
-		Repo:       repo,
-		OnTrigger:  onTrigger,
-		OnActivate: onActivate,
+		Repo:            repo,
+		OnTrigger:       onTrigger,
+		OnSchedulerSync: onSchedulerSync,
 	}
 	executionHandler := &handlers.ExecutionHandler{Repo: repo}
 	providerHandler := &handlers.ProviderHandler{Repo: repo}
@@ -157,6 +157,7 @@ func New(
 				r.Delete("/", profileHandler.Delete)
 				r.Post("/run", apimiddleware.Idempotency(profileHandler.RunNow))
 				r.Post("/activate", profileHandler.Activate)
+				r.Post("/deactivate", profileHandler.Deactivate)
 				r.Get("/executions", executionHandler.ListByProfile)
 			})
 		})

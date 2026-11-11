@@ -2,6 +2,7 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -9,12 +10,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+var (
+	ErrBackupAlreadyQueued = errors.New("profile is already queued or running")
+	ErrBackupQueueFull     = errors.New("backup queue is full")
+)
+
+// BackupRunner executes backups serially but accepts different profiles in its
+// queue. This lets several enabled profiles be scheduled close together without
+// dropping triggers.
 type BackupRunner struct {
 	logger   *slog.Logger
 	queue    chan pgtype.UUID
 	executor func(ctx context.Context, profileID pgtype.UUID) error
-	mu       sync.Mutex
-	active   map[pgtype.UUID]struct{}
+
+	mu      sync.Mutex
+	pending map[pgtype.UUID]struct{}
+	wg      sync.WaitGroup
 }
 
 func NewBackupRunner(logger *slog.Logger, executor func(ctx context.Context, profileID pgtype.UUID) error) *BackupRunner {
@@ -22,12 +33,14 @@ func NewBackupRunner(logger *slog.Logger, executor func(ctx context.Context, pro
 		logger:   logger,
 		queue:    make(chan pgtype.UUID, 100),
 		executor: executor,
-		active:   make(map[pgtype.UUID]struct{}),
+		pending:  make(map[pgtype.UUID]struct{}),
 	}
 }
 
 func (r *BackupRunner) Start(ctx context.Context) {
+	r.wg.Add(1)
 	go func() {
+		defer r.wg.Done()
 		for {
 			select {
 			case <-ctx.Done():
@@ -38,26 +51,33 @@ func (r *BackupRunner) Start(ctx context.Context) {
 					r.logger.Error("Backup task failed", "profile_id", profileID, "error", err)
 				}
 				r.mu.Lock()
-				delete(r.active, profileID)
+				delete(r.pending, profileID)
 				r.mu.Unlock()
 			}
 		}
 	}()
 }
 
+// Wait blocks until the runner goroutine stops.
+func (r *BackupRunner) Wait() {
+	r.wg.Wait()
+}
+
+// Enqueue schedules a profile. Different profiles may be queued; the same
+// profile cannot be queued twice while pending or running.
 func (r *BackupRunner) Enqueue(profileID pgtype.UUID) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if len(r.active) > 0 {
-		return fmt.Errorf("a backup is already in progress or queued")
+	if _, exists := r.pending[profileID]; exists {
+		return fmt.Errorf("%w: %s", ErrBackupAlreadyQueued, profileID)
 	}
 
 	select {
 	case r.queue <- profileID:
-		r.active[profileID] = struct{}{}
+		r.pending[profileID] = struct{}{}
 		return nil
 	default:
-		return fmt.Errorf("backup queue is full")
+		return ErrBackupQueueFull
 	}
 }

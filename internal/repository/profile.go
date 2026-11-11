@@ -19,7 +19,7 @@ type ProfileRepository interface {
 	CreateProfile(ctx context.Context, params db.CreateProfileParams, storageIDs []pgtype.UUID, notificationIDs []pgtype.UUID) (ProfileFull, error)
 	UpdateProfile(ctx context.Context, params db.UpdateProfileParams, storageIDs []pgtype.UUID, notificationIDs []pgtype.UUID) (ProfileFull, error)
 	DeleteProfile(ctx context.Context, id pgtype.UUID) error
-	ActivateProfile(ctx context.Context, id pgtype.UUID) error
+	SetProfileEnabled(ctx context.Context, id pgtype.UUID, enabled bool) (db.Profile, error)
 }
 
 func (r *Postgres) GetProfile(ctx context.Context, id pgtype.UUID) (ProfileFull, error) {
@@ -173,6 +173,6 @@ func (r *Postgres) DeleteProfile(ctx context.Context, id pgtype.UUID) error {
 	return r.queries.DeleteProfile(ctx, id)
 }
 
-func (r *Postgres) ActivateProfile(ctx context.Context, id pgtype.UUID) error {
-	return r.queries.ActivateProfile(ctx, id)
+func (r *Postgres) SetProfileEnabled(ctx context.Context, id pgtype.UUID, enabled bool) (db.Profile, error) {
+	return r.queries.SetProfileEnabled(ctx, db.SetProfileEnabledParams{ID: id, Enabled: enabled})
 }

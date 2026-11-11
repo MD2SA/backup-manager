@@ -11,19 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const activateProfile = `-- name: ActivateProfile :exec
-UPDATE profiles
-SET enabled = CASE
-    WHEN id = $1 THEN true
-    ELSE false
-END
-`
-
-func (q *Queries) ActivateProfile(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, activateProfile, id)
-	return err
-}
-
 const addProfileNotificationProvider = `-- name: AddProfileNotificationProvider :exec
 INSERT INTO profile_notification_providers (profile_id, notification_provider_id)
 VALUES ($1, $2)
@@ -251,6 +238,37 @@ func (q *Queries) ListProfiles(ctx context.Context) ([]Profile, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const setProfileEnabled = `-- name: SetProfileEnabled :one
+UPDATE profiles
+SET enabled = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, name, description, enabled, schedule, retention_policy_id, compression_type, compression_level, created_at, updated_at, encryption_enabled
+`
+
+type SetProfileEnabledParams struct {
+	ID      pgtype.UUID
+	Enabled bool
+}
+
+func (q *Queries) SetProfileEnabled(ctx context.Context, arg SetProfileEnabledParams) (Profile, error) {
+	row := q.db.QueryRow(ctx, setProfileEnabled, arg.ID, arg.Enabled)
+	var i Profile
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Enabled,
+		&i.Schedule,
+		&i.RetentionPolicyID,
+		&i.CompressionType,
+		&i.CompressionLevel,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EncryptionEnabled,
+	)
+	return i, err
 }
 
 const updateProfile = `-- name: UpdateProfile :one

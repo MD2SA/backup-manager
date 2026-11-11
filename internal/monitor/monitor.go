@@ -40,51 +40,56 @@ func (s *Service) GetHealthSummary(ctx context.Context) (*HealthSummary, error) 
 		return nil, err
 	}
 
-	summary := &HealthSummary{
-		Status:         StatusHealthy,
-		ActiveProfiles: 0,
-	}
-
+	summary := &HealthSummary{Status: StatusHealthy}
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	now := time.Now()
+
+	var latestExecutionAt time.Time
 
 	for _, p := range profiles {
 		if p.Enabled {
 			summary.ActiveProfiles++
+
+			// Next scheduled is computed even when the profile has no execution
+			// yet. With several enabled profiles, keep the earliest run.
+			if schedule, parseErr := parser.Parse(p.Schedule); parseErr == nil {
+				next := schedule.Next(now)
+				if summary.NextScheduled == nil || next.Before(*summary.NextScheduled) {
+					summary.NextScheduled = &next
+				}
+			}
 		}
 
-		// Get latest execution for this profile to calculate total storage
 		executions, err := s.repo.ListExecutionsByProfile(ctx, p.ID)
 		if err != nil {
 			continue
 		}
+		if len(executions) == 0 {
+			continue
+		}
 
-		if len(executions) > 0 {
-			latest := executions[0]
-			if latest.Size.Valid {
-				summary.TotalStorageUsed += latest.Size.Int64
-			}
+		latest := executions[0]
+		if latest.Size.Valid {
+			summary.TotalStorageUsed += latest.Size.Int64
+		}
 
-			if p.Enabled {
-				// Metrics specific to the ACTIVE profile
+		executionAt := latest.CreatedAt.Time
+		if latest.StartTime.Valid {
+			executionAt = latest.StartTime.Time
+		}
+
+		if p.Enabled {
+			if executionAt.After(latestExecutionAt) {
+				latestExecutionAt = executionAt
 				summary.LastExecutionStatus = latest.Status
-				if latest.Status == "failed" {
-					summary.Status = StatusWarning
-				}
-
-				if latest.Status == "success" && latest.StartTime.Valid {
-					t := latest.StartTime.Time
-					if summary.LastSuccess == nil || t.After(*summary.LastSuccess) {
-						summary.LastSuccess = &t
-					}
-				}
-
-				// Check next scheduled
-				sched, err := parser.Parse(p.Schedule)
-				if err == nil {
-					next := sched.Next(time.Now())
-					if summary.NextScheduled == nil || next.Before(*summary.NextScheduled) {
-						summary.NextScheduled = &next
-					}
+			}
+			if latest.Status == "failed" {
+				summary.Status = StatusWarning
+			}
+			if latest.Status == "success" && latest.StartTime.Valid {
+				t := latest.StartTime.Time
+				if summary.LastSuccess == nil || t.After(*summary.LastSuccess) {
+					summary.LastSuccess = &t
 				}
 			}
 		}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MD2SA/backup-manager/internal/pkg/crypto"
+	"github.com/MD2SA/backup-manager/internal/pkg/pgutil"
 	"github.com/MD2SA/backup-manager/internal/storage"
 	"github.com/MD2SA/backup-manager/internal/verification"
 )
@@ -97,9 +98,20 @@ func (s *StorageStage) Execute(ctx *ExecutionContext) error {
 		}
 		defer func() { _ = f.Close() }()
 
-		// Key format: profile-slug/YYYYMMDD-HHMMSS-execution_id.sql
+		// Key format: profile-slug-profile_id/YYYYMMDD-HHMMSS-execution_id.sql
+		// The short profile ID keeps two profiles with the same name isolated.
+		prefix := ctx.ProfileName
+		if prefix == "" {
+			prefix = "profile"
+		}
+		if id := pgutil.UUIDToString(ctx.ProfileID); id != "" {
+			if len(id) > 8 {
+				id = id[:8]
+			}
+			prefix = fmt.Sprintf("%s-%s", prefix, id)
+		}
 		timestamp := time.Now().Format("20060102-150405")
-		key := fmt.Sprintf("%s/%s-%s.sql", ctx.ProfileName, timestamp, ctx.ExecutionID)
+		key := fmt.Sprintf("%s/%s-%s.sql", prefix, timestamp, ctx.ExecutionID)
 		err = s.Provider.Upload(ctx.Context, key, f)
 		if err == nil {
 			ctx.BackupPath = key
